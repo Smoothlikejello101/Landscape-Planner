@@ -10,6 +10,8 @@ import { state } from '../state';
 import { render } from './render';
 import { snapRot } from '../util';
 import { ask } from './ask';
+import { placementOf } from '../rescale';
+import { askAfterPhotoMoved } from './rescale-card';
 
 export function renderBgPanel() {
   const bg = state.bgImage;
@@ -120,6 +122,17 @@ export function renderBgPanel() {
     el('div', { className: 'hint' }, 'Lower opacity makes the grid and plants easier to see.')
   ));
 
+  // (The photo turned or moved here, with a plan over it: asked whether to move the plan too, as when it's dragged on
+  // the plan, the notice alone put up, so a field keeps its keyboard: src/ui/rescale-card.ts. A field asks once it's
+  // changed, from where the photo was when it was last asked.)
+  const placed = () => (state.bgImage ? placementOf(state.bgImage) : null);
+  const asksAfter = (change: () => void) => { const before = placed(); change(); if (before) askAfterPhotoMoved(before); };
+  const asksOnChange = (input: HTMLInputElement) => {
+    let from = placed();
+    input.addEventListener('focus', () => { from = placed(); });
+    input.addEventListener('change', () => { if (from) askAfterPhotoMoved(from); from = placed(); });
+  };
+
   // Rotation input + quick buttons (mirrors shape rotation UI)
   const rotVal = bg.rotation || 0;
   const rotInput = el('input', { type: 'number', step: '5', value: rotVal });
@@ -129,10 +142,11 @@ export function renderBgPanel() {
     updateBgImageSilent({ rotation: v });
     rotPct.textContent = v.toFixed(1) + '°';
   });
+  asksOnChange(rotInput);
   const quickRow = el('div', { className: 'rot-quick' });
   [-90, -15, -5, 5, 15, 90].forEach(delta => {
     const b = el('button', {}, (delta > 0 ? '+' : '') + delta + '°');
-    b.addEventListener('click', () => {
+    b.addEventListener('click', () => asksAfter(() => {
       const cur = state.bgImage?.rotation || 0;
       let newRot = snapRot(cur + delta);
       if (newRot >= 180) newRot -= 360;
@@ -140,15 +154,15 @@ export function renderBgPanel() {
       rotInput.value = String(newRot);
       rotPct.textContent = newRot.toFixed(1) + '°';
       updateBgImageSilent({ rotation: newRot });
-    });
+    }));
     quickRow.appendChild(b);
   });
   const resetRotBtn = el('button', {}, 'Reset to 0°');
-  resetRotBtn.addEventListener('click', () => {
+  resetRotBtn.addEventListener('click', () => asksAfter(() => {
     rotInput.value = '0';
     rotPct.textContent = '0.0°';
     updateBgImageSilent({ rotation: 0 });
-  });
+  }));
   body.appendChild(el('div', { className: 'field' },
     el('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: '4px' } },
       el('label', {}, 'Rotation (around image center)'), rotPct),
@@ -160,8 +174,10 @@ export function renderBgPanel() {
   // Position (X, Y of image center in world feet)
   const xInput = el('input', { type: 'number', step: '0.5', value: bg.cx.toFixed(1) });
   xInput.addEventListener('input', e => updateBgImageSilent({ cx: parseFloat((e.target as HTMLInputElement).value) || 0 }));
+  asksOnChange(xInput);
   const yInput = el('input', { type: 'number', step: '0.5', value: bg.cy.toFixed(1) });
   yInput.addEventListener('input', e => updateBgImageSilent({ cy: parseFloat((e.target as HTMLInputElement).value) || 0 }));
+  asksOnChange(yInput);
   body.appendChild(el('div', { className: 'row-2' },
     el('div', { className: 'field' }, el('label', {}, 'Center X (ft)'), xInput),
     el('div', { className: 'field' }, el('label', {}, 'Center Y (ft)'), yInput)

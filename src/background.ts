@@ -11,6 +11,8 @@ import { uid } from './util';
 import { ask, tell } from './ui/ask';
 import { zoomBy, zoomToBounds } from './mutations';
 import { clearOfStrip, offerTrace } from './yard-in';
+import { placementOf } from './rescale';
+import { askAfterScale, fitRescale, rescaleFrom } from './ui/rescale-card';
 
 // Background image (satellite photo or survey) to trace over.
 // Stored per project as a downscaled JPEG data URL. Position is the image
@@ -235,7 +237,8 @@ export function calibrationScale(p1: Point, p2: Point, distanceFt: number): numb
 /**
  * The scale from A and B `distanceFt` apart. `rough`: that length is a rough guess (the box's checkbox), kept with the
  * photo (BgImage roughScale) so Layers reminds them to set it again; set again without it, it's gone. One step: Undo
- * takes the flag back with the scale.
+ * takes the flag back with the scale. With a plan over the photo that its new size would move: asked whether to move
+ * the plan with it (src/ui/rescale-card.ts), the plan shown for it; otherwise the background sheet, with the scale.
  */
 export function finishBgCalibration(distanceFt: number, rough = false) {
   const cal = state.bgCalibrate;
@@ -243,6 +246,8 @@ export function finishBgCalibration(distanceFt: number, rough = false) {
   const result = calibrationScale(cal.p1, cal.p2, distanceFt);
   if (typeof result === 'string') { void tell(result); return; }
   flushHistoryDebounce();
+  // (Where the plan was drawn over it: where it is now, or, set again before the last time was answered, where it was.)
+  const from = rescaleFrom() ?? placementOf(state.bgImage);
   state.bgImage.ftPerPx = result;
   delete state.bgImage.uncalibrated; // (to scale now)
   if (rough) state.bgImage.roughScale = true; else delete state.bgImage.roughScale;
@@ -250,8 +255,11 @@ export function finishBgCalibration(distanceFt: number, rough = false) {
   save();
   offerTrace(state.currentProjectId); // (next: "Now trace" the house, driveway and the rest over it: src/ui/trace-card.ts)
   state.bgCalibrate = null;
-  state.panel = 'bg';
+  // ("Was your plan drawn over the photo?" first, a rough scale or not; "Now trace" waits for its answer.)
+  const asked = askAfterScale(from);
+  state.panel = asked ? null : 'bg';
   render();
+  if (asked) fitRescale();
 }
 
 // ---------- Rendering ----------

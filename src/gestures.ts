@@ -32,6 +32,8 @@ import { planLookOnly } from './ui/picker-view';
 import { bedAt, pickingBed } from './bed-plant';
 import { pickBedAt } from './ui/plant-for';
 import { inSentence, sameName } from './names';
+import { placementOf } from './rescale';
+import { askAfterPhotoMoved } from './ui/rescale-card';
 
 // Pointer gestures on the canvas: pan, pinch-zoom, marquee selection, shape
 // drag, background move/rotate, calibration taps.
@@ -114,8 +116,12 @@ export function onCanvasPointerDown(e: PointerEvent) {
   // A handle on the selected shape: resize it, or turn it.
   const shapeHandle = target.closest?.('[data-role="shape-resize"],[data-role="shape-rotate"]') as SVGElement | null;
   if (shapeHandle) {
+    // (A step still being gathered, typing in a field a moment ago, is in first: the drag notes where history is after
+    // it. Noted before, the step went in under the drag, which took it for an Undo and ended at once: a handle pressed
+    // within 0.6 s of typing did nothing.)
+    flushHistoryDebounce();
     const g = startHandleDrag(shapeHandle.dataset.handle as HandleKind, screenToFeet(e.clientX, e.clientY), e.clientX, e.clientY, state.shapes);
-    if (g) { flushHistoryDebounce(); gesture.current = g; }
+    if (g) gesture.current = g;
     return;
   }
   if (!isCanvas && !isBgBody && !isBgRot && !handle) return;
@@ -426,13 +432,17 @@ export function onCanvasPointerUp(e: PointerEvent) {
 
   gesture.current = null;
   switch (g.type) {
+    // (Dragged or turned with a plan over it: asked whether to move the plan too, and nothing changed unless they say:
+    // Jason's answer 6, src/ui/rescale-card.ts.)
     case 'bg-drag':
       if (g.moved) { flushHistoryDebounce(); pushHistory(); save(); }
       render();
+      if (g.moved && state.bgImage) askAfterPhotoMoved({ ...placementOf(state.bgImage), cx: g.startCenter.x, cy: g.startCenter.y });
       return;
     case 'bg-rot':
       flushHistoryDebounce(); pushHistory(); save();
       render();
+      if (state.bgImage) askAfterPhotoMoved({ ...placementOf(state.bgImage), rotation: g.startRotation });
       return;
     case 'bg-calibrate-tap':
       if (!g.moved) bgCalibrationTap(g.startX, g.startY);

@@ -49,7 +49,6 @@ test('a house from two typed sides: all four remembered; its Width typed again, 
   await field(page, 'Width (ft)').fill('12');
   await closeSheet(page);
   await expect.poll(() => typedSides(page, 'House')).toEqual([[0, 12], [1, 6], [2, 12], [3, 6]]);
-  await page.waitForTimeout(700); // (the typing's undo step in: a handle pressed before it is let go, src/handles.ts)
 
   // A corner pulled 2 ft right: its width isn't what was typed any more; its length is.
   const k = 24 * (await zoomPct(page)) / 100;

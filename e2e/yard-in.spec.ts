@@ -261,7 +261,9 @@ test('once the photo is to scale, "Now trace" lists what to trace, each starting
   await page.mouse.click(plan.x + plan.width / 2 + 60, plan.y + plan.height / 2 + 60);
   await page.getByTestId('scale-distance').fill('60');
   await page.getByTestId('scale-set').click();
-  await closeSheet(page);
+  // (The house over the photo would move: asked first whether the plan was drawn over it, src/ui/rescale-card.ts.)
+  await page.getByTestId('rescale-leave').click();
+  await expect(page.getByTestId('rescale-card')).toHaveCount(0);
   await expect(page.getByTestId('trace-card')).toHaveCount(0);
 });
 

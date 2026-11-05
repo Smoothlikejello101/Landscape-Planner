@@ -268,6 +268,10 @@ export function placeNotice() {
   // (An update's banner under the top bar, src/pwa.ts: the notice just below it, not over its Update.)
   const update = !sheet ? document.getElementById('update-banner') : null;
   if (update?.closest('.app')) node.style.top = `${Math.round(update.getBoundingClientRect().bottom + 8)}px`;
+  // (Moving the photo: just below the strip saying how, its words and its ✕ left in sight. "Move the plan with the
+  // photo?" comes up after each drag there: src/ui/rescale-card.ts.)
+  const strip = !sheet && state.bgEditMode ? document.querySelector('[data-testid=mode-strip]')?.getBoundingClientRect() : null;
+  if (strip?.height) node.style.top = `${Math.round(strip.bottom + 8)}px`;
   if (!sheet) { keepOffItsShape(node); return; }
   const sheetTop = sheet.getBoundingClientRect().top;
   const h = node.getBoundingClientRect().height;

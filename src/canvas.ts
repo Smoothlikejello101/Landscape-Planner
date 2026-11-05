@@ -34,6 +34,7 @@ import { BADGE_HALF, BADGE_STEP, badgeBoxes, badgeCenters, placeBadges, type Bad
 import { lookFor, lookMarkup, lookMonthOf, lookShown, plannedEdge } from './plant-looks';
 import { bandBlooms, bandLeaves, colorIn, coverBlooms, levelOf } from './looks';
 import { sameSaid } from './names';
+import { renderRescaleWas, rescalePreview } from './ui/rescale-card';
 
 // Canvas drawing. Everything here writes only into the <svg>, never into
 // panel DOM, so it is safe to call while an input has keyboard focus.
@@ -1028,8 +1029,22 @@ function refreshUtilities() {
   shownUtilities = prepareUtilities(state.shapes.filter((s) => s.role === 'utility' && shownWith(s, state.viewFilter)));
 }
 
+/**
+ * Drawn as Move would leave the plan, while "Was your plan drawn over the photo?" is up (src/ui/rescale-card.ts): the
+ * shapes drawn are those, for as long as the drawing takes, and the plan's own are back before anything else runs.
+ * Nothing saves or records a step while drawing, and nothing on the plan can be picked or moved meanwhile (it only
+ * pans and zooms), so the plan itself is never the preview.
+ */
+function asPreviewed(draw: () => void) {
+  const shown = rescalePreview();
+  if (!shown) { draw(); return; }
+  const real = state.shapes;
+  state.shapes = shown;
+  try { draw(); } finally { state.shapes = real; }
+}
 /** Clear and redraw the whole canvas. Never touches panel DOM. */
-export function redrawCanvas() {
+export function redrawCanvas() { asPreviewed(drawCanvas); }
+function drawCanvas() {
   refreshCrowding();
   seeThrough = seeThroughIds(state.shapes);
   refreshHidden();
@@ -1084,7 +1099,8 @@ export function previewView() {
 }
 
 /** Redraw only the given shapes (e.g. while dragging them). */
-export function redrawShapes(ids: string[]) {
+export function redrawShapes(ids: string[]) { asPreviewed(() => drawShapes(ids)); }
+function drawShapes(ids: string[]) {
   const svg = canvasSvg();
   if (!svg || svg.children.length !== LAYERS.length || drawnView.zoom !== state.zoom ||
       drawnView.offsetX !== state.offsetX || drawnView.offsetY !== state.offsetY) { redrawCanvas(); return; }
@@ -1200,7 +1216,8 @@ export function redrawMarquee() {
 }
 
 /** Redraw only the background image and its handles. */
-export function redrawBackground() {
+export function redrawBackground() { asPreviewed(drawBackground); }
+function drawBackground() {
   const svg = canvasSvg();
   if (!svg || svg.children.length !== LAYERS.length) { redrawCanvas(); return; }
   const bg = layer(svg, 'bg'), handles = layer(svg, 'handles');
@@ -1209,6 +1226,7 @@ export function redrawBackground() {
   renderHandles(handles);
 }
 function renderHandles(g: SVGGElement) {
+  renderRescaleWas(g); // (where things are now, while the plan is drawn as Move would leave it)
   renderBgHandles(g);
   renderPathOverlay(g);
   renderBedFocus(g);
@@ -1245,7 +1263,8 @@ function renderBedFocus(g: SVGGElement) {
   }
 }
 /** Redraw only the handles layer (drawing in progress, point handles). */
-export function redrawHandles() {
+export function redrawHandles() { asPreviewed(drawHandles); }
+function drawHandles() {
   const svg = canvasSvg();
   if (!svg || svg.children.length !== LAYERS.length || drawnView.zoom !== state.zoom ||
       drawnView.offsetX !== state.offsetX || drawnView.offsetY !== state.offsetY) { redrawCanvas(); return; }
