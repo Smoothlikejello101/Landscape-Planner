@@ -14,7 +14,7 @@ import { dotKey } from './print';
 import { areaWords, frameArea, printArea, WHOLE_PLAN, type PrintArea } from './print-area';
 import { roleDef, roleKey, roleLabel, ROLES } from './roles';
 import { filterText } from './status';
-import { formatHours, shadeOpacity, sunHours } from './sun';
+import { formatHours, sunHours, sunRecorded, sunWash } from './sun';
 import { plantsById } from './plants';
 import { LABEL_LINE_HEIGHT, plantLabelFit, textWidth1 } from './labels';
 import { isBed, isPlant } from './beds';
@@ -220,7 +220,11 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
   const dashed = (s.role ? !!roleDef(s.role).outline : false) || (s.role === 'utility' && s.utility === 'buried');
   const outline = dashed || s.type === 'line';
   const planned = s.status === 'planned' && !outline;
-  const baseOpacity = outline ? 0 : s.role === 'shade' && s.sun ? shadeOpacity(s.sun) : s.opacity ?? 0.65;
+  // (A sun area with hours recorded: in the ramp's wash for them, as on the plan (src/sun.ts). The hatch over beds' parts
+  // with no sun recorded is the screen's only: Jason, Nov 4, "3) no".)
+  const wash = sunRecorded(s) ? sunWash(s.sun!) : null;
+  if (wash) s = { ...s, color: wash.color };
+  const baseOpacity = outline ? 0 : wash ? wash.opacity : s.opacity ?? 0.65;
   const opacity = planned ? baseOpacity * 0.5 : baseOpacity;
   // (Locked: a padlock badge, not a dashed edge, which read as planned or selected: Lena, Oct 30. shapeToSvgString.)
   const dash = dashed ? ` stroke-dasharray="${8 * k} ${4 * k}"` : planned ? ` stroke-dasharray="${6 * k} ${4 * k}"` : '';

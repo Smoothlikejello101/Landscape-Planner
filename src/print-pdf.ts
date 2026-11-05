@@ -9,6 +9,7 @@ import { filterText } from './status';
 import { shownCaption } from './export';
 import { state } from './state';
 import { areaWords, frameArea, WHOLE_PLAN, type PrintArea } from './print-area';
+import { keyHoursAt, SUN_KEY, washAt, washOver } from './sun';
 
 // Writes the printable plan as a PDF (browser only). Layout and content come
 // from print.ts; this file only draws them.
@@ -206,6 +207,11 @@ function legend(doc: JsPDF, box: Box, y: number, entries: LegendEntry[]): number
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
   for (const e of entries) {
     if (y + pt(12) > box.y + box.h) break;
+    if (e.sunKey) {
+      if (y + pt(36) > box.y + box.h) break;
+      y = sunKey(doc, box, y);
+      continue;
+    }
     if (e.outline) {
       doc.setDrawColor(e.color); doc.setLineWidth(pt(1.5));
       if (!e.solid) doc.setLineDashPattern([0.06, 0.03], 0);
@@ -220,6 +226,31 @@ function legend(doc: JsPDF, box: Box, y: number, entries: LegendEntry[]): number
     y += pt(12);
   }
   return y;
+}
+
+/**
+ * The sun areas' key, in the legend's place for them (Jason, Nov 4; as on the page he answered): "Sun Exposure: hours of
+ * direct sun"; a bar of the ramp as it prints on white paper, "8 h+" to "2 h or less"; and a white swatch, "Plain: no
+ * sun recorded". (No hatch on paper: his answer 3.)
+ */
+function sunKey(doc: JsPDF, box: Box, y: number): number {
+  doc.setTextColor('#1c1917');
+  doc.text(SUN_KEY.printTitle, box.x + 0.38, y + 0.06, { baseline: 'middle' });
+  y += pt(12);
+  const x0 = box.x + 0.38, bw = 0.6, n = 40;
+  doc.text(SUN_KEY.printMost, x0 - 0.05, y + 0.06, { baseline: 'middle', align: 'right' });
+  for (let i = 0; i < n; i++) {
+    doc.setFillColor(washOver(washAt(keyHoursAt((i + 0.5) / n)), '#ffffff'));
+    doc.rect(x0 + (bw / n) * i, y, bw / n + (i < n - 1 ? 0.004 : 0), 0.12, 'F'); // (a hair over the next: no seams)
+  }
+  doc.setDrawColor('#a8a29e'); doc.setLineWidth(pt(0.5));
+  doc.rect(x0, y, bw, 0.12, 'S');
+  doc.text(SUN_KEY.least, x0 + bw + 0.06, y + 0.06, { baseline: 'middle' });
+  y += pt(12);
+  doc.setFillColor('#ffffff');
+  doc.rect(box.x, y, 0.28, 0.12, 'FD');
+  doc.text(SUN_KEY.plain, box.x + 0.38, y + 0.06, { baseline: 'middle' });
+  return y + pt(12);
 }
 
 /** Legend lines for statuses on the sheet (planned, to move, to remove). */

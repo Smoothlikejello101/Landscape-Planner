@@ -18,7 +18,7 @@ import { canopyInnerRadius, canopyPoints, isTree, trunkParts, trunkReachPx } fro
 import { trunkHitPx } from './canopy';
 import { isLocked, roleDef, roleHidden, roleKey, roleRank } from './roles';
 import { shownWith } from './status';
-import { checkPlantSun, formatHours, shadeOpacity, sunHours, sunWarningShown } from './sun';
+import { checkPlantSun, formatHours, hatchRegion, SUN_HATCH, sunHours, sunRecorded, sunWarningShown, sunWash } from './sun';
 import { prepareUtilities, utilityIssues, utilityWarningShown, type PreparedUtility } from './utilities';
 import { isSelected } from './selection';
 import { state } from './state';
@@ -149,11 +149,12 @@ export function shapeGroup(s: Shape): SVGGElement {
   const outline = s.type === 'line' || (s.role ? !!roleDef(s.role).outline : false);
   // (And a buried line: under the ground, as a plan shows it.)
   const dashed = (s.role ? !!roleDef(s.role).outline : false) || (s.role === 'utility' && s.utility === 'buried');
+  // A sun area with its sun recorded: washed warm to cool by its hours, whatever color it was given (src/sun.ts washAt).
+  const wash = sunRecorded(s) ? sunWash(s.sun!) : null;
   const common: Attrs = {
     'data-shape-id': s.id,
-    fill: outline ? 'none' : s.color,
-    // Shade with recorded sun: darker for less sun.
-    'fill-opacity': outline ? null : s.role === 'shade' && s.sun ? shadeOpacity(s.sun) : s.opacity ?? 0.65,
+    fill: outline ? 'none' : wash ? wash.color : s.color,
+    'fill-opacity': outline ? null : wash ? wash.opacity : s.opacity ?? 0.65,
     stroke: outline ? s.color : sel ? '#0f172a' : 'rgba(0,0,0,0.3)',
     'stroke-width': outline ? (sel ? 3.5 : 2.5) : sel ? 2 : 1,
     style: `cursor:${isLocked(s) ? 'grab' : 'move'};touch-action:none;`,
@@ -1142,6 +1143,63 @@ function refreshUtilities() {
   shownUtilities = prepareUtilities(state.shapes.filter((s) => s.role === 'utility' && shownWith(s, state.viewFilter)));
 }
 
+/** A shape's area as drawn (px on the screen), its outline only: for the sun hatch's beds and the areas taken out. */
+function areaOutline(s: Shape, ppf: number): SVGElement | null {
+  const X = (x: number) => (x - state.offsetX) * ppf, Y = (y: number) => (y - state.offsetY) * ppf;
+  if (s.type === 'circle') {
+    return s.canopy ? svgEl('polygon', { points: canopyPoints(s, (x, y) => [X(x), Y(y)]) })
+      : svgEl('circle', { cx: X(s.x), cy: Y(s.y), r: (groundcoverRadius(s) ?? s.radius) * ppf });
+  }
+  if (s.type === 'poly') return svgEl('polygon', { points: worldPoints(s).map((p) => `${X(p.x)},${Y(p.y)}`).join(' ') });
+  if (s.type === 'line' || s.type === 'text') return null;
+  const px = X(s.x), py = Y(s.y), w = s.width * ppf, h = s.height * ppf, cx = px + w / 2, cy = py + h / 2;
+  const transform = s.rotation ? `rotate(${s.rotation} ${cx} ${cy})` : null;
+  if (s.type === 'rect') return svgEl('rect', { x: px, y: py, width: w, height: h, transform });
+  if (s.type === 'oval') return svgEl('ellipse', { cx, cy, rx: w / 2, ry: h / 2, transform });
+  return svgEl('polygon', { points: trianglePoints(s).map(([x, y]) => `${X(x)},${Y(y)}`).join(' '), transform });
+}
+/**
+ * The hatch's pattern (src/sun.ts SUN_HATCH): its lines a fixed number of px apart at any zoom, and fixed to the plan
+ * (`ox`, `oy`: where its 0,0 is on the screen), so a pan doesn't shift them over the bed once it's let go.
+ */
+export function sunHatchPattern(id: string, ox = 0, oy = 0): SVGPatternElement {
+  const { color, opacity, width, gap, angle } = SUN_HATCH;
+  return svgEl('pattern', { id, patternUnits: 'userSpaceOnUse', width: gap, height: gap, patternTransform: `translate(${ox} ${oy}) rotate(${angle})` },
+    svgEl('rect', { x: (gap - width) / 2, y: -1, width, height: gap + 2, fill: color, 'fill-opacity': opacity }));
+}
+/**
+ * The hatch over the parts of beds with no sun recorded (src/sun.ts hatchRegion), as one group: the beds filled with
+ * the pattern, masked by every sun area with hours. Over the beds and the sun areas, under everything else (plants,
+ * buildings, the names lifted over them); it takes no taps. None when nothing is hatched.
+ */
+function sunHatchGroup(): SVGGElement | null {
+  const region = hatchRegion(state.shapes, state.viewFilter);
+  if (!region) return null;
+  const ppf = pxPerFoot();
+  const beds = region.beds.map((s) => areaOutline(s, ppf)).filter((e): e is SVGElement => !!e);
+  if (!beds.length) return null;
+  for (const b of beds) b.setAttribute('fill', 'url(#sun-hatch-lines)');
+  const huge = { x: -1e6, y: -1e6, width: 2e6, height: 2e6 };
+  const mask = svgEl('mask', { id: 'sun-hatch-mask', maskUnits: 'userSpaceOnUse', ...huge }, svgEl('rect', { ...huge, fill: '#fff' }),
+    ...region.suns.map((s) => areaOutline(s, ppf)).filter((e): e is SVGElement => !!e).map((e) => { e.setAttribute('fill', '#000'); return e; }));
+  return svgEl('g', { 'data-role': 'sun-hatch', 'pointer-events': 'none' },
+    svgEl('defs', {}, sunHatchPattern('sun-hatch-lines', -state.offsetX * ppf, -state.offsetY * ppf), mask),
+    svgEl('g', { mask: 'url(#sun-hatch-mask)' }, ...beds));
+}
+const SUN_RANK = roleRank({ role: 'shade' } as Shape);
+/** Draw the sun hatch again, in its place in the shapes layer: before the first shape drawn over sun areas. */
+function placeSunHatch(shapes: Element) {
+  shapes.querySelector(':scope > g[data-role=sun-hatch]')?.remove();
+  const g = sunHatchGroup();
+  if (!g) return;
+  const rank = new Map(state.shapes.map((s) => [s.id, roleRank(s)]));
+  const over = [...shapes.children].find((c) => {
+    const id = (c as SVGElement).dataset?.shapeGroup;
+    return id === undefined || (rank.get(id) ?? 0) > SUN_RANK;
+  });
+  shapes.insertBefore(g, over ?? null);
+}
+
 /**
  * Drawn as Move would leave the plan, while "Was your plan drawn over the photo?" is up (src/ui/rescale-card.ts): the
  * shapes drawn are those, for as long as the drawing takes, and the plan's own are back before anything else runs.
@@ -1181,6 +1239,7 @@ function drawCanvas() {
   renderGrid(grid);
   const shapes = layer(svg, 'shapes');
   for (const s of paintOrder(state.shapes)) shapes.appendChild(shapeGroup(s));
+  placeSunHatch(shapes);
   liftPlantNames(shapes);
   liftAreaNames(shapes);
   liftBadges(shapes);
@@ -1247,6 +1306,8 @@ function drawShapes(ids: string[]) {
       old.replaceWith(shapeGroup(s));
     }
   }
+  // (A bed or a sun area moved or reshaped: the hatch over the beds' parts with no sun recorded follows it.)
+  if (ids.some((id) => { const s = state.shapes.find((sh) => sh.id === id); return !!s && (s.role === 'bed' || s.role === 'shade'); })) placeSunHatch(shapes);
   liftPlantNames(shapes);
   liftAreaNames(shapes);
   liftBadges(shapes);

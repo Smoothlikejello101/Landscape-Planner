@@ -373,6 +373,15 @@ a { color: inherit; }
 /* (A section's other lines, its checkboxes, hints and pickers, line up with its rows.) */
 .role-rows > :not(.role-row):not(.section-label) { padding-left: 16px; padding-right: 16px; }
 .section-label { font-size: calc(11px * var(--ts)); font-weight: 600; color: #78716c; text-transform: uppercase; letter-spacing: 0.04em; padding: 10px 16px 4px; }
+/* The sun areas' key (src/ui/layers-panel.ts sunKey), under the Sun Exposure row, lined up with its name (past the eye
+   and the lock: 16 - 12 + 48 + 8 + 48 + 8 px). */
+.role-rows > .sun-key:not(.role-row):not(.section-label) { padding: 0 16px 8px 116px; display: flex; flex-direction: column; gap: 5px; font-size: calc(12px * var(--ts)); color: #57534e; }
+.sun-key-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.sun-key-bar { width: 72px; height: 12px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.18); flex: none; }
+.sun-key-sw { width: 18px; height: 12px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.18); flex: none; overflow: hidden; }
+.sun-key-sw.hatch { display: inline-flex; position: relative; }
+.sun-key-sw.hatch svg { display: block; }
+.sun-key-sw.hatch::after { content: ''; position: absolute; inset: 0; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.18); }
 /* Next, the preview copy of the app (src/channel.ts): an amber stripe along the top, so it's never taken for the real one. */
 body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 4px; background: #d97706; z-index: 100000; pointer-events: none; }
 /* What's new (src/ui/whats-new-panel.ts): each release's day, New where this device hadn't seen it, its lines. */

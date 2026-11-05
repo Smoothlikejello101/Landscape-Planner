@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { attachedPlants, bedOf, patchBedCarryingPlants, plantSummary, plantsInBed } from '../src/beds';
 import { pointInShape, shapeArea, shapePerimeter, shapeCenter } from '../src/geometry';
-import { afternoonHours, checkPlantSun, formatTime, shadeOpacity, sunAt, sunHours, sunLevel } from '../src/sun';
+import { afternoonHours, checkPlantSun, formatTime, sunAt, sunHours, sunLevel, sunWash, SUN_RAMP } from '../src/sun';
 import type { Plant } from '../src/plants';
 import type { Shape, SunInfo } from '../src/types';
 
@@ -80,8 +80,9 @@ describe('sun', () => {
     expect(sunLevel(times([[540, 720]]))).toBe('Part');
     expect(sunLevel(times([[540, 600]]))).toBe('Shade');
   });
-  it('darkens the overlay for less sun', () => {
-    expect(shadeOpacity(times([[540, 600]]))).toBeGreaterThan(shadeOpacity(times([[480, 900]])));
+  it('washes an area by its recorded hours: blue for little sun, gold for a full day (tests/sun-areas.test.ts)', () => {
+    expect(sunWash(times([[540, 600]]))).toEqual(SUN_RAMP.blue); // 1 h
+    expect(sunWash(times([[480, 1020]]))).toEqual(SUN_RAMP.gold); // 9 h
   });
   it('formats times', () => {
     expect(formatTime(540)).toBe('9 am');
