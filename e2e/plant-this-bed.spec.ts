@@ -45,13 +45,20 @@ test('a bed\'s chip says Plant this bed, in place of Another bed, and opens the 
   await expect(pressed(page)).toHaveText('Front bed');
   // (Anywhere, each bed by name, an unnamed one by its size, then Pick on the plan.)
   await expect(forRow(page).locator('button')).toHaveText(['Anywhere', 'Front bed', 'Bed, 16 × 8 ft', 'Pick on the plan']);
-  // Anywhere, and back.
+  // At the picker's top, beside its ✕, with no title row (Jason, Nov 4, note 1); the search under it.
+  await expect(page.locator('.picker-sheet .sheet-header [data-testid=plant-for]')).toBeVisible();
+  await expect(page.locator('.picker-sheet .sheet-header .title')).toHaveCount(0);
+  const top = (await forRow(page).boundingBox())!, x = (await page.locator('.picker-sheet .sheet-header button[aria-label=Close]').boundingBox())!;
+  expect(Math.abs((top.y + top.height / 2) - (x.y + x.height / 2))).toBeLessThan(6);
+  expect((await search(page).boundingBox())!.y).toBeGreaterThan(top.y + top.height - 2);
+  // Anywhere, and back: nothing said under the row about planting a bed (Jason, Nov 4: "it will be fairly obvious").
   await forRow(page).getByTestId('for-anywhere').click();
   await expect(pressed(page)).toHaveText('Anywhere');
-  await expect(page.getByTestId('for-hint')).toContainText('Planting a bed? Pick it');
+  await expect(page.getByTestId('for-top')).toBeHidden();
+  await expect(page.getByTestId('picker')).not.toContainText('Planting a bed?');
   await forRow(page).getByTestId('for-bed').first().click();
   await expect(pressed(page)).toHaveText('Front bed');
-  await expect(page.getByTestId('for-hint')).toHaveCount(0);
+  await expect(page.getByTestId('bed-box')).toBeVisible();
 });
 
 test('the Plant button starts at Anywhere, or at the bed selected; Pick on the plan closes the list for a tap on a bed', async ({ page }) => {
@@ -85,20 +92,29 @@ test('the Plant button starts at Anywhere, or at the bed selected; Pick on the p
   await expect(pressed(page)).toHaveText('Front bed');
 });
 
-test('a plan with no beds: For Anywhere, and how to get a bed; not in Which tree', async ({ page }) => {
+test('a plan with no beds: no For row, the search at the top beside the ✕ (Jason, Nov 4); a bed drawn, the row; not in Which tree', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
-  await expect(forRow(page)).toHaveText('For:Anywhere · Draw a bed to plant for it');
-  // (Nothing to choose: it heads the list, folded away while a search is typed, as Recent is.)
-  await expect(page.locator('.sheet-top [data-testid=plant-for]')).toHaveCount(0);
-  await search(page).fill('aster');
-  await expect(forRow(page)).toBeHidden();
-  await page.getByTestId('clear-search').click();
-  await expect(forRow(page)).toBeVisible();
+  await expect(picker(page)).toBeVisible();
+  await expect(forRow(page)).toHaveCount(0);
+  await expect(picker(page)).not.toContainText('Draw a bed to plant for it');
+  await expect(page.locator('.picker-sheet .sheet-header [data-testid=plant-search]')).toBeVisible();
   await page.locator('.picker-sheet .sheet-header button.iconbtn').last().click();
   await addKind(page, 'tree');
   await expect(picker(page)).toBeVisible();
   await expect(forRow(page)).toHaveCount(0);
+});
+
+test('a plan with a bed: the For row at the top beside the ✕, the search under it', async ({ page }) => {
+  await seed(page);
+  await page.locator('.tool-btn.plants').click();
+  await expect(page.locator('.picker-sheet .sheet-header [data-testid=plant-for]')).toBeVisible();
+  await expect(page.locator('.picker-sheet .sheet-header [data-testid=plant-search]')).toHaveCount(0);
+  await expect(search(page)).toBeVisible();
+  // In view while the list scrolls.
+  await page.locator('.picker-sheet').evaluate((e) => { e.scrollTop = 600; });
+  await expect(forRow(page)).toBeInViewport();
+  await expect(search(page)).toBeInViewport();
 });
 
 /** The bed's panel (Edit on its chip), its Conditions section open. */
@@ -184,8 +200,8 @@ test('For a bed, its conditions filter the list as a layer of their own: the box
   await expect(page.getByTestId('bed-box')).toContainText('Front bed’s conditions');
   await expect(chips(page)).toHaveText(['Takes part shade to full sun', 'Clay OK', 'Water needs: low or moderate']);
   await expect(page.getByTestId('bed-box-note')).toHaveText('Sun from the 2 sun areas over it (3.5 to 7 h). Only plants whose facts fit are listed; nothing is ranked.');
-  await expect(count(page)).toHaveText(tapping(' plants fit Front bed · Place a plant, then tap inside the bed; tap a plant for its details'));
-  await expect(count(page)).toHaveText(/^[\d,]+ of [\d,]+ plants fit Front bed/);
+  // (Just how many, not how to place them: Jason, Nov 4.)
+  await expect(count(page)).toHaveText(/^[\d,]+ of [\d,]+ plants fit Front bed$/);
   await expect(page.getByTestId('active-filters')).toBeHidden();
   await expect(page.getByTestId('filters')).toHaveText(/^Filters$/);
   await expect(page.getByRole('combobox', { name: 'Sun' })).toBeDisabled();

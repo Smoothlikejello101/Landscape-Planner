@@ -15,7 +15,7 @@ async function addPlant(page: Page, name: string) {
   // phone to show the bed above it. Jason, Nov 2, the plan in view while choosing.)
   const at = await planMiddle(page);
   await page.locator('.tool-btn.plants').click();
-  await expect(page.locator('.sheet-header .title')).toContainText(/Plant Picker \(\d,\d{3}\)/);
+  await expect(page.getByTestId('picker-count')).toContainText(/\d,\d{3} plants/);
   await page.locator('.sheet input[type=text]').fill(name);
   await page.locator('.sheet .proj-row', { hasText: name }).first().locator('[data-testid=plant-place]').click();
   await placeOnceAt(page, at);

@@ -3,7 +3,8 @@ import { canvasBox, closeSheet, openFresh, shapeCount, zoomPct } from './helpers
 
 // The plan in view while choosing plants (Jason, Nov 2, from the bed review's S3: "Half-height picker on a phone, a
 // side panel on a computer"): choosing plants for a bed, the picker covered the plan, so the bed being planted couldn't
-// be seen. src/ui/picker-view.ts.
+// be seen. At 60% of a phone's screen since Jason's notes of Nov 4, its handle swiped down and a tap on the plan closing
+// it (note 3). src/ui/picker-view.ts.
 
 const sheet = (page: Page) => page.locator('.picker-sheet');
 const handle = (page: Page) => page.getByTestId('picker-handle');
@@ -77,12 +78,12 @@ async function openPicker(page: Page) {
 test.describe('on a phone', () => {
   test.skip(({ isMobile }) => !isMobile, 'phones only');
 
-  test('the picker opens at half height, the plan in view above it, not dimmed; its handle, pressed or dragged, takes it to full height and back', async ({ page }) => {
+  test('the picker opens at 60% of the screen, the plan in view above it, not dimmed; its handle, pressed or dragged, takes it to full height and back; swiped down, it closes', async ({ page }) => {
     await openFresh(page);
     await openPicker(page);
     const vh = page.viewportSize()!.height;
     let box = (await sheet(page).boundingBox())!;
-    expect(Math.abs(box.height - vh * 0.5)).toBeLessThan(3);
+    expect(Math.abs(box.height - vh * 0.6)).toBeLessThan(3);
     expect(box.y + box.height).toBeCloseTo(vh, 0);
     // The plan above it is the plan, with nothing over it; the layer the picker is on is clear.
     const plan = await canvasBox(page);
@@ -94,10 +95,11 @@ test.describe('on a phone', () => {
     await expect(sheet(page)).toHaveClass(/\bfull\b/);
     await expect(handle(page)).toHaveAttribute('aria-expanded', 'true');
     await expect.poll(async () => Math.round((await sheet(page).boundingBox())!.height)).toBe(Math.round(vh * 0.85));
+    await expect(handle(page)).toHaveAttribute('aria-label', 'Shorter: more of the plan in view');
     await handle(page).click();
     await expect(sheet(page)).not.toHaveClass(/\bfull\b/);
-    await expect.poll(async () => Math.round((await sheet(page).boundingBox())!.height)).toBe(Math.round(vh * 0.5));
-    // Dragged up: full; down: half; down again from half: still open, at half.
+    await expect.poll(async () => Math.round((await sheet(page).boundingBox())!.height)).toBe(Math.round(vh * 0.6));
+    // Dragged up: full; down: at rest; a short drag down from rest: back at rest; down from rest: closed.
     const drag = async (dy: number) => {
       const h = (await handle(page).boundingBox())!;
       await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
@@ -109,23 +111,55 @@ test.describe('on a phone', () => {
     await expect(sheet(page)).toHaveClass(/\bfull\b/);
     await drag(200);
     await expect(sheet(page)).not.toHaveClass(/\bfull\b/);
-    await drag(250);
+    await drag(20);
     await expect(sheet(page)).toBeVisible();
     await expect(sheet(page)).not.toHaveClass(/\bfull\b/);
     box = (await sheet(page).boundingBox())!;
-    expect(Math.abs(box.height - vh * 0.5)).toBeLessThan(3);
+    expect(Math.abs(box.height - vh * 0.6)).toBeLessThan(3);
+    await drag(250);
+    await expect(sheet(page)).toHaveCount(0);
+    await expect(page.locator('.sel-pill')).toHaveCount(0); // (nothing picked on the way)
     // The choice is kept while the app is open: closed and opened again, it's as it was left.
+    await openPicker(page);
+    await expect(sheet(page)).not.toHaveClass(/\bfull\b/);
     await handle(page).click();
     await closeSheet(page);
     await openPicker(page);
     await expect(sheet(page)).toHaveClass(/\bfull\b/);
+    // From full height, swiped down past where it rests: closed.
+    await drag(vh * 0.4);
+    await expect(sheet(page)).toHaveCount(0);
+    await openPicker(page);
     await handle(page).click();
-    // Closing is as before: its ✕, and Back.
+    // Closing is as before too: its ✕, and Back.
     await page.goBack();
     await expect(sheet(page)).toHaveCount(0);
   });
 
-  test('the search focused: full height; typing keeps the cursor and nothing is drawn again; the keyboard put away, back to half', async ({ page }) => {
+  test('a finger swiping the handle down closes it; the header drags it too, and its search and For row are still pressed', async ({ page }) => {
+    await seed(page, { x: -3, y: -3 });
+    await openPicker(page);
+    const swipe = async (from: { x: number; y: number }, dy: number) => {
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: from.x, y: from.y }] });
+      for (let i = 1; i <= 8; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: from.x, y: from.y + dy * i / 8 }] });
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    };
+    // (The For row, with beds to choose, at the top beside the ✕: its label is the header's to drag by.)
+    const label = await boxOf(page.locator('.picker-head .for-label'));
+    await swipe({ x: label.x + label.width / 2, y: label.y + label.height / 2 }, -200);
+    await expect(sheet(page)).toHaveClass(/\bfull\b/);
+    await page.getByTestId('for-bed').first().click();
+    await expect(page.getByTestId('for-bed').first()).toHaveAttribute('aria-pressed', 'true');
+    const h = await boxOf(handle(page));
+    await swipe({ x: h.x + h.width / 2, y: h.y + h.height / 2 }, 120);
+    await expect(sheet(page)).not.toHaveClass(/\bfull\b/);
+    const h2 = await boxOf(handle(page));
+    await swipe({ x: h2.x + h2.width / 2, y: h2.y + h2.height / 2 }, 150);
+    await expect(sheet(page)).toHaveCount(0);
+  });
+
+  test('the search focused: full height; typing keeps the cursor and nothing is drawn again; the keyboard put away, back to rest', async ({ page }) => {
     await openFresh(page);
     await openPicker(page);
     const search = page.getByTestId('plant-search');
@@ -143,7 +177,7 @@ test.describe('on a phone', () => {
     expect(await kept(page, '.picker-sheet')).toBe(true);
     expect(await kept(page, '#canvas-svg')).toBe(true);
     await expect(page.locator('.plant-item').first()).toBeVisible();
-    // The keyboard put away (Back on Android), the search still focused: half height again, nothing redrawn.
+    // The keyboard put away (Back on Android), the search still focused: at rest again, nothing redrawn.
     await page.setViewportSize({ width: 412, height: 839 });
     await expect(sheet(page)).not.toHaveClass(/\bfull\b/);
     await expect(search).toBeFocused();
@@ -155,14 +189,14 @@ test.describe('on a phone', () => {
     await expect(search).toHaveValue('aster x');
     await page.keyboard.press('Backspace');
     await page.keyboard.press('Backspace');
-    // Enter: the search done, the keyboard goes with the cursor; half again, the results under the plan.
+    // Enter: the search done, the keyboard goes with the cursor; at rest again, the results under the plan.
     await page.setViewportSize({ width: 412, height: 839 });
     await search.press('Enter');
     await expect(search).not.toBeFocused();
     await expect(sheet(page)).not.toHaveClass(/\bfull\b/);
     expect(await kept(page, '.picker-sheet')).toBe(true);
     // Typing, then a row opened: the keyboard goes, but the picker stays full height, the row where it was pressed (not
-    // dropped with the picker's top); its handle takes it to half, and closed and opened again, it's half.
+    // dropped with the picker's top); its handle takes it back to rest, and closed and opened again, it's at rest.
     await search.tap();
     await expect(sheet(page)).toHaveClass(/\bfull\b/);
     const row = page.locator('.plant-item').first().getByTestId('plant-row');
@@ -180,7 +214,7 @@ test.describe('on a phone', () => {
     await closeSheet(page);
     await openPicker(page);
     await expect(sheet(page)).not.toHaveClass(/\bfull\b/);
-    // Closed while typed in (Esc from the search: its box goes with the focus in it): opened again, half height.
+    // Closed while typed in (Esc from the search: its box goes with the focus in it): opened again, at rest.
     await search.tap();
     await expect(sheet(page)).toHaveClass(/\bfull\b/);
     await page.keyboard.press('Escape');
@@ -189,7 +223,7 @@ test.describe('on a phone', () => {
     await expect(sheet(page)).not.toHaveClass(/\bfull\b/);
   });
 
-  test('pinched and dragged with the picker open, the plan zooms and pans; the picker is left as it was', async ({ page }) => {
+  test('pinched and dragged with the picker open, the plan zooms and pans; the picker is left as it was (Jason, Nov 4: "I do very much like the ability to scroll around the plan with the picker open")', async ({ page }) => {
     await seed(page, { x: -3, y: -3 });
     await openPicker(page);
     await page.getByTestId('plant-search').fill('milkweed');
@@ -231,33 +265,42 @@ test.describe('on a computer', () => {
     // The zoom buttons beside the panel, not under it.
     const zoomIn = page.locator('.zoombtn[aria-label="Zoom in"]');
     expect((await zoomIn.boundingBox())!.x + 44).toBeLessThanOrEqual(box.x);
-    // Esc, from the search (the cursor starts there) or from the page after a click on the plan.
+    // Esc, from the search (the cursor starts there) or from the page after a click on the top bar (which does nothing
+    // else with the picker open).
     await expect(page.getByTestId('plant-search')).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(sheet(page)).toHaveCount(0);
     await openPicker(page);
-    await page.mouse.click(box.x / 2, plan.y + 100);
+    await page.mouse.click(box.x / 2, plan.y / 2);
+    await expect(sheet(page)).toBeVisible();
+    await expect(page.getByTestId('plant-search')).not.toBeFocused();
     await page.keyboard.press('Escape');
     await expect(sheet(page)).toHaveCount(0);
     await openPicker(page);
     await closeSheet(page);
+    // A click on the plan beside it closes it, as a tap on the plan closes a panel everywhere else (Jason, Nov 4).
+    await openPicker(page);
+    await page.mouse.click(box.x / 2, plan.y + 100);
+    await expect(sheet(page)).toHaveCount(0);
   });
 
-  test('in a window narrower than 900 px, the half-height picker, the cursor in its search; typing takes it to full height, and a click on the plan back to half', async ({ page }) => {
+  test('in a window narrower than 900 px, the picker at rest (60%), the cursor in its search; typing takes it to full height, a click elsewhere in it back to rest, and a click on the plan closes it', async ({ page }) => {
     await page.setViewportSize({ width: 800, height: 800 });
     await openFresh(page);
     await openPicker(page);
     const search = page.getByTestId('plant-search');
     await expect(search).toBeFocused();
     await expect(sheet(page)).not.toHaveClass(/\bfull\b/);
-    expect(Math.abs((await sheet(page).boundingBox())!.height - 400)).toBeLessThan(3);
+    expect(Math.abs((await sheet(page).boundingBox())!.height - 480)).toBeLessThan(3);
     await page.keyboard.type('aster');
     await expect(sheet(page)).toHaveClass(/\bfull\b/);
-    const plan = await canvasBox(page);
-    await page.mouse.click(plan.x + 20, plan.y + 20);
+    await page.getByTestId('picker-count').click();
     await expect(search).not.toBeFocused();
     await expect(sheet(page)).not.toHaveClass(/\bfull\b/);
     await expect(search).toHaveValue('aster');
+    const plan = await canvasBox(page);
+    await page.mouse.click(plan.x + 20, plan.y + 20);
+    await expect(sheet(page)).toHaveCount(0);
   });
 
   test('the plan beside the panel pans and zooms; the panel is left as it was; no key edits the plan behind it', async ({ page }) => {
@@ -287,8 +330,10 @@ test.describe('on a computer', () => {
     await page.waitForTimeout(300); // (settled: src/gestures.ts onWheel)
     expect(await kept(page, '.picker-sheet')).toBe(true);
     await expect(row).toHaveAttribute('aria-expanded', 'true');
-    // The focus on the page (a click on the plan): Delete, Ctrl+Z and a tool's key do nothing to the plan.
-    await page.mouse.click(plan.x + 30, plan.y + 30);
+    // The focus on the page (a click on the top bar, which does nothing with the picker open): Delete, Ctrl+Z and a
+    // tool's key do nothing to the plan.
+    await page.mouse.click(plan.x + 30, plan.y / 2);
+    await expect(page.getByTestId('plant-search')).not.toBeFocused();
     await page.keyboard.press('Delete');
     await page.keyboard.press('Control+z');
     await page.keyboard.press('b');
@@ -298,35 +343,43 @@ test.describe('on a computer', () => {
   });
 });
 
-test('a tap on the plan with the picker open picks, places and closes nothing: the search and opened rows stay', async ({ page, isMobile }) => {
+test('a tap on the plan with the picker open closes it, picking and placing nothing; a drag still only moves the plan (Jason, Nov 4, note 3)', async ({ page, isMobile }) => {
   await seed(page, { x: -3, y: -3 });
   await openPicker(page);
   const search = page.getByTestId('plant-search');
   await search.fill('aster');
-  if (isMobile) await search.press('Enter'); // (the keyboard away: half height)
+  if (isMobile) await search.press('Enter'); // (the keyboard away: at rest)
   const row = page.locator('.plant-item').first().getByTestId('plant-row');
   await row.click();
   await mark(page, '.picker-sheet');
-  // A tap on a plant, on the bed, on the empty plan.
+  // A drag, from a plant: the plan moves, the picker as it was.
   const p1 = await boxOf(page.locator('#canvas-svg [data-shape-id=p1]').first());
-  await tapAt(page, isMobile, p1.x + p1.width / 2, p1.y + p1.height / 2);
-  const bed = await boxOf(page.locator('#canvas-svg [data-shape-id=bed]').first());
-  await tapAt(page, isMobile, bed.x + 6, bed.y + 6);
-  const plan = await canvasBox(page);
-  await tapAt(page, isMobile, plan.x + 20, plan.y + 20);
-  await expect(sheet(page)).toBeVisible();
+  const before = await view(page);
+  await dragOn(page, isMobile, { x: p1.x + p1.width / 2, y: p1.y + p1.height / 2 }, { x: p1.x + p1.width / 2 + 60, y: p1.y + p1.height / 2 + 30 });
+  await expect.poll(async () => (await view(page))[0]).toBeLessThan(before[0]);
   expect(await kept(page, '.picker-sheet')).toBe(true);
-  await expect(search).toHaveValue('aster');
   await expect(row).toHaveAttribute('aria-expanded', 'true');
-  // And on the top bar above the plan (the plan's name, which opens the plans): nothing.
+  // On the top bar above the plan (the plan's name, which opens the plans): nothing.
   await tapAt(page, isMobile, 40, 20);
   expect(await kept(page, '.picker-sheet')).toBe(true);
-  // Closed: nothing was selected.
-  await closeSheet(page);
+  // A tap on a plant: the picker closes; nothing is selected or moved.
+  const moved = await boxOf(page.locator('#canvas-svg [data-shape-id=p1]').first());
+  await tapAt(page, isMobile, moved.x + moved.width / 2, moved.y + moved.height / 2);
+  await expect(sheet(page)).toHaveCount(0);
   await expect(page.locator('.sel-pill')).toHaveCount(0);
   expect(await shapeCount(page)).toBe(4);
+  // On the empty plan, and on the bed: closed too.
+  await openPicker(page);
+  const plan = await canvasBox(page);
+  await tapAt(page, isMobile, plan.x + 20, plan.y + 20);
+  await expect(sheet(page)).toHaveCount(0);
+  await openPicker(page);
+  const bed = await boxOf(page.locator('#canvas-svg [data-shape-id=bed]').first());
+  await tapAt(page, isMobile, bed.x + 6, bed.y + 6);
+  await expect(sheet(page)).toHaveCount(0);
+  await expect(page.locator('.sel-pill')).toHaveCount(0);
 
-  // Switching the plant while placing: a tap on the plan places nothing until a plant is picked.
+  // Switching the plant while placing: a tap on the plan closes the picker, placing nothing, the plant in hand kept.
   await openPicker(page);
   await search.fill('Butterfly milkweed');
   await page.locator('.plant-item', { hasText: 'Butterfly milkweed' }).first().getByTestId('plant-place').click();
@@ -335,10 +388,39 @@ test('a tap on the plan with the picker open picks, places and closes nothing: t
   await expect(sheet(page)).toBeVisible();
   const placing = await canvasBox(page); // (under the strip that says what to do)
   await tapAt(page, isMobile, placing.x + 30, placing.y + 40);
-  await expect(sheet(page)).toBeVisible();
+  await expect(sheet(page)).toHaveCount(0);
   expect(await shapeCount(page)).toBe(4);
-  await closeSheet(page);
   await expect(page.getByTestId('place-banner')).toContainText('0 placed');
+  await expect(page.getByTestId('place-banner')).toContainText('Butterfly Milkweed');
+});
+
+test.describe('with the tap guard on, as it is for everyone (src/tap-guard.ts)', () => {
+  // (The other tests run with it off: playwright.config.ts. On a phone the tap's own click comes after the picker has
+  // gone, where the sheet it goes back to now is: the guard keeps it to the plan, as it does for every tap there.)
+  test.use({ storageState: { cookies: [], origins: [] } });
+  /** As a person would: a panel just opened takes no tap for a moment. */
+  const settle = (page: Page) => page.waitForTimeout(450);
+
+  test('Swap opened from a plant\'s sheet: a tap on the plan goes back to that sheet, as its ✕ does', async ({ page, isMobile }) => {
+    await seed(page, { x: -3, y: -3 });
+    const p2 = await boxOf(page.locator('#canvas-svg [data-shape-id=p2]').first());
+    await tapAt(page, isMobile, p2.x + p2.width / 2, p2.y + p2.height / 2);
+    await settle(page);
+    await page.locator('.sel-pill .edit').click();
+    await settle(page);
+    await page.getByTestId('swap-plant').click();
+    await expect(page.getByTestId('swap-banner')).toBeVisible();
+    await settle(page);
+    // (A task of its own: it keeps its title.)
+    await expect(page.locator('.picker-sheet .sheet-header .title')).toHaveText('Swap for another plant');
+    const plan = await canvasBox(page);
+    await tapAt(page, isMobile, plan.x + 20, plan.y + 20);
+    await expect(sheet(page)).toHaveCount(0);
+    await expect(page.getByTestId('swap-plant')).toBeVisible(); // (back on its sheet)
+    await settle(page);
+    await expect(page.getByTestId('swap-plant')).toBeVisible(); // (and stays there)
+    expect(await shapeCount(page)).toBe(4);
+  });
 });
 
 test('opened with a bed selected, the plan pans to show it beside or above the picker, at the same zoom; closed, the view stays', async ({ page, isMobile }) => {

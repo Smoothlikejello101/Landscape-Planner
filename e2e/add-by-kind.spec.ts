@@ -25,7 +25,7 @@ test('the bottom bar names garden things; the Add sheet holds the rest', async (
   await expect(sheet.getByTestId('recent-kinds')).toHaveCount(0); // nothing added yet
   await sheet.locator('.sheet-header button').click();
   await page.locator('.tool-btn.plants').click();
-  await expect(page.locator('.sheet-header .title')).toContainText('Plant Picker');
+  await expect(page.getByTestId('picker')).toBeVisible();
 });
 
 test('a building from three taps: tilted to follow the first side, labeled House, then Building', async ({ page }) => {

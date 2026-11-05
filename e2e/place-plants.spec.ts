@@ -38,15 +38,14 @@ test('pick a plant once, tap each spot, Undo the last, Done leaves the batch sel
   await expect(page.locator('.sheet [data-section=status]')).toContainText('Planted');
 });
 
-test('recent plants are one tap; the plant in hand can be switched; Place more from a plant', async ({ page }) => {
+test('the plants placed are in "In this plan" (no Recent since Jason\'s notes of Nov 4); the plant in hand can be switched; Place more from a plant', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
-  await expect(page.getByTestId('recent-plants')).toHaveCount(0);
   await pick(page, 'Tennessee coneflower');
   await tapFromCenter(page, 0, 0);
   // Switch to another plant mid-way: what's placed stays.
   await bar(page).getByTestId('place-switch').click();
-  await expect(page.locator('.sheet-header .title')).toHaveText('Switch plant');
+  await expect(page.locator('.picker-sheet [data-testid=plant-place]').first()).toHaveText(/^Switch/);
   await pick(page, 'Black-eyed Susan');
   await expect(banner(page)).toHaveText(/(Tap|Click) to place Black-Eyed Susan.* · 0 placed/); // (its own count: the coneflower's isn't carried over)
   await tapFromCenter(page, 4, 0);
@@ -58,10 +57,10 @@ test('recent plants are one tap; the plant in hand can be switched; Place more f
   // phone to show them above it. Jason, Nov 2, the plan in view while choosing.)
   const mid = await planMiddle(page);
   await page.locator('.tool-btn.plants').click();
-  const recent = page.getByTestId('recent-plants').locator('.recent-plant');
-  await expect(recent).toHaveCount(2);
-  await expect(recent.first()).toContainText('Black-Eyed Susan'); // newest first
-  await recent.nth(1).click();
+  await expect(page.getByTestId('recent-plants')).toHaveCount(0);
+  await page.getByTestId('in-plan').click();
+  await expect(page.getByTestId('picker-count')).toHaveText(/^2 plants, 2 kinds in this plan/);
+  await page.locator('.plant-item', { hasText: 'Tennessee Coneflower' }).first().getByTestId('plant-place').click();
   await expect(banner(page)).toContainText('Tennessee Coneflower');
   await bar(page).getByRole('button', { name: 'Done' }).click();
 
@@ -118,7 +117,7 @@ test('an existing tree: pick which, or draw an unknown one, by trunk and canopy 
   await expect(page.locator('.sheet .count-line, .sheet .hint').filter({ hasText: 'trees only' })).toHaveCount(1);
   const first = page.locator('.sheet .proj-row').first();
   const name = (await first.locator('.pname').innerText()).replace(/Mine$/, '').trim();
-  await expect(page.getByTestId('unverified-note')).toBeVisible();
+  await expect(page.getByTestId('unverified-note')).toHaveCount(0); // (gone, Jason, Nov 4: the details mark what isn't checked)
   await expect(page.getByTestId('partly-badge').first()).toBeAttached();
   await first.locator('[data-testid=plant-place]').click();
   await expect(page.getByTestId('draw-banner')).toContainText(/(Tap|Click) the trunk/);

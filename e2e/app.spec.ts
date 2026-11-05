@@ -299,9 +299,9 @@ test.describe('plants, background, export', () => {
   test('plant picker places a circle sized to mature spread', async ({ page }) => {
     await openFresh(page);
     await page.locator('.tool-btn.plants').click();
-    await expect(page.locator('.sheet-header .title')).toContainText(/Plant Picker \(\d,\d{3}\)/);
-    // Every plant offered is counted (no ZIP: no state's law leaves any out; tests/location.spec.ts has one that does).
-    await expect(page.getByTestId('picker-count')).toContainText(/^All \d,\d{3} plants · Place a plant/);
+    // Every plant offered is counted, on the count line (no title row since Jason's notes of Nov 4; no ZIP: no state's
+    // law leaves any out, tests/location.spec.ts has one that does). Just how many: not how to place one.
+    await expect(page.getByTestId('picker-count')).toHaveText(/^All \d,\d{3} plants$/);
     await page.locator('.sheet input[type=text]').fill('privet');
     await expect(page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Chinese Privet$/ }) })).toHaveCount(1);
     await page.locator('.sheet input[type=text]').fill('Autumn Bride');
