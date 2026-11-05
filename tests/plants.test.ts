@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { byMatch, closeMatchIn, inNotes, matchPlant, nearShows, readQuery } from '../src/search';
-import { bloomMatch, groupKey, groupName, headName, pluralName, earlierOnly, filterOn, matchedBy, seasonMonths, trueToColor, nonToxicToDogs, PLANT_FILTER_DEFAULTS, pickerCount, plantMatches, reportedPhrase, rowFlags, rowLines, shareDogWarnings, speciesOf, sunSaid, toxicToDogs, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
+import { bloomMatch, groupKey, groupName, headName, pluralName, earlierOnly, filterOn, matchedBy, seasonMonths, trueToColor, PLANT_FILTER_DEFAULTS, pickerCount, plantMatches, ratedFor, reportedPhrase, rowFlags, rowLines, shareDogWarnings, speciesOf, sunSaid, toxicNote, toxicTo, toxicToDogs, unratedCount, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
 import { HABIT_SPREAD, rootSpread, rootText, seedText, spreadsAs, spreadWays } from '../src/spread';
 import { readFileSync } from 'node:fs';
 import { HEIGHT_STOPS, heightLabel, heightStops, heightValue, sizeLabel } from '../src/ui/height-range';
@@ -61,7 +61,7 @@ describe('plant filters', () => {
     expect(reportedMatch(redbud, fs({ form: 'Perennial' }))).toEqual(['form']);
     // Facts nurseries aren't taken for never count, even if a record carried them.
     const dog = { id: 'd', common: 'D', tox: { dog: 'toxic' }, reported: { tox: { dog: 'nontoxic' } } } as unknown as Plant;
-    expect(reportedMatch(dog, fs({ dogs: 'nonToxic' }))).toBeNull();
+    expect(reportedMatch(dog, fs({ dogs: 'hideToxic' }))).toBeNull();
     // (Nor the register's degree, which no filter reads: it matches, with nothing reported counted.)
     const inv = { id: 'i', common: 'I', wild_us: 'invasive', reported: { wild_us: 'established' } } as unknown as Plant;
     expect(reportedMatch(inv, fs({}))).toEqual([]);
@@ -153,21 +153,55 @@ describe('plant filters', () => {
   });
   it('shows dog-unsafe plants unless asked; hides nothing else by default', () => {
     expect(plantMatches({ ...heuchera, dog: 'Mild GI' }, f())).toBe(true);
-    expect(plantMatches({ ...heuchera, dog: 'Mild GI' }, f({ dogs: 'nonToxic' }))).toBe(false);
+    expect(plantMatches({ ...heuchera, dog: 'Mild GI' }, f({ dogs: 'hideToxic' }))).toBe(false);
     expect(plantMatches({ ...heuchera, dog: 'HARD NO' }, f())).toBe(true);
   });
-  it('keeps, when asked, only plants whose NC State page lists no poison to people: not those listed, nor those not rated', () => {
+  // "Hide plants rated toxic to:" (Jason, Nov 5): each hides what's rated toxic to them, and nothing else.
+  it('People hides plants rated toxic to people, on the skin too, and a hybrid as its parents are rated; not those NC State lists none for, nor (since Nov 5) those not rated', () => {
     const mayapple = { ...heuchera, poison: { severity: 'high', parts: ['leaves', 'roots', 'seeds', 'stems'], skin: true } } as Plant;
     const none = { ...heuchera, prov: { ...heuchera.prov, poison: { src: ['ncsu'], unknown: true } } } as Plant;
     expect(plantMatches(mayapple, f())).toBe(true);
     expect(plantMatches(mayapple, f({ noPoison: true }))).toBe(false);
     expect(plantMatches({ ...heuchera, poison: {} } as Plant, f({ noPoison: true }))).toBe(false); // (listed, nothing more said)
+    expect(plantMatches({ ...heuchera, poison: { skin: true } } as Plant, f({ noPoison: true }))).toBe(false); // (skin only: rated all the same)
     expect(plantMatches(none, f({ noPoison: true }))).toBe(true);
-    expect(plantMatches(heuchera, f({ noPoison: true }))).toBe(false); // (not rated: not called safe, as the dog filter)
-    // (A hybrid whose own page lists none, with a parent rated: not "not listed as poisonous".)
+    // Not rated: shown. (Until Nov 5 it was hidden too, which read as "what's left is safe".)
+    expect(plantMatches(heuchera, f({ noPoison: true }))).toBe(true);
+    // Another source's class for people counts; its "unlisted" doesn't hide.
+    expect(plantMatches({ ...heuchera, tox: { people: 'minor' } }, f({ noPoison: true }))).toBe(false);
+    expect(plantMatches({ ...heuchera, tox: { people: 'unlisted' } }, f({ noPoison: true }))).toBe(true);
+    // (A hybrid whose own page lists none, with a parent rated: hidden as its parents are rated.)
     const hybrid = { ...none, poison_parents: { via: 'name', parents: [{ name: 'Morus alba', poison: null }, { name: 'Morus rubra', poison: { severity: 'low' } }] } } as Plant;
     expect(plantMatches(hybrid, f({ noPoison: true }))).toBe(false);
     expect(plantMatches({ ...hybrid, poison_parents: { via: 'name', parents: [{ name: 'Morus alba', poison: null }, { name: 'Morus rubra', poison: null }] } } as Plant, f({ noPoison: true }))).toBe(true);
+  });
+  it('Cats and Horses hide what NC State (or another source) lists as toxic to them; Dogs, any dog warning, the earlier list\'s too; none hides a plant not rated', () => {
+    const unrated = { id: 'u', common: 'U' } as Plant;
+    const ncCats = { id: 'c', common: 'C', problem_for: ['cats'] } as Plant;
+    const listed = { id: 'l', common: 'L', tox: { cat: 'toxic', horse: 'nontoxic' } } as Plant;
+    expect([toxicTo(ncCats, 'cats'), toxicTo(ncCats, 'horses'), toxicTo(ncCats, 'dogs'), toxicTo(ncCats, 'people')]).toEqual([true, false, false, false]);
+    expect([toxicTo(listed, 'cats'), toxicTo(listed, 'horses')]).toEqual([true, false]);
+    expect(toxicTo({ id: 'd', common: 'D', dog: 'Mild GI' }, 'dogs')).toBe(true); // (the earlier list's warning: hiding errs safe)
+    expect(toxicTo({ id: 'd', common: 'D', dog: 'Safe' }, 'dogs')).toBe(false);
+    expect(plantMatches(unrated, f({ noPoison: true, dogs: 'hideToxic', cats: true, horses: true }))).toBe(true);
+    expect(plantMatches(ncCats, f({ cats: true }))).toBe(false);
+    expect(plantMatches(listed, f({ horses: true }))).toBe(true);
+  });
+  it('says how many plants no source rates for those chosen (all four with none), in a note that never calls what\'s left safe', () => {
+    const ncRead = { prov: { poison: { src: ['ncsu'], unknown: true } } };
+    const plants = [
+      { id: 'a', common: 'Read by NC State', ...ncRead } as Plant, // (rated for all four: none listed)
+      { id: 'b', common: 'Earlier list only', dog: 'Safe' } as Plant, // (rated for dogs only, by the earlier list)
+      { id: 'c', common: 'Toxic to people', poison: { severity: 'low' } } as Plant, // (rated for people only)
+      { id: 'd', common: 'Not rated' } as Plant,
+    ];
+    expect(plants.map((p) => [ratedFor(p, 'people'), ratedFor(p, 'dogs'), ratedFor(p, 'cats'), ratedFor(p, 'horses')])).toEqual([
+      [true, true, true, true], [false, true, false, false], [true, false, false, false], [false, false, false, false]]);
+    expect(ratedFor({ id: 'e', common: 'E', dog: 'Unverified' }, 'dogs')).toBe(false);
+    expect([unratedCount(['people'], plants), unratedCount(['dogs'], plants), unratedCount(['cats', 'horses'], plants), unratedCount([], plants)]).toEqual([2, 2, 3, 3]);
+    expect(toxicNote(['people'], plants)).toBe('Hides plants NC State or an earlier list rates toxic to them. Not rated toxic isn\u2019t the same as safe: 2 plants have no rating yet.');
+    expect(toxicNote(['people'], plants.slice(0, 1).concat(plants[3]))).toContain(': 1 plant has no rating yet.');
+    expect(toxicNote([], plants)).not.toMatch(/\bsafe for|rated safe|\btap\b|\bclick\b/i);
   });
   it('keeps, when asked, only evergreens: not semi-evergreen (it depends on the winter), nor plants no source rates', () => {
     expect(plantMatches({ ...heuchera, foliage: 'evergreen' }, f({ evergreen: true }))).toBe(true);
@@ -401,12 +435,12 @@ describe('plant filters', () => {
     expect(first("wood's sedge")).toBe('w');
     expect(first('woods sedge')).toBe('w');
   });
-  it('calls a plant non-toxic to dogs only when nothing says otherwise', () => {
-    expect(nonToxicToDogs({ id: 'a', common: 'A', dog: 'Safe' })).toBe(true); // the earlier list, until checked
-    expect(nonToxicToDogs({ id: 'a', common: 'A', dog: 'Unverified' })).toBe(false);
-    expect(nonToxicToDogs({ id: 'a', common: 'A', dog: 'Unverified', tox: { dog: 'nontoxic' } })).toBe(true);
-    expect(nonToxicToDogs({ id: 'a', common: 'A', tox: { dog: 'unlisted' } })).toBe(false); // not listed isn't safe
-    expect(nonToxicToDogs({ id: 'a', common: 'A', dog: 'HARD NO', tox: { dog: 'nontoxic' } })).toBe(false); // the warning holds until the audit settles it
+  it('counts a plant toxic to dogs on any warning, whatever else says it is safe', () => {
+    expect(toxicToDogs({ id: 'a', common: 'A', dog: 'Safe' })).toBe(false);
+    expect(toxicToDogs({ id: 'a', common: 'A', dog: 'Unverified' })).toBe(false);
+    expect(toxicToDogs({ id: 'a', common: 'A', tox: { dog: 'unlisted' } })).toBe(false);
+    expect(toxicToDogs({ id: 'a', common: 'A', tox: { dog: 'toxic' } })).toBe(true);
+    expect(toxicToDogs({ id: 'a', common: 'A', dog: 'HARD NO', tox: { dog: 'nontoxic' } })).toBe(true); // the warning holds until the audit settles it
   });
   it('gives a warning for one record of a species to the others, which then say so (never silence, which reads as safe)', () => {
     expect(speciesOf('Asclepias tuberosa (clay strain)')).toBe('Asclepias tuberosa');
@@ -422,7 +456,7 @@ describe('plant filters', () => {
     expect(sp.dogVia).toEqual({ id: 'clay', common: "Butterfly weed 'for Clay'", dog: 'Toxic - rarely eaten' });
     expect(clay.dogVia).toBeUndefined(); // (its own)
     expect(other.dogVia).toBeUndefined(); // (another species)
-    expect(nonToxicToDogs(safe)).toBe(false); // (a warning beats the earlier list's "Safe" for one record)
+    expect(toxicToDogs(safe)).toBe(true); // (a warning beats the earlier list's "Safe" for one record)
     expect(toxicToDogs(sp)).toBe(true);
     expect(toxRow(sp)).toEqual({ value: 'dogs: Toxic - rarely eaten', line: "Source: earlier list, unverified · given for Butterfly weed 'for Clay', the same species" });
     expect(toxRow(safe)!.line).toContain('the earlier list calls this one safe');
@@ -431,7 +465,6 @@ describe('plant filters', () => {
     // lists none says so, and that it isn't the same as safe.
     const flagged: Plant = { id: 'ff', common: 'Flagged', dog: 'Safe', problem_for: ['dogs', 'cats'], prov: { problem_for: { src: ['ncsu'], check: 'single' } } };
     expect(toxicToDogs(flagged)).toBe(true);
-    expect(nonToxicToDogs(flagged)).toBe(false);
     expect(toxRow(flagged)!.value).toBe('Toxic to dogs and cats');
     const catsOnly: Plant = { id: 'fc', common: 'Cats only', dog: 'Mild GI', problem_for: ['cats'], prov: { problem_for: { src: ['ncsu'], check: 'single' } } };
     expect(toxRow(catsOnly)!.value).toBe('Toxic to cats; dogs: Mild GI');
@@ -445,13 +478,14 @@ describe('plant filters', () => {
     shareDogWarnings([a, b, c]);
     expect(c.dogVia?.id).toBe('b');
   });
-  it('filters dogs three ways: any, hide toxic (keep unrated), only non-toxic', () => {
+  it('filters dogs on or off: on hides any warning and keeps the unrated; "only plants rated safe", kept from before Nov 5, reads as on', () => {
     const toxic: Plant = { id: 't', common: 'T', dog: 'Toxic' }, unrated: Plant = { id: 'u', common: 'U' }, safe: Plant = { id: 's', common: 'S', dog: 'Safe' };
     const via: Plant = { id: 'v', common: 'V', dogVia: { id: 't', common: 'T', dog: 'Toxic' } };
     const shown = (dogs: typeof PLANT_FILTER_DEFAULTS.dogs) => [toxic, unrated, safe, via].filter((p) => plantMatches(p, f({ dogs }))).map((p) => p.id);
     expect(shown('')).toEqual(['t', 'u', 's', 'v']);
     expect(shown('hideToxic')).toEqual(['u', 's']);
-    expect(shown('nonToxic')).toEqual(['s']);
+    expect(shown('nonToxic')).toEqual(['u', 's']); // (no longer only 's': the earlier list's "Safe" isn't taken as safe)
+    expect(filterOn(f({ dogs: 'nonToxic' }), 'dogs')).toBe(true);
   });
 });
 

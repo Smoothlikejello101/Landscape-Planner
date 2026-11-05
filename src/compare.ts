@@ -200,7 +200,7 @@ function nativeCell(p: Plant): Cell {
 }
 /**
  * Poisonous to people, in its source's words (a hybrid no source rates: its parents'); "None listed" where NC State's
- * page says nothing of poison (a weak no, not "safe"). Red with kids in the yard, as its row's mark is; amber for a skin
+ * page says nothing of poison (a weak no, not "safe"). Red with People chosen, as its row's mark is; amber for a skin
  * irritant, which anyone can brush (src/plants.ts householdFlags, rowFlags).
  */
 function poisonCell(p: Plant, y: Yard): Cell {

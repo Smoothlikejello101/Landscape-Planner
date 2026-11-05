@@ -216,6 +216,10 @@ type SunLevel = 'Full' | 'Part' | 'Shade';
 export let PLANTS: Plant[] = [];
 export let PLANT_META: PlantMeta | null = null;
 export const plantsById: Record<string, Plant> = {};
+/**
+ * The dog filter: '' off; 'hideToxic' on. 'nonToxic' ("only plants rated safe", gone Nov 5: the only safe ratings were
+ * the earlier list's) is still read where a plan or device kept it, as 'hideToxic' (src/yard.ts applyYard).
+ */
 export type DogFilter = '' | 'hideToxic' | 'nonToxic';
 /** Plants of mine switched to a catalog plant: their id → the catalog plant's (src/my-plants.ts keeps these). */
 export const aliases: Record<string, string> = {};
@@ -286,11 +290,13 @@ export const PLANT_FILTER_DEFAULTS = {
   height: '',
   /** Mature width (spread), the same way (Jason, Oct 31: as height, "something you'd expect"). */
   width: '',
-  /** Toxic to dogs: '' any; 'hideToxic' leaves out plants with a warning (unrated ones stay); 'nonToxic' only plants rated non-toxic. */
+  /**
+   * "Hide plants rated toxic to:" People (`noPoison`), Dogs, Cats, Horses (Jason, Nov 5): each leaves out the plants rated
+   * toxic to them (toxicTo), and nothing else; one not rated stays (not "safe", just not rated). Dogs: '' off, any
+   * other value on (DogFilter).
+   */
   dogs: '' as DogFilter,
-  /** Leaves out plants NC State lists as a problem for cats, for horses (one not listed stays: not "safe", just not flagged). */
   cats: false, horses: false,
-  /** Only plants whose NC State page was read and lists no poison to people (one not rated is left out too, as the dog filter keeps only plants known safe). */
   noPoison: false,
   /**
    * Deer resistant (its rating); low maintenance (NC State's level); drought tolerant (NC State: drought or dry soil);
@@ -551,12 +557,13 @@ function partnersOfSet(of: string): Set<string> {
 export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): boolean {
   // What the state's law bans is never suggested; it turns up when searched by name (to map one already in the yard).
   if (bannedLeftOut(f) && bannedHere(p)) return false;
-  if (f.dogs === 'hideToxic' && toxicToDogs(p)) return false;
-  if (f.dogs === 'nonToxic' && !nonToxicToDogs(p)) return false;
-  if (f.cats && p.problem_for?.includes('cats')) return false;
-  if (f.horses && p.problem_for?.includes('horses')) return false;
-  // (A hybrid none rates whose parent is rated: not "not listed", whatever its own page says.)
-  if (f.noPoison && (!(p.prov?.poison?.unknown && !p.poison) || parentRated(p))) return false;
+  // "Hide plants rated toxic to:" (Jason, Nov 5): only what's rated toxic to them goes; a plant not rated stays. (Until Nov 5,
+  // People hid plants NC State hasn't rated too, and Dogs could keep only those the earlier list calls safe: what was
+  // left read as safe.) Dogs kept as 'nonToxic' from then is Dogs on.
+  if (f.noPoison && toxicTo(p, 'people')) return false;
+  if (f.dogs && toxicTo(p, 'dogs')) return false;
+  if (f.cats && toxicTo(p, 'cats')) return false;
+  if (f.horses && toxicTo(p, 'horses')) return false;
   // (Plants at the edge of their range count: the list marks them. So does a plant rated for cooler zones that's
   // recorded growing wild in the garden's county or one bordering it: it has been found living through those
   // summers. Not one rated for warmer zones: a record of an escaped garden annual says nothing about winters.)
@@ -632,20 +639,50 @@ export function oldDogWarning(p: Plant): string | null {
   return p.dog && p.dog !== 'Safe' && p.dog !== 'Unverified' ? p.dog : null;
 }
 /**
- * Non-toxic to dogs: listed non-toxic by the ASPCA (not merely unlisted:
- * unlisted isn't safe); until a plant has been checked against the ASPCA,
- * the earlier list's "Safe". Any warning from the earlier list still holds
- * until the audit removes it, so the two can only agree to call a plant safe.
- */
-export function nonToxicToDogs(p: Plant): boolean {
-  if (oldDogWarning(p) || p.dogVia || p.problem_for?.includes('dogs')) return false;
-  return p.tox?.dog ? p.tox.dog === 'nontoxic' : p.dog === 'Safe';
-}
-/**
  * Any warning for dogs: listed toxic, NC State's "Problem for Dogs", the earlier list's warning, or that warning given
  * for its species' other record.
  */
 export const toxicToDogs = (p: Plant): boolean => p.tox?.dog === 'toxic' || !!p.problem_for?.includes('dogs') || !!oldDogWarning(p) || !!p.dogVia;
+/** Who "Hide plants rated toxic to:" hides plants for (src/yard.ts YARD_CHIPS: People is the yard's `kids`). */
+export type ToxicTo = 'people' | 'dogs' | 'cats' | 'horses';
+export const TOXIC_TO: ToxicTo[] = ['people', 'dogs', 'cats', 'horses'];
+/**
+ * Rated toxic to them, by any source: people, NC State's rating (eaten or on the skin; a hybrid none rates, its rated
+ * parents': poisonRating) or another source's class; dogs, any dog warning, the earlier list's among them
+ * (toxicToDogs); cats and horses, NC State's "Problem for", or another source's listing. Hiding errs safe: a toxic
+ * rating from the earlier list hides a plant, though nothing it calls safe is taken as safe.
+ */
+export function toxicTo(p: Plant, who: ToxicTo): boolean {
+  if (who === 'people') return !!poisonRating(p) || (!!p.tox?.people && p.tox.people !== 'unlisted');
+  if (who === 'dogs') return toxicToDogs(p);
+  return !!p.problem_for?.includes(who) || p.tox?.[who === 'cats' ? 'cat' : 'horse'] === 'toxic';
+}
+/**
+ * Whether any source rates it for them at all: toxic (toxicTo), or read and listing nothing (NC State's page, whose
+ * poison facts and "Problem for" come together; another source's "unlisted"; the earlier list's word on dogs, its
+ * "Safe" too). Not the same as safe either way: the note under "Hide plants rated toxic to:" counts those that aren't
+ * rated at all (toxicNote).
+ */
+export function ratedFor(p: Plant, who: ToxicTo): boolean {
+  if (toxicTo(p, who)) return true;
+  if (who === 'people') return !!p.prov?.poison || !!p.tox?.people;
+  if (p.prov?.poison?.src.includes('ncsu') || p.prov?.problem_for) return true;
+  if (p.tox?.[who === 'dogs' ? 'dog' : who === 'cats' ? 'cat' : 'horse']) return true;
+  return who === 'dogs' && !!p.dog && p.dog !== 'Unverified';
+}
+/** How many catalog plants no source rates for one or more of `who` (all four, with none chosen). */
+export function unratedCount(who: ToxicTo[], plants: Plant[] = PLANTS): number {
+  const any = who.length ? who : TOXIC_TO;
+  return plants.filter((p) => any.some((w) => !ratedFor(p, w))).length;
+}
+/**
+ * The line under "Hide plants rated toxic to:" (the picker's, and the guided introduction's step 6): what it hides, by whose
+ * word, and that what's left isn't called safe, with how many plants aren't rated for those chosen (Jason, Nov 5).
+ */
+export function toxicNote(who: ToxicTo[], plants: Plant[] = PLANTS): string {
+  const n = unratedCount(who, plants);
+  return `Hides plants NC State or an earlier list rates toxic to them. Not rated toxic isn’t the same as safe: ${countWord(n)} plant${n === 1 ? ' has' : 's have'} no rating yet.`;
+}
 /**
  * A plant's species from its botanical name ("Asclepias tuberosa (clay strain)", "Ilex verticillata 'Red Sprite'":
  * "Asclepias tuberosa", "Ilex verticillata"; a hybrid keeps its ×). Null for a genus alone ("Hosta 'Halcyon'").
@@ -745,8 +782,8 @@ export function reportedMatch(p: Plant, f: PlantFilter, inPlan?: Set<string>): s
 export const reportedOnly = new Map<string, string[]>();
 /**
  * Which facts each filter reads (for whether a match rests only on the earlier list), and what it's called. The
- * labels the other-sources filters share are theirs (FILTER_FACTS). Not the dog filter, which says unverified in its
- * own words, nor poison to people (always sourced), the search or "In this plan".
+ * labels the other-sources filters share are theirs (FILTER_FACTS). Not "Hide plants rated toxic to:", which only hides (an
+ * earlier list's warning for dogs among what it hides errs safe, and its note says so), the search or "In this plan".
  */
 const FILTER_READS: [keyof PlantFilter, (p: Plant, f: PlantFilter) => string[], string][] = [
   ['form', () => ['form'], 'form'], ['sun', () => ['sun_most', 'sun_least'], 'sun'], ['sunRange', () => ['sun_most', 'sun_least'], 'sun'], ['afternoonSun', () => ['sun_most'], 'sun'], ['water', () => ['water'], 'water'],
@@ -1218,8 +1255,9 @@ export const poisonousToPeople = (p: Plant): boolean => { const r = poisonRating
 const andList = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : xs[0] ?? '');
 /**
  * What the household should know of a plant (Jason, Oct 30, from round 2: Dana, Priya and Ruth read an azalea, a
- * mountain laurel and a milkweed as safe from rows that only said "Can irritate skin"): poisonous to people, with
- * kids in the yard; a problem for each pet that's there (src/yard.ts). Nothing with no one set, or warnings off.
+ * mountain laurel and a milkweed as safe from rows that only said "Can irritate skin"): poisonous to people if eaten,
+ * with People chosen (the yard's `kids`); toxic to each pet chosen (src/yard.ts). Nothing with no one set, or warnings
+ * off.
  */
 export function householdFlags(p: Plant, y: Yard = household()): RowFlag[] {
   if (!state.poisonWarnings) return [];
@@ -1229,7 +1267,7 @@ export function householdFlags(p: Plant, y: Yard = household()): RowFlag[] {
     const how = [r.severity ? `${r.severity} severity` : '', r.parts?.length ? andList(r.parts.map((x) => x.toLowerCase())) : ''].filter(Boolean).join(': ');
     out.push({ text: 'Toxic to people', kind: 'bad', title: `${p.poison ? 'Toxic' : 'Not rated itself; a parent is toxic'} if eaten${how ? ` (${how})` : ''}`, testid: 'row-poison' });
   }
-  const pets = [y.dogs !== '' && toxicToDogs(p) ? 'dogs' : '', y.cats && p.problem_for?.includes('cats') ? 'cats' : '', y.horses && p.problem_for?.includes('horses') ? 'horses' : ''].filter(Boolean);
+  const pets = [y.dogs !== '' && toxicTo(p, 'dogs') ? 'dogs' : '', y.cats && toxicTo(p, 'cats') ? 'cats' : '', y.horses && toxicTo(p, 'horses') ? 'horses' : ''].filter(Boolean);
   if (pets.length) out.push({ text: `Toxic to ${andList(pets)}`, kind: 'bad', testid: 'row-pets' });
   return out;
 }

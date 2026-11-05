@@ -5,7 +5,7 @@ import { updateSelected, updateSelectedSilent } from '../mutations';
 import { hardinessWarning, householdFlags, PLANTS, plantsById } from '../plants';
 import { fruitNeed } from '../fruit-partners';
 import { remindNoMore } from './fruit-notice';
-import { household } from '../yard';
+import { household, yardSaid } from '../yard';
 import { state } from '../state';
 import { checkPlantSun, formatHours, formatTime, newSunInfo, sunDismissedFor, sunHours, sunLevel } from '../sun';
 import type { DismissKind, Shape, SunInfo } from '../types';
@@ -154,10 +154,8 @@ export function plantPoisonBanner(s: Shape): HTMLElement | null {
   const p = plantsById[s.plantId!];
   const flags = p ? householdFlags(p) : [];
   if (!flags.length) return null;
-  const y = household();
-  const who = [y.kids ? 'kids' : '', y.dogs ? 'dogs' : '', y.cats ? 'cats' : '', y.horses ? 'horses' : ''].filter(Boolean);
   const said = flags.map((f, i) => { const t = f.testid === 'row-poison' ? f.title ?? f.text : f.text; return i ? t.charAt(0).toLowerCase() + t.slice(1) : t; }).join('; ');
-  const whoSaid = who.length > 1 ? `${who.slice(0, -1).join(', ')} and ${who.at(-1)}` : who[0];
+  const whoSaid = yardSaid(household());
   // (Dismissed, the badge goes, for every one in the plan: never what its details and the picker say. Jason, Oct 30.)
   // (Still dismissed with fewer at risk than when it was: src/dismissals.ts poisonCovered.)
   const key = poisonSaid(p!), across = dismissedForPlan('poison', p!.id, key), mine = !across && poisonCovered(s.poisonDismissed, key), dismissed = across || mine;

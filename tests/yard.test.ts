@@ -3,16 +3,17 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { NEW_RECORD } from '../src/intro';
 import { state } from '../src/state';
 import type { PlanHousehold } from '../src/types';
-import { askAtTop, askDismissed, dismissAsked, household, householdCopy, householdFromDevice, introAnswered, loadAsked, loadYard, NO_YARD, noteAsked, saveYard, toggleYard, yardKeyOf } from '../src/yard';
+import { PLANT_FILTER_DEFAULTS, plantMatches, type Plant } from '../src/plants';
+import { applyYard, askAtTop, askDismissed, dismissAsked, household, householdCopy, householdFromDevice, introAnswered, loadAsked, loadYard, NO_YARD, noteAsked, saveYard, toggleYard, YARD_CHIPS, yardKeyOf, yardOf, yardSaid } from '../src/yard';
 
-// "Anyone you need to protect?" (Jason, Nov 1, from the UI review): first among the picker's filters until it's
-// answered for the plan or dismissed on this device, then under Filters, Poison & pets. Who's in the yard, and whether
-// the question was answered, are kept with the plan (Jason, Nov 1); the × is kept per device in 'lp-protect-line'.
+// The picker's "Hide plants rated toxic to:" (Jason, Nov 5; "Anyone you need to protect?" from Nov 1, the UI review): first
+// among its filters until it's answered for the plan or dismissed on this device, then in Filters. Who's in the yard,
+// and whether it was answered, are kept with the plan (Jason, Nov 1); the × is kept per device in 'lp-protect-line'.
 
 const none: PlanHousehold = { ...NO_YARD, answered: false };
 const fresh = { dismissed: false, household: none };
 
-describe('when the picker asks "Anyone you need to protect?" at the top', () => {
+describe('when the picker asks "Hide plants rated toxic to:" at the top', () => {
   beforeEach(() => localStorage.clear());
   it('for a plan not yet answered, until it is answered or dismissed on this device', () => {
     expect(askAtTop(fresh)).toBe(true);
@@ -102,13 +103,46 @@ describe('a plan from before plans kept who\'s in the yard (Jason, Nov 1)', () =
 });
 
 describe('a chip for one of the four', () => {
-  it('turns it on or off; Dogs on is "no dog warnings", or "only plants rated safe" if that is what it was', () => {
+  it('says People, Dogs, Cats and Horses, People kept as `kids` (Jason, Nov 5)', () => {
+    expect(YARD_CHIPS).toEqual([['kids', 'People'], ['dogs', 'Dogs'], ['cats', 'Cats'], ['horses', 'Horses']]);
+    expect(yardSaid({ ...NO_YARD, kids: true, dogs: 'hideToxic' })).toBe('people and dogs');
+    expect(yardSaid({ kids: true, dogs: 'nonToxic', cats: true, horses: false })).toBe('people, dogs and cats');
+    expect(yardSaid(NO_YARD)).toBe('');
+  });
+  it('turns it on or off; Dogs on is "hide plants toxic to dogs", whatever it was before (no "only plants rated safe" since Nov 5)', () => {
     expect(toggleYard(NO_YARD, 'kids')).toEqual({ ...NO_YARD, kids: true });
     expect(toggleYard({ ...NO_YARD, kids: true }, 'kids')).toEqual(NO_YARD);
     expect(toggleYard(NO_YARD, 'horses')).toEqual({ ...NO_YARD, horses: true });
     expect(toggleYard(NO_YARD, 'dogs').dogs).toBe('hideToxic');
     const off = toggleYard({ ...NO_YARD, dogs: 'nonToxic' }, 'dogs');
     expect(off.dogs).toBe('');
-    expect(toggleYard(off, 'dogs').dogs).toBe('nonToxic');
+    expect(toggleYard(off, 'dogs').dogs).toBe('hideToxic');
+  });
+});
+
+describe('what was kept before Nov 5, read as the line has it now (nothing stored changes)', () => {
+  it("Dogs kept as 'nonToxic' (\"only plants rated safe\") is Dogs on: hiding what's toxic to dogs, a plant not rated shown", () => {
+    const f = { ...PLANT_FILTER_DEFAULTS };
+    applyYard(f, { ...NO_YARD, dogs: 'nonToxic' });
+    expect(f.dogs).toBe('hideToxic');
+    expect(yardOf(f)).toEqual({ ...NO_YARD, dogs: 'hideToxic' });
+    expect(plantMatches({ id: 'u', common: 'Not rated' } as Plant, f)).toBe(true);
+    expect(plantMatches({ id: 't', common: 'Toxic', problem_for: ['dogs'] } as Plant, f)).toBe(false);
+    // (The plan keeps it as it was until Dogs is changed.)
+    state.household = { ...NO_YARD, dogs: 'nonToxic', answered: true, at: 5 };
+    saveYard({ ...NO_YARD, cats: true }, 'cats');
+    expect(household()).toMatchObject({ dogs: 'nonToxic', cats: true });
+    expect(askAtTop({ dismissed: false, household: household() })).toBe(false);
+  });
+  it('`kids` is People: hiding what NC State rates toxic to people, a plant it hasn\'t rated shown (hidden before Nov 5)', () => {
+    const f = { ...PLANT_FILTER_DEFAULTS };
+    applyYard(f, { ...NO_YARD, kids: true });
+    expect(f.noPoison).toBe(true);
+    expect(plantMatches({ id: 'u', common: 'Not rated' } as Plant, f)).toBe(true);
+    expect(plantMatches({ id: 'm', common: 'Mayapple', poison: { severity: 'high' } } as Plant, f)).toBe(false);
+    // What the device kept before plans kept it reads the same.
+    localStorage.setItem('lp-yard', JSON.stringify({ kids: true, dogs: 'nonToxic', cats: false, horses: false }));
+    expect(loadYard()).toEqual({ ...NO_YARD, kids: true, dogs: 'nonToxic' });
+    localStorage.clear();
   });
 });

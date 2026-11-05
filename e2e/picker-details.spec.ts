@@ -341,7 +341,7 @@ test('search matches word by word, in any order, and forgives a slip when nothin
   await expect(page.getByTestId('picker-count')).toContainText(/^All \d,\d{3} plants/);
 });
 
-test('a plant poisonous to people says so, beside Edible, and the picker can keep only plants with none listed', async ({ page }) => {
+test('a plant poisonous to people says so, beside Edible; People hides it, and not a plant listing none, nor one no source rates (Jason, Nov 5)', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Mayapple');
@@ -356,17 +356,25 @@ test('a plant poisonous to people says so, beside Edible, and the picker can kee
   await expect(row('Toxic to people')).toContainText('Leaves, roots, seeds and stems, high severity; can irritate skin');
   await expect(row('Toxic to people').locator('.details-src')).toContainText('NC State');
   await expect(row('Edible')).toContainText(/^Fruit, though it's also listed as toxic to people/); // (the part NC State marks edible)
-  // A plant whose NC State page lists none says so, and the filter keeps only such plants.
+  // A plant whose NC State page lists none says so; People keeps it.
   await page.getByTestId('plant-search').fill('Autumn Bride');
   const heuchera = page.locator('.plant-item', { hasText: "Heuchera 'Autumn Bride'" });
   await heuchera.getByTestId('plant-row').click();
   await expect(heuchera.getByTestId('plant-details').locator('dt', { hasText: /^Toxic to people$/ }).locator('xpath=following-sibling::dd[1]')).toContainText('None listed');
-  await openFilters(page); // (Poison & pets, among them)
-  await page.locator('label', { hasText: 'Hide plants toxic to people' }).locator('input').check();
-  await expect(page.getByTestId('active-chip')).toHaveText(['No plants toxic to people']);
+  await page.getByTestId('clear-search').click(); // ("Hide plants rated toxic to:" folds away while a search is typed)
+  await page.getByTestId('protect-kids').click();
+  await expect(page.getByTestId('active-chip')).toHaveText(['No plants rated toxic to people']);
+  await page.getByTestId('plant-search').fill('Autumn Bride');
   await expect(heuchera).toHaveCount(1);
   await page.getByTestId('plant-search').fill('Mayapple');
   await expect(page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Mayapple$/ }) })).toHaveCount(0);
+  // One no source rates for people still shows, said so in its details (until Nov 5 People hid it too, which read as
+  // "what's left is safe").
+  await page.getByTestId('plant-search').fill('Sideoats grama');
+  const grama = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Sideoats Grama$/ }) });
+  await expect(grama).toHaveCount(1);
+  await grama.getByTestId('plant-row').click();
+  await expect(grama.getByTestId('plant-details').locator('dt', { hasText: /^Toxic to people$/ }).locator('xpath=following-sibling::dd[1]')).toContainText(/^Not known/);
 });
 
 test('a plant\'s leaves: their colors, what they do in winter, fall color and growth rate; the picker can keep only evergreens', async ({ page }) => {
@@ -395,37 +403,43 @@ test('a plant\'s leaves: their colors, what they do in winter, fall color and gr
   await expect(page.locator('.plant-item', { hasText: /^Red Maple/ })).toHaveCount(0);
 });
 
-test('animal toxicity: dogs three ways, and a warning given for one record of a species shows on the others', async ({ page }) => {
+test('animal toxicity: a chip each, hiding only what\'s rated toxic to them; a warning given for one record of a species shows on the others (Jason, Nov 5)', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   const count = page.getByTestId('picker-count');
   await expect(count).toContainText(/^All /);
+  // (Dismissed, the line is in Filters, where it stays in view while a search is typed.)
+  await page.getByTestId('protect-dismiss').click();
   const fold = page.getByTestId('filters');
   await expect(fold).toHaveAttribute('aria-expanded', 'false');
   await fold.click();
-  await expect(page.getByTestId('dogs-any')).toBeChecked();
-  await page.getByTestId('dogs-hideToxic').check();
+  const dogs = page.getByTestId('protect-dogs');
+  await expect(dogs).toHaveAttribute('aria-pressed', 'false');
+  // One line: no "Show all", no "rated safe" (the only safe ratings were the earlier list's, unverified).
+  await expect(page.getByTestId('all-filters')).not.toContainText(/rated safe|Show all|Poison & pets/);
+  await dogs.click();
+  await expect(dogs).toHaveAttribute('aria-pressed', 'true');
   await expect(fold).toHaveText('Filters (1 on)');
-  await expect(page.getByTestId('active-chip')).toHaveText(['No plants toxic to dogs']);
-  await expect(page.getByTestId('dogs-note')).toContainText(/Hides the [\d,]+ plants toxic to dogs, according to NC State or an earlier list\. The [\d,]+ not yet rated still show/);
+  await expect(page.getByTestId('active-chip')).toHaveText(['No plants rated toxic to dogs']);
+  await expect(page.getByTestId('protect-note')).toHaveText(/^Hides plants NC State or an earlier list rates toxic to them\. Not rated toxic isn’t the same as safe: [\d,]+ plants have no rating yet\.$/);
   await expect(count).toContainText(/^[\d,]+ of [\d,]+ plants match/);
-  // NC State lists it as a problem for dogs: hidden; any shows it, saying so.
+  // NC State lists it as a problem for dogs: hidden; Dogs off shows it, saying so.
   await page.getByTestId('plant-search').fill('Butterfly milkweed');
   const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Butterfly Milkweed$/ }) });
   await expect(item).toHaveCount(0);
   await openFilters(page); // (typing a search folds them: Jason, Nov 1)
-  await page.getByTestId('dogs-any').check();
+  await dogs.click();
   await expect(item).toHaveCount(1);
   await item.getByRole('button', { name: /Butterfly Milkweed/ }).first().click();
   await expect(item.getByTestId('tox-row')).toContainText('Toxic to dogs, cats and horses');
-  // The species record carries another record's warning (the earlier list's), so hiding toxic hides it too; any shows
-  // it again, saying where the warning came from.
-  await page.getByTestId('dogs-hideToxic').check();
+  // The species record carries another record's warning (the earlier list's), so Dogs hides it too; off shows it
+  // again, saying where the warning came from.
+  await dogs.click();
   await page.getByTestId('plant-search').fill('Yaupon');
   const yaupon = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Yaupon$/ }) });
   await expect(yaupon).toHaveCount(0);
   await openFilters(page);
-  await page.getByTestId('dogs-any').check();
+  await dogs.click();
   await expect(yaupon).toHaveCount(1);
   await yaupon.getByRole('button', { name: /Yaupon/ }).first().click();
   await expect(yaupon.getByTestId('tox-row')).toContainText("given for Dwarf Yaupon Holly 'Schillings', the same species");
@@ -435,19 +449,17 @@ test('animal toxicity: dogs three ways, and a warning given for one record of a 
   await unrated.getByRole('button', { name: /Acapulco Orange/ }).first().click();
   await expect(unrated.getByTestId('tox-row')).toContainText(/^(Not rated for pets|Not listed as toxic to dogs, cats or horses)/);
   // Cats and horses: NC State's warnings hide it.
-  await openFilters(page);
-  await page.getByTestId('dogs-any').check();
   await page.getByTestId('plant-search').fill('Butterfly milkweed');
   await openFilters(page);
-  await page.locator('label', { hasText: 'Hide plants toxic to horses' }).locator('input').check();
+  await page.getByTestId('protect-horses').click();
   await expect(item).toHaveCount(0);
   await page.getByTestId('plant-search').fill("'Acapulco Orange'");
   // Clearing the filters keeps the search and the open section.
   await openFilters(page);
-  await page.getByTestId('dogs-nonToxic').check();
+  await dogs.click();
   await page.getByTestId('reset-filters').click();
-  await expect(page.getByTestId('dogs-any')).toBeChecked();
-  await expect(page.locator('label', { hasText: 'Hide plants toxic to horses' }).locator('input')).not.toBeChecked();
+  await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByTestId('protect-horses')).toHaveAttribute('aria-pressed', 'false');
   await expect(fold).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByTestId('plant-search')).toHaveValue("'Acapulco Orange'");
 });
@@ -601,11 +613,11 @@ test('typing a search folds the open filters, the results in view; Add as my pla
   if (isMobile) await expect(page.getByTestId('plant-search')).toBeFocused();
 });
 
-// The picker bug hunt, Nov 1: typing on a 360 × 640 phone, Recent and "Anyone you need to protect?" stayed above the
-// results, one row of them in view at most, at Extra large none. The question folds away while a search is typed, as
-// the filters do, and comes back when it's cleared. (Recent went with Jason's notes of Nov 4: "In this plan" finds the
-// plants placed.)
-test('typing a search folds "Anyone you need to protect?" away, results in view on a 360 × 640 phone; cleared, it\'s back; no Recent (the picker bug hunt, Nov 1; Jason, Nov 4)', async ({ page }) => {
+// The picker bug hunt, Nov 1: typing on a 360 × 640 phone, Recent and "Anyone you need to protect?" (since Nov 5, "Hide
+// plants toxic to:") stayed above the results, one row of them in view at most, at Extra large none. The question folds
+// away while a search is typed, as the filters do, and comes back when it's cleared. (Recent went with Jason's notes of
+// Nov 4: "In this plan" finds the plants placed.)
+test('typing a search folds "Hide plants rated toxic to:" away, results in view on a 360 × 640 phone; cleared, it\'s back; no Recent (the picker bug hunt, Nov 1; Jason, Nov 4)', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 640 });
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
@@ -979,10 +991,12 @@ test("a winter no source gives: as its species' USA-NPN records show it, or as e
   await expect(grama).toContainText(/USA-NPN observers, who recorded it bare: \d+ plant-years/);
 });
 
-// "Anyone you need to protect?" (Jason, Nov 1, from the UI review: a tester saw "Can irritate skin" on rows but nothing on
-// a plant highly poisonous to people, and never learned the picker screens for kids and pets without opening Filters).
-// First among the filters until it's answered for the plan or dismissed on this device; then under Filters, Poison &
-// pets. Who's in the yard, and the answer, are kept with the plan (Jason, Nov 1); the × is the device's.
+// "Hide plants rated toxic to:" (Jason, Nov 5: "the whole poison filter could be reduced to 'hide plants toxic to …' with
+// chips. Maybe replace 'kids' with 'people.'"), in place of "Anyone you need to protect?" (Jason, Nov 1, from the UI
+// review: a tester saw "Can irritate skin" on rows but nothing on a plant highly poisonous to people, and never learned
+// the picker screens for kids and pets without opening Filters) and the Poison & pets group. First among the filters
+// until it's answered for the plan or dismissed on this device; then in Filters, where Poison & pets was. Who's in the
+// yard, and the answer, are kept with the plan (Jason, Nov 1); the × is the device's. People is kept as `kids`.
 const protect = (page: Page) => page.getByTestId('protect-line');
 /** Who's in the open plan's yard, as stored with it (its time left out). */
 const planHousehold = (page: Page) => page.evaluate(() => new Promise<unknown>((resolve) => {
@@ -999,20 +1013,23 @@ const planHousehold = (page: Page) => page.evaluate(() => new Promise<unknown>((
 /** What the device keeps of it: the × ('lp-protect-line'), and who was in the yard before plans kept it ('lp-yard'). */
 const deviceKept = (page: Page) => page.evaluate(() => [localStorage.getItem('lp-protect-line'), localStorage.getItem('lp-yard')]);
 const NONE = { kids: false, dogs: '', cats: false, horses: false };
-/** The line first among the picker's filters, not under Poison & pets. */
+/** The line first among the picker's filters, not in Filters. */
 const protectAtTop = (page: Page) => page.locator('.picker-filters > [data-testid=protect-line]:first-child');
-const protectInGroup = (page: Page) => page.getByTestId('animal-toxicity').getByTestId('protect-line');
+const protectInGroup = (page: Page) => page.getByTestId('toxic-filters').getByTestId('protect-line');
+/** The line's note: what it hides, by whose word, and how many plants aren't rated for those chosen. */
+const NOTE = /^Hides plants NC State or an earlier list rates toxic to them\. Not rated toxic isn’t the same as safe: ([\d,]+) plants have no rating yet\.$/;
+const unratedSaid = async (page: Page) => Number((NOTE.exec((await page.getByTestId('protect-note').textContent()) ?? '') ?? ['', 'NaN'])[1].replace(/,/g, ''));
 
-test('"Anyone you need to protect?" comes first on a fresh device: Kids, Dogs, Cats and Horses, and why skin irritants are marked for all (Jason, Nov 1)', async ({ page }) => {
+test('"Hide plants rated toxic to:" comes first on a fresh device: People, Dogs, Cats and Horses, its note counting the plants not rated; skin irritants marked for all (Jason, Nov 5)', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await expect(protectAtTop(page)).toBeVisible();
-  await expect(protect(page)).toHaveCount(1); // (not under Poison & pets too)
-  await expect(protect(page).locator('.protect-title')).toHaveText('Anyone you need to protect?');
-  await expect(protect(page).locator('.protect-chip')).toHaveText(['Kids', 'Dogs', 'Cats', 'Horses']);
+  await expect(protect(page)).toHaveCount(1); // (not in Filters too)
+  await expect(protect(page).locator('.protect-title')).toHaveText('Hide plants rated toxic to:');
+  await expect(protect(page).locator('.protect-chip')).toHaveText(['People', 'Dogs', 'Cats', 'Horses']);
   for (const k of ['kids', 'dogs', 'cats', 'horses']) await expect(page.getByTestId(`protect-${k}`)).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.getByTestId('protect-note')).toHaveText('We’ll hide plants that are toxic to them.');
-  await expect(protect(page)).not.toContainText(/\b(tap|click)/i);
+  await expect(page.getByTestId('protect-note')).toHaveText(NOTE);
+  await expect(protect(page)).not.toContainText(/\b(tap|click|kids)\b/i);
   await expect(page.getByTestId('protect-dismiss')).toHaveAttribute('aria-label', /^Dismiss/);
   // Above the Filters button, which is folded.
   const line = (await protect(page).boundingBox())!, fold = (await page.getByTestId('filters').boundingBox())!;
@@ -1023,14 +1040,25 @@ test('"Anyone you need to protect?" comes first on a fresh device: Kids, Dogs, C
   const mayapple = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Mayapple$/ }) });
   await expect(mayapple.getByTestId('row-skin')).toHaveText('Can irritate skin');
   await expect(mayapple.getByTestId('row-poison')).toHaveCount(0);
+  // The note counts the plants not rated for those chosen: all four with none; fewer for dogs alone (the earlier list
+  // rates some NC State doesn't).
+  await page.getByTestId('clear-search').click();
+  const any = await unratedSaid(page);
+  expect(any).toBeGreaterThan(0);
+  await page.getByTestId('protect-dogs').click();
+  await expect.poll(() => unratedSaid(page)).toBeLessThan(any);
+  // Nothing of it in Filters while it's first among them: one line, in place of Poison & pets.
+  await openFilters(page);
+  await expect(page.getByTestId('toxic-filters')).toBeHidden();
+  await expect(page.getByTestId('all-filters')).not.toContainText(/Poison & pets|toxic to|rated safe/i);
 });
 
-test('"Anyone you need to protect?": Kids hides plants poisonous to people and is kept; it stays till the picker closes, then it\'s under Poison & pets, after a reload too', async ({ page }) => {
+test('"Hide plants rated toxic to:": People hides plants rated toxic to people, not one no source rates, and is kept; it stays till the picker closes, then it\'s in Filters, after a reload too', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('protect-kids').click();
   await expect(page.getByTestId('protect-kids')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('active-chip')).toHaveText(['No plants toxic to people']);
+  await expect(page.getByTestId('active-chip')).toHaveText(['No plants rated toxic to people']);
   await expect.poll(() => planHousehold(page)).toEqual({ ...NONE, kids: true, answered: true });
   expect(await deviceKept(page)).toEqual([null, null]); // (with the plan, not the device)
   // Mayapple hidden; shown anyway, it's marked poisonous to people now, and still for the skin.
@@ -1041,21 +1069,28 @@ test('"Anyone you need to protect?": Kids hides plants poisonous to people and i
   await expect(mayapple.getByTestId('row-poison')).toHaveText('Toxic to people');
   await expect(mayapple.getByTestId('row-skin')).toHaveText('Can irritate skin');
   await page.getByTestId('filters-back').click();
-  // In step with Poison & pets, both ways. Dogs is Poison & pets' first dog setting: no dog warnings.
+  // Not rated for people: shown (Jason, Nov 5; hidden before, which read as "what's left is safe").
+  await page.getByTestId('plant-search').fill('Speckled alder');
+  await expect(page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Speckled Alder$/ }) })).toHaveCount(1);
   // (Folded away while there's a search, back once it's cleared: the picker bug hunt, Nov 1.)
   await expect(protectAtTop(page)).toBeHidden();
   await page.getByTestId('clear-search').click();
   await expect(protectAtTop(page)).toBeVisible(); // (answered: it stays for now, to see what was set)
-  await openFilters(page);
-  await expect(page.getByRole('checkbox', { name: 'Hide plants toxic to people' })).toBeChecked();
+  // In step with the filters' own chips, both ways: Dogs on and off; Cats on, its chip's × takes it off, on again.
   await page.getByTestId('protect-dogs').click();
-  await expect(page.getByTestId('dogs-hideToxic')).toBeChecked();
-  await page.getByTestId('dogs-any').check();
+  await expect(page.getByTestId('active-chip')).toHaveText(['No plants rated toxic to people', 'No plants rated toxic to dogs']);
+  await page.getByTestId('protect-dogs').click();
   await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'false');
-  await page.getByRole('checkbox', { name: 'Hide plants toxic to cats' }).check();
+  await page.getByTestId('protect-cats').click();
+  await page.getByTestId('active-chip').filter({ hasText: 'No plants rated toxic to cats' }).click();
+  await expect(page.getByTestId('protect-cats')).toHaveAttribute('aria-pressed', 'false');
+  await page.getByTestId('protect-cats').click();
   await expect(page.getByTestId('protect-cats')).toHaveAttribute('aria-pressed', 'true');
   await expect(protectAtTop(page)).toBeVisible();
-  // Closed and opened again: under Poison & pets, as set.
+  // (Nothing of it in Filters while it's first among them.)
+  await openFilters(page);
+  await expect(page.getByTestId('toxic-filters')).toBeHidden();
+  // Closed and opened again: in Filters, as set.
   await closeSheet(page);
   await page.locator('.tool-btn.plants').click();
   await expect(protectAtTop(page)).toHaveCount(0);
@@ -1076,7 +1111,7 @@ test('"Anyone you need to protect?": Kids hides plants poisonous to people and i
   expect(await planHousehold(page)).toEqual({ ...NONE, kids: true, cats: true, answered: true });
 });
 
-test('"Anyone you need to protect?" dismissed: under Poison & pets at once, a notice says so, and it stays there after a reload', async ({ page }) => {
+test('"Hide plants rated toxic to:" dismissed: into Filters at once, a notice says so, and it stays there after a reload', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   // (Moved in place, the picker not drawn again: its search box the same one after. A search typed folds the question
@@ -1087,7 +1122,7 @@ test('"Anyone you need to protect?" dismissed: under Poison & pets at once, a no
   await expect(page.locator('.plant-item').first()).toBeVisible();
   await search.evaluate((e) => { (e as HTMLElement & { kept?: boolean }).kept = true; });
   await page.getByTestId('protect-dismiss').click();
-  await expect(page.locator('#toast')).toHaveText("It's under Filters → Poison & pets.");
+  await expect(page.locator('#toast')).toHaveText("It's under Filters.");
   await expect(protectAtTop(page)).toHaveCount(0);
   expect(await search.evaluate((e) => (e as HTMLElement & { kept?: boolean }).kept)).toBe(true);
   await openFilters(page);
@@ -1103,7 +1138,7 @@ test('"Anyone you need to protect?" dismissed: under Poison & pets at once, a no
   await expect(protectInGroup(page)).toBeVisible(); // (the Filters fold left open)
 });
 
-test('"Anyone you need to protect?" isn\'t asked first on a device that answered step 6 of the introduction, with none ticked', async ({ page }) => {
+test('"Hide plants rated toxic to:" isn\'t asked first on a device that answered step 6 of the introduction, with none ticked', async ({ page }) => {
   autoDialogs(page);
   await openFresh(page);
   await page.getByTestId('intro-start').click();
@@ -1143,13 +1178,13 @@ test('step 6\'s "None of these": the four off and the question answered for the 
   await expect(none).toHaveAttribute('aria-pressed', 'true');
   for (const k of ['kids', 'dogs', 'cats', 'horses']) await expect(page.getByTestId(`intro-${k}`)).toHaveAttribute('aria-pressed', 'false');
   await expect.poll(() => planHousehold(page)).toEqual({ ...NONE, answered: true });
-  // One of the four: no longer "none".
+  // One of the four: no longer "none"; the picker's note, under the chips.
   await page.getByTestId('intro-dogs').click();
   await expect(none).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.getByTestId('intro-dogs-note')).toBeVisible();
+  await expect(page.getByTestId('intro-who-note')).toHaveText(NOTE);
   await none.click();
   await expect(page.getByTestId('intro-dogs')).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.getByTestId('intro-dogs-note')).toBeHidden();
+  await expect(page.getByTestId('intro-who-note')).toBeHidden();
   await expect(none).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(() => planHousehold(page)).toEqual({ ...NONE, answered: true });
   // Answered for the plan by the chip itself (left before Next): the picker asks it under Filters, not first.
@@ -1227,13 +1262,13 @@ test("who's in the yard is the plan's: a new plan asks again, \"Same garden?\" c
   await expect(protectAtTop(page)).toHaveCount(0);
   await openFilters(page);
   await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('dogs-hideToxic')).toBeChecked();
+  await expect(page.getByTestId('active-chip')).toHaveText(['No plants rated toxic to dogs']);
   await closeSheet(page);
   // The same garden: its dog comes along, answered.
   await newPlan('Back corner', true);
   await page.locator('.tool-btn.plants').click();
   await expect(protectAtTop(page)).toHaveCount(0);
-  await expect(page.getByTestId('dogs-hideToxic')).toBeChecked();
+  await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(() => planHousehold(page)).toEqual({ ...NONE, dogs: 'hideToxic', answered: true });
   // After a reload, each as it was.
   await page.reload();
@@ -1244,7 +1279,38 @@ test("who's in the yard is the plan's: a new plan asks again, \"Same garden?\" c
   await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'false');
 });
 
-test('"Anyone you need to protect?" fits a 360 px phone at every text size: one row of chips, the list still on screen', async ({ page }) => {
+// What a plan kept before Nov 5 reads as the line has it now, with nothing stored changed: `kids` is People, and Dogs
+// kept as "only plants rated safe" ('nonToxic') is Dogs on, hiding only what's rated toxic to dogs.
+test('a plan kept before Nov 5 with kids and "only plants rated safe for dogs": People and Dogs on, a plant neither rates shown, the plan as it was till Dogs is changed', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('seeded')) return;
+    sessionStorage.setItem('seeded', '1');
+    localStorage.setItem('landscape-planner-v1', JSON.stringify({ shapes: [], household: { kids: true, dogs: 'nonToxic', cats: false, horses: false, answered: true }, zoom: 1, offsetX: 0, offsetY: 0 }));
+  });
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await expect(page.getByTestId('picker-count')).toBeVisible();
+  await expect(protectAtTop(page)).toHaveCount(0); // (answered)
+  await openFilters(page);
+  await expect(page.getByTestId('protect-kids')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('active-chip')).toHaveText(['No plants rated toxic to people', 'No plants rated toxic to dogs']);
+  // Speckled alder: no source rates it for people, and the earlier list says "Unverified" for dogs. Both filters hid it
+  // before; neither does now. Butterfly milkweed, rated toxic to both, is hidden as before.
+  await page.getByTestId('plant-search').fill('Speckled alder');
+  await expect(page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Speckled Alder$/ }) })).toHaveCount(1);
+  await page.getByTestId('plant-search').fill('Butterfly milkweed');
+  await expect(page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Butterfly Milkweed$/ }) })).toHaveCount(0);
+  // Nothing stored changed by reading it; Dogs turned off and on again is kept as it's said now.
+  await page.waitForTimeout(400); // (a save would have happened)
+  expect(await planHousehold(page)).toEqual({ ...NONE, kids: true, dogs: 'nonToxic', answered: true });
+  await openFilters(page);
+  await page.getByTestId('protect-dogs').click();
+  await page.getByTestId('protect-dogs').click();
+  await expect.poll(() => planHousehold(page)).toEqual({ ...NONE, kids: true, dogs: 'hideToxic', answered: true });
+});
+
+test('"Hide plants rated toxic to:" fits a 360 px phone at every text size: one row of chips, the list still on screen', async ({ page }) => {
   // (360 × 740, a 360-wide phone's screen. At 360 × 640, Extra large starts the first plant just below the screen.)
   await page.setViewportSize({ width: 360, height: 740 });
   await openFresh(page);

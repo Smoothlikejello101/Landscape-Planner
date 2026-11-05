@@ -54,7 +54,8 @@ describe('Help: "How do I…"', () => {
     expect(said(PHONE, 'own-plant')).toContain('Add your own plant');
     expect(said(PHONE, 'own-plant')).toContain('My plants');
     expect(said(PHONE, 'location')).toContain('⋮ → Garden location');
-    expect(said(PHONE, 'protect')).toContain('“Anyone you need to protect?”');
-    expect(said(PHONE, 'protect')).toContain('Filters → Poison & pets');
+    expect(said(PHONE, 'protect')).toContain('“Hide plants rated toxic to:” People, Dogs, Cats or Horses');
+    expect(said(PHONE, 'protect')).toContain('then under Filters');
+    expect(said(PHONE, 'protect')).not.toMatch(/Kids|Poison & pets/);
   });
 });

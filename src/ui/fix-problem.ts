@@ -18,7 +18,7 @@ import { save } from '../storage';
 import { afternoonHours, formatHours, sunAt, sunLevel } from '../sun';
 import { isTree } from '../trees';
 import type { Shape } from '../types';
-import { household } from '../yard';
+import { household, yardSaid as whoSaid } from '../yard';
 import { el } from '../dom';
 import { undoNotice } from './delete-selected';
 import { render } from './render';
@@ -135,12 +135,8 @@ function openSwapWith(shapes: Shape[], why: SwapFix) {
 
 export type SwapFor = 'sun' | 'hardy' | 'poison' | 'big';
 const SUN_SAID: Record<string, string> = { Full: 'full sun', Part: 'part shade', Shade: 'shade' };
-/** Who's in the yard, in words: "kids and dogs". */
-function yardSaid(): string {
-  const y = household();
-  const who = [y.kids ? 'kids' : '', y.dogs ? 'dogs' : '', y.cats ? 'cats' : '', y.horses ? 'horses' : ''].filter(Boolean);
-  return who.length > 1 ? `${who.slice(0, -1).join(', ')} and ${who.at(-1)}` : who[0] ?? '';
-}
+/** Who's in the yard, in words: "people and dogs". */
+const yardSaid = (): string => whoSaid(household());
 /**
  * The width that fits where a plant stands, and what sets it: the plants near it (at the height each shares with it),
  * and its bed's width if it's in one (not a tree's: its crown is over the bed). Null with neither.
@@ -174,7 +170,7 @@ export function swapFixFor(kind: SwapFor, shapes: Shape[]): SwapFix | null {
     if (!who) return null;
     const set: Partial<PlantFilter> = {};
     if (y.kids) set.noPoison = true;
-    if (y.dogs) set.dogs = y.dogs;
+    if (y.dogs) set.dogs = 'hideToxic'; // (kept as 'nonToxic' from before Nov 5: the same, src/yard.ts)
     if (y.cats) set.cats = true;
     if (y.horses) set.horses = true;
     return { set, line: `Filtered for the ${who} in the yard` };

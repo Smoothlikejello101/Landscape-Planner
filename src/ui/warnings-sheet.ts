@@ -42,7 +42,7 @@ import {
   acrossPlan, buttonSaid, cantRunSaid, KIND_WORDS, kindStates, planWarnings, setDismissed, utilitiesDrawn, WARNING_KINDS, warningsSummary,
   type CantRun, type KindState, type WarningKind, type WarningRow, type WarningsSummary,
 } from '../warnings-list';
-import { applyYard, household, saveYard, toggleYard, type Yard } from '../yard';
+import { applyYard, household, saveYard, toggleYard, YARD_CHIPS, yardHas, yardSaid } from '../yard';
 import { undoNotice } from './delete-selected';
 import { remindNoMore } from './fruit-notice';
 import { openLocation } from './location-panel';
@@ -285,7 +285,8 @@ const MARKS: Record<WarningKind, string> = {
 /** Why a kind can't run, as its line says it, and the button that fixes it. */
 const CANT: Record<CantRun, { said: string; fix?: string }> = {
   // (Not "Nobody in the yard": Jason, "I'm there, I just don't have poison warnings turned on".)
-  yard: { said: 'Off until you choose kids or pets', fix: 'Choose' },
+  // (People in place of kids: Jason, Nov 5.)
+  yard: { said: 'Off until you choose people or pets', fix: 'Choose' },
   zip: { said: 'Needs your ZIP', fix: 'Set location' },
   sun: { said: 'No sun areas yet', fix: 'Add a sun area' },
 };
@@ -353,7 +354,8 @@ function kindFold(st: KindState, rows: WarningRow[]): HTMLElement {
 
 /** A kind's rule, and where it comes from. */
 const RULES: Record<WarningKind, () => string> = {
-  poison: () => 'A plant is flagged when its sources rate it toxic to people if eaten (according to NC State Extension: how severe, and which parts) and kids are in the yard, or toxic to the dogs, cats or horses there (according to NC State Extension and the ASPCA). Its details give the sources, under Plant → Safety. Plants that can irritate skin are marked in the plant list for everyone instead: anyone can brush them.',
+  // (No ASPCA: it said no to the app using its ratings, Nov 5, and none are in the catalog. docs/catalog-sources.md.)
+  poison: () => 'A plant is flagged when its sources rate it toxic to people if eaten (according to NC State Extension: how severe, and which parts) and you chose People, or toxic to the dogs, cats or horses you chose (according to NC State Extension, and for dogs an earlier list). Its details give the sources, under Plant → Safety. Plants that can irritate skin are marked in the plant list for everyone instead: anyone can brush them.',
   utility: () => `Trees and shrubs, by how tall they typically grow and how far they stand from each utility. Within ${NEAR_LINE} ft of an overhead power line a tree should top out at ${SMALL_TREE} ft or less; ${NEAR_LINE} to ${CLEAR_OF_LINE} ft away, under ${MEDIUM_TREE} ft; taller trees ${CLEAR_OF_LINE} ft or more away (UF/IFAS Extension). Trees and shrubs stay ${BURIED_CLEAR} ft from a buried line (Entergy keeps that much clear of its underground lines); call 811 before you dig. A tree or shrub should stand at least as far from a septic field as it grows tall (UGA Extension). A tree drawn without a height isn't checked.`,
   hardy: () => 'Each plant’s hardiness zones, from its sources, against your ZIP’s zone on the 2023 USDA Plant Hardiness Zone Map (the PRISM Group, Oregon State University). Rated only for warmer zones: too cold. Rated only for colder zones: it may be too warm. Annuals, and plants already in the ground, aren’t checked.',
   sun: () => 'A plant inside a sun area you recorded is checked against the sun it wants: full sun is 6 hours or more of direct sun, part shade 3 to 6, shade under 3; filtered light counts as part shade at most. A plant that wants some shade is flagged too with 2 hours or more of sun between 1 and 6 pm. Plants outside your sun areas aren’t checked.',
@@ -361,13 +363,6 @@ const RULES: Record<WarningKind, () => string> = {
     `Spring bulbs under a deciduous plant ${BULB_PARTNER_MIN_HEIGHT} ft or taller don’t count, except right at its base.`,
   fruit: () => 'From each plant’s sources: some come as male and female plants, and a female needs a male of its kind nearby to fruit; others need, or do better with, a second variety. Every plant in the plan counts as a partner. As you place one, a notice offers partners to add.',
 };
-
-/** Who's in the yard, in words: "kids and dogs". */
-function yardSaid(): string {
-  const y = household();
-  const who = [y.kids ? 'kids' : '', y.dogs ? 'dogs' : '', y.cats ? 'cats' : '', y.horses ? 'horses' : ''].filter(Boolean);
-  return who.length > 1 ? `${who.slice(0, -1).join(', ')} and ${who.at(-1)}` : who[0] ?? '';
-}
 
 /** A kind's switch, with a line saying what it checks (the review: the switches didn't say what's actually checked). */
 function switchCard(kind: WarningKind): HTMLElement {
@@ -386,9 +381,9 @@ function switchCard(kind: WarningKind): HTMLElement {
     return b;
   };
   if (kind === 'poison') {
-    const who = yardSaid();
+    const who = yardSaid(household());
     // (Jason's words, after release 3: "Warn about plants poisonous to …".)
-    lines.append(el('div', {}, who ? `Warn about plants toxic to the ${who} in the yard` : 'Warn about plants toxic to the kids or pets in the yard, once you choose them'));
+    lines.append(el('div', {}, who ? `Warn about plants toxic to the ${who} in the yard` : 'Warn about plants toxic to the people or pets in the yard, once you choose them'));
     card.appendChild(check('poison-warnings', state.poisonWarnings, setPoisonWarnings, 'Check poison'));
     card.appendChild(yardChips());
   } else if (kind === 'utility') {
@@ -417,12 +412,12 @@ function switchCard(kind: WarningKind): HTMLElement {
   }
   return card;
 }
-/** Kids, Dogs, Cats, Horses: who's in the yard, set here as in the plant picker ("Anyone you need to protect?"). */
+/** People, Dogs, Cats, Horses: who's in the yard, set here as in the plant picker ("Hide plants rated toxic to:"). */
 function yardChips(): HTMLElement {
   const y = household();
   const row = el('div', { className: 'ws-yard', role: 'group', 'aria-label': 'In the yard', 'data-testid': 'warnings-yard' }, el('span', { className: 'ws-yard-label' }, 'In the yard:'));
-  for (const [k, label] of [['kids', 'Kids'], ['dogs', 'Dogs'], ['cats', 'Cats'], ['horses', 'Horses']] as [keyof Yard, string][]) {
-    const on = k === 'dogs' ? y.dogs !== '' : !!y[k];
+  for (const [k, label] of YARD_CHIPS) {
+    const on = yardHas(y, k);
     const b = el('button', { className: 'color-chip protect-chip' + (on ? ' on' : ''), 'aria-pressed': String(on), 'data-testid': `warnings-yard-${k}` }, label);
     b.addEventListener('click', () => {
       const next = toggleYard({ kids: y.kids, dogs: y.dogs, cats: y.cats, horses: y.horses }, k);

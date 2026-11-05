@@ -96,7 +96,7 @@ test('Warnings: Swap from a sun, hardiness or poison row opens filtered for what
   await expect(page.getByTestId('swap-banner')).toContainText('swap it for');
   await expect(swapWhy(page)).toHaveText('Filtered for full sun, the sun where it’s planted');
   await expect(chips(page).filter({ hasText: 'Full sun' })).toHaveCount(1);
-  await expect(chips(page).filter({ hasText: 'No plants toxic to dogs' })).toHaveCount(1); // (who's in the yard, as the picker always has it)
+  await expect(chips(page).filter({ hasText: 'No plants rated toxic to dogs' })).toHaveCount(1); // (who's in the yard, as the picker always has it)
   await expect(page.getByTestId('plant-search')).toHaveValue('');
   // Taken off, as any filter is; the line goes with it.
   await chips(page).filter({ hasText: 'Full sun' }).click();
@@ -136,14 +136,14 @@ test('Warnings: Swap from a sun, hardiness or poison row opens filtered for what
   await openWarnings(page, 'poison');
   await kind(page, 'poison').getByTestId('warning-row').filter({ hasText: 'Butterfly milkweed' }).getByTestId('warning-swap').click();
   await expect(swapWhy(page)).toHaveText('Filtered for the dogs in the yard');
-  await chips(page).filter({ hasText: 'No plants toxic to dogs' }).click();
+  await chips(page).filter({ hasText: 'No plants rated toxic to dogs' }).click();
   await expect(chips(page)).toHaveCount(0);
   await page.locator('.sheet-header').getByRole('button', { name: 'Back to properties' }).click();
   await expect(page.getByTestId('poison-check')).toContainText('You said dogs are in the yard');
   await closeSheet(page);
   await page.keyboard.press('Escape');
   await page.locator('.tool-btn.plants').click();
-  await expect(chips(page).filter({ hasText: 'No plants toxic to dogs' })).toHaveCount(1);
+  await expect(chips(page).filter({ hasText: 'No plants rated toxic to dogs' })).toHaveCount(1);
 });
 
 test('a plant\'s details: crowded Russian Sage swaps for a smaller form of itself first, filtered for the width that fits', async ({ page }) => {

@@ -58,25 +58,26 @@ test('the button: none found with checks that can\'t run, all clear in gray, som
   await expect(page.getByTestId('warnings')).toContainText('Each needs something from you first.');
   await expect(page.locator('[data-testid^=warnings-kind-]').filter({ has: page.locator('.warn-kind-head') })).toHaveCount(6);
   await expect(page.getByTestId('kind-sub')).toHaveText([
-    'Off until you choose kids or pets', 'None drawn', 'Needs your ZIP', 'No sun areas yet', 'On · none', 'On · none']);
+    'Off until you choose people or pets', 'None drawn', 'Needs your ZIP', 'No sun areas yet', 'On · none', 'On · none']);
   await expect(kind(page, 'utility')).toHaveAttribute('data-state', 'none');
   await expect(head(page, 'utility')).toHaveAttribute('aria-label', 'Utilities, None drawn');
   // Each that can't run has a button that fixes it.
   await expect(page.locator('[data-testid^=warnings-fix-]')).toHaveText(['Choose', 'Set location', 'Add a sun area']);
-  // Choose: Poison opens on who's in the yard; Kids, and it runs.
+  // Choose: Poison opens on who's in the yard; People, and it runs.
   await page.getByTestId('warnings-fix-poison').click();
   await expect(head(page, 'poison')).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByTestId('warnings-yard')).toBeVisible();
+  await expect(page.getByTestId('warnings-yard').locator('button')).toHaveText(['People', 'Dogs', 'Cats', 'Horses']);
   await page.getByTestId('warnings-yard-kids').click();
   await expect(page.getByTestId('warnings-yard-kids')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('warnings-switch-poison')).toContainText('Warn about plants toxic to the kids in the yard');
+  await expect(page.getByTestId('warnings-switch-poison')).toContainText('Warn about plants toxic to the people in the yard');
   await expect(head(page, 'poison')).toHaveAttribute('aria-label', 'Poison, On · none');
   await expect(page.getByTestId('warnings-head')).toHaveText('Nothing to look at yet · 2 checks can’t run');
   // (Kept with the plan, as the picker's own chips keep it.)
   await closeSheet(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('filters').click();
-  await expect(page.getByRole('checkbox', { name: 'Hide plants toxic to people' })).toBeChecked();
+  await expect(page.getByTestId('protect-kids')).toHaveAttribute('aria-pressed', 'true');
   await closeSheet(page);
   await expect(button(page)).toHaveAttribute('aria-label', 'Warnings: none found, 2 checks can’t run yet');
 });
