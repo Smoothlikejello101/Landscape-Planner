@@ -14,6 +14,7 @@ import { catalogReady, hardinessWarning, plantsById } from './plants';
 import { dismissedForPlan, poisonCovered, poisonSaid } from './dismissals';
 import { plantLabelFit, LABEL_LINE_HEIGHT, textWidth1, type FittedLabel } from './labels';
 import { labelScale } from './label-size';
+import { nameInside } from './label-room';
 import { canopyInnerRadius, canopyPoints, isTree, trunkParts, trunkReachPx } from './trees';
 import { trunkHitPx } from './canopy';
 import { isLocked, roleDef, roleHidden, roleKey, roleRank } from './roles';
@@ -420,13 +421,15 @@ export function shapeGroup(s: Shape): SVGGElement {
   // (Zoomed out past 20%, no plant's name, but a selected one's: plantNamesShown. Its badges as ever.)
   const named = (isPlantCircle(s) ? plantNamesShown(ppf) : state.showNames) || sel;
   const badged = state.showNames || sel;
-  // Zoomed out past 25%, a name (or sun hours) wider than its shape is left off, unless the shape is selected:
-  // a whole yard's names would pile up over beds a few pixels across.
+  // Zoomed out past 25%, a name (or sun hours) that doesn't fit inside its shape is left off, unless the shape is
+  // selected: a whole yard's names would pile up over beds a few pixels across, and a path's name crossed it 21 ft wide
+  // at 5% (src/label-room.ts).
+  // (A sun area's name and its hours: the two lines together.)
+  const lines = s.role === 'shade' && s.sun ? 2.4 : 1;
   const room = (text: string) => {
     if (!named) return false;
     if (ppf >= FAR_OUT_PPF || sel || isPlantCircle(s)) return true;
-    const b = shapeBBox(s);
-    return textWidth1(text) * fs <= Math.max(b.maxX - b.minX, b.maxY - b.minY) * ppf;
+    return nameInside(s, textWidth1(text) * fs, fs * lines, ppf);
   };
   const sunText = s.role === 'shade' && s.sun && room('☀ ' + formatHours(sunHours(s.sun))) ? '☀ ' + formatHours(sunHours(s.sun)) : '';
   const run = s.type === 'circle' && overflow ? runLabels.get(s.id) : undefined;
@@ -948,7 +951,7 @@ export const QUIET_OPACITY = 0.7;
 export const quietInk = (color: string): string => mix(/^#[0-9a-f]{6}$/i.test(color) ? color : '#78716c', '#1c1917', 0.45);
 /**
  * An area's name and sun hours as shapeGroup draws them, on the screen (px): the middle of the two lines, their size, its
- * turn; null when neither shows (names hidden; or, zoomed far out, wider than the shape).
+ * turn; null when neither shows (names hidden; or, zoomed far out, not inside its shape: src/label-room.ts).
  */
 function areaNameAt(s: Shape, ppf: number, lk: number) {
   const sel = isSelected(s.id);
@@ -965,8 +968,8 @@ function areaNameAt(s: Shape, ppf: number, lk: number) {
     fs = Math.max(10, Math.min(14, Math.min(w, h) * 0.2)) * lk;
     angle = boxLabelAngle(s.rotation || 0);
   } else return null;
-  const b = shapeBBox(s);
-  const room = (text: string) => ppf >= FAR_OUT_PPF || sel || textWidth1(text) * fs <= Math.max(b.maxX - b.minX, b.maxY - b.minY) * ppf;
+  const lines = s.role === 'shade' && s.sun ? 2.4 : 1;
+  const room = (text: string) => ppf >= FAR_OUT_PPF || sel || nameInside(s, textWidth1(text) * fs, fs * lines, ppf);
   const hours = s.role === 'shade' && s.sun ? '\u2600 ' + formatHours(sunHours(s.sun)) : '';
   const sun = hours && room(hours) ? hours : '', label = displayLabel(s) && room(displayLabel(s)) ? displayLabel(s) : '';
   if (!label && !sun) return null;
@@ -1027,6 +1030,8 @@ function refreshLabelLayout() {
       const label = s.type === 'text' ? '' : displayLabel(s);
       if (!label) continue;
       const w = textWidth1(label) * 12 * lk, h = 14 * lk;
+      // (Zoomed out past 25%, not where it isn't drawn: too big for its shape, a line's beside it. src/label-room.ts.)
+      if (ppf < FAR_OUT_PPF && !state.selectedIds.includes(s.id) && !nameInside(s, w, 12 * lk, ppf)) continue;
       if (s.role === 'boundary' && (s.type === 'poly' || s.type === 'line')) {
         // Along the line: 9 px off it, turned with it (the box that holds the turned label).
         const al = alongLabel(s), rad = (al.angle * Math.PI) / 180;
