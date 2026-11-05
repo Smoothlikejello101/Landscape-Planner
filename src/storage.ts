@@ -7,8 +7,9 @@ import { cancelHistoryDebounce } from './history';
 import { DEFAULT_PRINT, state } from './state';
 import { isRole } from './roles';
 import { cleanPhaseName, filterActive, isStatus, MAX_PHASES } from './status';
-import type { BedConditions, BgImage, Clipboard, PathShape, PhotoRef, PlanBought, PlanDismissals, PlanHousehold, PlanSwitches, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, ShapeFilter, SunInfo, UtilityKind, WarningSwitch } from './types';
+import type { BedConditions, BgImage, Clipboard, MeasuredSide, PathShape, PhotoRef, PlanBought, PlanDismissals, PlanHousehold, PlanSwitches, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, ShapeFilter, SunInfo, UtilityKind, WarningSwitch } from './types';
 import { setWorldPoints } from './geometry';
+import { sanitizeMeasured, sideCount } from './measured';
 import { now, uid } from './util';
 import { photoFingerprint } from './sync/photo';
 import { canonical, coreHash, fingerprint, withoutClearedMarks } from './sync/engine';
@@ -274,7 +275,11 @@ export function migrateShape(raw: unknown): Shape | null {
     }
     case 'rect':
     case 'oval':
-      return { ...base, type: s.type, width: size(s.width, 4), height: size(s.height, 3), rotation: num(s.rotation, 0), ...featured };
+      return {
+        ...base, type: s.type, width: size(s.width, 4), height: size(s.height, 3), rotation: num(s.rotation, 0), ...featured,
+        // (Sides typed as numbers, Nov 4: a rectangle's only; older shapes have none, and versions before it drop them.)
+        ...(s.type === 'rect' && sanitizeMeasured(s.measured, 4) ? { measured: sanitizeMeasured(s.measured, 4)! } : {}),
+      };
     case 'triangle': {
       const ra = s.rightAngle;
       return {
@@ -292,12 +297,17 @@ export function migrateShape(raw: unknown): Shape | null {
         }
       }
       if (pts.length < MIN_POINTS[s.type]) return null;
+      // (Sides typed as numbers, Nov 4, by their place in the points: only while every point came through, so a point
+      // dropped here, or one past the most kept, can't put a number on another side. Older shapes have none.)
+      const whole = Array.isArray(s.points) && pts.length === s.points.length;
+      const measured = whole ? sanitizeMeasured(s.measured, sideCount({ type: s.type, points: pts })) : undefined;
       const shape = {
         ...base, type: s.type, points: [], rotation: num(s.rotation, 0),
         ...(s.type === 'line' && s.showLength === true ? { showLength: true } : {}),
         // Paths: a width in feet (a quarter foot to 50 ft); anything else draws as a thin line.
         ...(s.type === 'line' && typeof s.pathWidth === 'number' && s.pathWidth >= 0.25 && s.pathWidth <= 50 ? { pathWidth: s.pathWidth } : {}),
         ...featured,
+        ...(measured ? { measured } : {}),
       } as PathShape;
       setWorldPoints(shape, pts); // re-normalize, whatever the file said
       return shape;
@@ -323,6 +333,9 @@ export function migrateBgImage(raw: Partial<BgImage>): BgImage {
     ...(raw.deviceOnly === true ? { deviceOnly: true } : {}),
     // (Not to scale yet; older photos have no word on it, and are taken as calibrated.)
     ...(raw.uncalibrated === true ? { uncalibrated: true as const } : {}),
+    // (Its scale set from a rough guess, Nov 4; older photos have none. Never with "not to scale yet": a scale not set
+    // isn't rough, and that one says more.)
+    ...(raw.roughScale === true && raw.uncalibrated !== true ? { roughScale: true as const } : {}),
   };
 }
 const isFingerprint = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{64}$/.test(v);
@@ -338,8 +351,8 @@ export function sanitizePhotoRef(raw: unknown): PhotoRef | null {
 /** How a background photo is synced: its fingerprint and placement (`fingerprint` known), or kept here. */
 export function photoRefOf(bg: BgImage, fingerprint: string): PhotoRef {
   if (bg.deviceOnly) return { deviceOnly: true };
-  const { naturalWidth, naturalHeight, ftPerPx, cx, cy, rotation, opacity, visible, uncalibrated } = migrateBgImage(bg);
-  return { fingerprint, naturalWidth, naturalHeight, ftPerPx, cx, cy, rotation, opacity, visible, ...(uncalibrated ? { uncalibrated } : {}) };
+  const { naturalWidth, naturalHeight, ftPerPx, cx, cy, rotation, opacity, visible, uncalibrated, roughScale } = migrateBgImage(bg);
+  return { fingerprint, naturalWidth, naturalHeight, ftPerPx, cx, cy, rotation, opacity, visible, ...(uncalibrated ? { uncalibrated } : {}), ...(roughScale ? { roughScale } : {}) };
 }
 const MINUTES_PER_DAY = 24 * 60;
 /** Validate observed-sun data; null if unusable. */
@@ -1189,9 +1202,12 @@ export async function replaceProjectContent(
   // (When only the ticks, the yard or the warning switches came, the plan keeps when it was last modified: what another
   // device carried over when plans got their own mustn't make every plan here "modified just now", and re-sort the list,
   // the day the first device updates. The review of the storage change, Nov 1.)
+  // (Sides typed as numbers, which the fingerprints leave out, Nov 4, count here: a download that brings them is a change
+  // to the plan, so an older tab's unsaved edit from before it is kept apart, not put over it. The review's J1. The
+  // photo's rough scale is in samePhoto's placement already.)
   const newName = name.trim() || 'Untitled';
   const onlyParts = newName === meta.name && coreHash('', syncedContent(base) as unknown as Record<string, unknown>) === coreHash('', syncedContent(data) as unknown as Record<string, unknown>)
-    && samePhoto(base, data);
+    && sameTypedSides(base.shapes, data.shapes) && samePhoto(base, data);
   const metaNext = { ...meta, name: newName, lastModified: onlyParts ? meta.lastModified : now(), shapeCount: data.shapes.length };
   bumpChange(id);
   // The write is queued before any later save's (and any read by a switch to this project), so they see it.
@@ -1226,6 +1242,14 @@ export async function replaceProjectContent(
     throw e;
   }
   return true;
+}
+/** Whether two versions of a plan have the same sides typed as numbers, shape by shape (each list in side order). */
+function sameTypedSides(a: Shape[], b: Shape[]): boolean {
+  const typed = (shapes: Shape[]) => canonical(shapes.flatMap((s) => {
+    const m = (s as { measured?: MeasuredSide[] }).measured;
+    return m?.length ? [[s.id, [...m].sort((x, y) => x.side - y.side)]] : [];
+  }));
+  return typed(a) === typed(b);
 }
 /** Whether two versions of a plan show the same photo, placed the same (its bytes and placement; not storage details). */
 function samePhoto(a: ProjectData, b: ProjectData): boolean {
@@ -1269,7 +1293,10 @@ export function placePhoto(base: ProjectData, baseFp: string | null, ref: PhotoR
   if ('deviceOnly' in ref) return base.bgImage?.deviceOnly ? { bgImage: base.bgImage, photoElsewhere: null } : { bgImage: null, photoElsewhere: ref };
   const { fingerprint, ...placed } = ref;
   if (base.bgImage && baseFp === fingerprint) {
-    const { deviceOnly: _o, ...bg } = base.bgImage;
+    // (How it sits is the incoming one's, whole: its "not to scale yet" and its rough scale too, where it says neither.
+    // Kept from here, a scale set on another device stayed "not to scale yet" here, and went back up so with this
+    // device's next edit, for every device: found Nov 4, with the rough scale, which would have done the same.)
+    const { deviceOnly: _o, uncalibrated: _u, roughScale: _r, ...bg } = base.bgImage;
     return { bgImage: { ...bg, ...placed, fingerprint }, photoElsewhere: null };
   }
   if (bytes) return { bgImage: migrateBgImage({ ...placed, dataUrl: bytes, imageId: uid(), fingerprint }), photoElsewhere: null };

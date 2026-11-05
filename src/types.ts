@@ -228,7 +228,23 @@ export interface SubFeature {
  * doesn't know them and leaves them out, can be told apart: src/sync/engine.ts).
  */
 interface Featured { features?: SubFeature[] }
-export interface BoxShape<T extends 'rect' | 'oval' = 'rect' | 'oval'> extends ShapeBase, Featured {
+/**
+ * A side whose length was typed as a number (Nov 4: so Rescale, a later change, can keep it as measured): which side,
+ * and the feet typed. An outline's or a line's side `side` runs from point `side` to the next (an outline's last, to
+ * its first); a rectangle's are 0 top, 1 right, 2 bottom, 3 left, as it is before it's turned (both of a pair: its
+ * Width is 0 and 2), the order its outline has once it's made one.
+ */
+export interface MeasuredSide { side: number; ft: number }
+/**
+ * Sides typed as numbers, from Nov 4 on (nothing is worked out for older shapes): rectangles, outlines and lines only.
+ * Each counts only while that side is still the length typed, within 0.05 ft (src/measured.ts measuredSides, the rule
+ * in docs/storage.md): a step that changes its length forgets it; adding or taking out a point renumbers the sides
+ * after it, and forgets the one split or the two joined. Moving or turning the whole shape keeps them. Absent: none.
+ * Read and written as src/storage.ts sanitizeMeasured has it; versions before it (database version 4 and earlier)
+ * drop it, and nothing else.
+ */
+interface Measured { measured?: MeasuredSide[] }
+export interface BoxShape<T extends 'rect' | 'oval' = 'rect' | 'oval'> extends ShapeBase, Featured, Measured {
   type: T;
   width: number;
   height: number;
@@ -249,7 +265,7 @@ export interface TriangleShape extends ShapeBase, Featured {
  * turns the points around that box's center, like the other shapes; editing
  * points first bakes the rotation into them.
  */
-export interface PathShape<T extends 'poly' | 'line' = 'poly' | 'line'> extends ShapeBase, Featured {
+export interface PathShape<T extends 'poly' | 'line' = 'poly' | 'line'> extends ShapeBase, Featured, Measured {
   type: T;
   points: [number, number][];
   rotation: number;
@@ -304,13 +320,23 @@ export interface BgImage {
    * from before Oct 30, which may well have been.
    */
   uncalibrated?: true;
+  /**
+   * Its scale was set from a length said to be a rough guess (Nov 4, Jason on #209: "We should still build the 'rough'
+   * checkbox during calibration so they get a reminder about it later"): Layers marks it "Rough scale" until the scale
+   * is set again without it. Set and cleared only by setting the scale, so it goes with that scale (Undo takes it back
+   * with it). Never with `uncalibrated`: a scale not set yet isn't rough, it's not set (that one wins, if both came).
+   * Photos before Nov 4 have none. Versions before it (database version 4 and earlier) drop it, and nothing else; sync
+   * keeps this device's when the server's copy of the same photo, at the same scale, has none (src/sync/engine.ts
+   * withRoughScale).
+   */
+  roughScale?: true;
 }
 /**
  * A project's background photo as sync carries it: the photo's fingerprint and
  * how it sits on the plan, or a note that it's kept on one device only.
  */
 export type PhotoRef =
-  | { fingerprint: string; naturalWidth: number; naturalHeight: number; ftPerPx: number; cx: number; cy: number; rotation: number; opacity: number; visible: boolean; uncalibrated?: true }
+  | { fingerprint: string; naturalWidth: number; naturalHeight: number; ftPerPx: number; cx: number; cy: number; rotation: number; opacity: number; visible: boolean; uncalibrated?: true; roughScale?: true }
   | { deviceOnly: true };
 
 export interface ProjectMeta {
@@ -470,6 +496,8 @@ export interface Calibration {
   /** Image-pixel coordinates of the tapped points. */
   p1: Point | null;
   p2: Point | null;
+  /** The length about to be typed is a rough guess (its box's checkbox, kept here so a redraw keeps it). Never stored. */
+  rough?: boolean;
 }
 
 export interface Marquee { x1: number; y1: number; x2: number; y2: number }
@@ -522,6 +550,11 @@ export interface DrawState {
   typed?: number;
   /** Each tap: true where it went down at a typed length (squaring leaves it where it is). */
   exact?: boolean[];
+  /**
+   * The sides typed so far: from tap `from` to the next (the first, for an outline closed by its typed side), and the
+   * feet typed. Kept with the shape once it's made (its `measured`, src/measured.ts markTypedSides).
+   */
+  typedSides?: { from: number; ft: number }[];
 }
 /**
  * A tap or a dragged point that landed on another shape: which shape, its corner or edge there (`seg`, lit while

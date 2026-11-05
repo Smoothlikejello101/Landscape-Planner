@@ -63,10 +63,17 @@ test('projects made in the previous version migrate intact', async ({ page }) =>
   await expect(page.locator('#canvas-svg text', { hasText: 'Old bed' })).toHaveCount(1);
   await expect(page.locator('#canvas-svg rect[data-shape-id]')).toHaveAttribute('transform', /rotate\(15 /);
   await expect(page.locator('#canvas-svg image')).toHaveCount(1);
-  // Beds' conditions (Plant this bed, database version 4) are answers people give: a plan from before gains none.
-  for (const [name, plan] of Object.entries(await storedPlans(page))) {
-    for (const s of plan.shapes as Record<string, unknown>[]) expect(s, `${name}: ${String(s.label)}`).not.toHaveProperty('conditions');
+  // Beds' conditions (Plant this bed, database version 4) are answers people give: a plan from before gains none. Nor
+  // (database version 5) a side typed as a number, or a rough scale for its photo: nothing is worked out for old ones.
+  const plans = await storedPlans(page);
+  for (const [name, plan] of Object.entries(plans)) {
+    for (const s of plan.shapes as Record<string, unknown>[]) {
+      expect(s, `${name}: ${String(s.label)}`).not.toHaveProperty('conditions');
+      expect(s, `${name}: ${String(s.label)}`).not.toHaveProperty('measured');
+    }
+    if (plan.bgImage) expect(plan.bgImage, name).not.toHaveProperty('roughScale');
   }
+  expect(Object.values(plans).filter((p) => p.bgImage)).toHaveLength(1); // (the photo is there, as it was)
 
   // Data now lives in IndexedDB: a reload must not re-run the migration.
   await page.reload();
