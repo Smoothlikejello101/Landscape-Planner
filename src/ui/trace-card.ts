@@ -10,6 +10,7 @@ import { I } from '../icons';
 import { state } from '../state';
 import { allTraced, setTraceState, TRACE_ITEMS, traced, traceState } from '../yard-in';
 import { introActive } from './intro-card';
+import { rescaleAsking } from './rescale-card';
 import { render } from './render';
 import { toastAction } from './toast';
 
@@ -18,8 +19,9 @@ export function traceShown(): boolean {
   const plan = state.currentProjectId, bg = state.bgImage;
   if (!plan || traceState(plan) !== 'on' || !bg || !bg.visible || bg.uncalibrated) return false;
   if (allTraced(state.shapes)) { setTraceState(plan, 'off'); return false; }
+  // (Nor while "Was your plan drawn over the photo?" waits on an answer: it comes first, src/ui/rescale-card.ts.)
   return !state.draw && !state.placing && !state.featurePlace && !state.editPoints && !state.bgCalibrate && !state.bgEditMode
-    && !state.selectMode && !state.panel && state.month == null && !introActive();
+    && !state.selectMode && !state.panel && state.month == null && !introActive() && !rescaleAsking();
 }
 
 /** "Now trace over the photo:" and its chips, each starting its tool; one drawn already, ticked. */

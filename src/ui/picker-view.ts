@@ -22,12 +22,14 @@ import { keyboardUp, sameView, settleSheet, sheetHeights, viewToShow, type Room,
 import { state } from '../state';
 import { saveView } from '../storage';
 import { wideNow } from './warnings-sheet';
+import { rescaleShown } from './rescale-card';
 
 /**
  * The plan behind the plant picker: there to look at, panned and zoomed, nothing on it picked, moved or placed. So too
  * while a bed is picked on it for the picker (Plant this bed's Pick on the plan): a tap picks the bed, nothing else.
+ * And while "Was your plan drawn over the photo?" shows it as Move would leave it (src/ui/rescale-card.ts).
  */
-export const planLookOnly = (): boolean => state.panel === 'plants' || pickingBed();
+export const planLookOnly = (): boolean => state.panel === 'plants' || pickingBed() || rescaleShown();
 
 /** Half or full height on a phone, as last chosen with the handle (this session only). */
 let chosen: SheetSize = 'half';

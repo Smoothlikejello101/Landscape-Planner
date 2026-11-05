@@ -61,6 +61,7 @@ import { declineIntro, guidedStartSmall, introActive, introAfterRender, introOff
 import { focusAfterRender, focusBeforeRender } from './focus';
 import { startBgCalibration } from '../background';
 import { placeTraceCard, traceCard, traceChips, traceShown } from './trace-card';
+import { rescaleCard, rescaleShown } from './rescale-card';
 import { setTraceState } from '../yard-in';
 import { panelOpened } from '../tap-guard';
 import { pickerViewClosed, placePicker, planLookOnly, showChosen } from './picker-view';
@@ -556,6 +557,8 @@ export function render() {
 
   // "Now trace" over the photo set to scale: House, Driveway, Trees, Lot line, Beds (src/ui/trace-card.ts).
   if (!tracing && !walking && traceShown()) canvasWrap.appendChild(traceCard());
+  // Its scale set again, with a plan over it: "Was your plan drawn over the photo?" (src/ui/rescale-card.ts).
+  if (rescaleShown()) canvasWrap.appendChild(rescaleCard());
 
   // Multi-select action bar (floating, only when 2+ selected and no panel open)
   const drawing = !!state.draw || !!state.editPoints || !!state.placing || !!state.featurePlace;

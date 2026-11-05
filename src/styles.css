@@ -1292,6 +1292,27 @@ select:disabled { color: #0f766e; background: #f0fdfa; opacity: 1; }
 .trace-tick { color: #047857; font-weight: 700; }
 .trace-hide { position: absolute; top: 4px; right: 4px; width: var(--tap); height: var(--tap); display: flex; align-items: center; justify-content: center; border-radius: 999px; color: #78716c; }
 .empty-hint.docked .first-card .trace-line { margin-bottom: 6px; }
+/* "Was your plan drawn over the photo?" (src/ui/rescale-card.ts): at the foot of the plan, as "Now trace" is, the plan
+   above it drawn as Move would leave it. Moved or As it was, the two buttons, then the things already there, folded. */
+.rescale-card .trace-head { margin-bottom: 4px; }
+.rescale-text { font-size: calc(13px * var(--ts)); color: #44403c; line-height: 1.4; }
+.rescale-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 8px 0; }
+.rescale-segs { display: inline-flex; border: 1px solid #a8a29e; border-radius: 999px; overflow: hidden; flex: none; }
+.rescale-seg { min-height: calc(var(--tap) - 8px); padding: 4px 12px; font-size: calc(13px * var(--ts)); color: #44403c; background: #fff; }
+.rescale-seg + .rescale-seg { border-left: 1px solid #a8a29e; }
+.rescale-seg[aria-pressed=true] { background: #292524; color: #fff; font-weight: 600; }
+.rescale-view { flex: 1 1 12em; font-size: calc(12px * var(--ts)); color: #57534e; line-height: 1.35; }
+.rescale-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rescale-ticks { margin-top: 8px; border-top: 1px solid #e7e5e4; }
+.rescale-fold { display: flex; align-items: center; gap: 6px; width: 100%; min-height: var(--tap); padding: 0; text-align: left; font-size: calc(13px * var(--ts)); color: #44403c; }
+.rescale-chev { display: inline-flex; width: 16px; height: 16px; transform: rotate(-90deg); transition: transform 0.15s; flex: none; }
+.rescale-chev svg { width: 16px; height: 16px; }
+.rescale-fold[aria-expanded=true] .rescale-chev { transform: none; }
+.rescale-list { max-height: 30vh; overflow-y: auto; padding-bottom: 2px; }
+.rescale-list .hint { margin-bottom: 4px; }
+.rescale-tick-row { min-height: calc(var(--tap) - 8px); font-size: calc(14px * var(--ts)); }
+.rescale-typed { color: #78716c; font-size: calc(12px * var(--ts)); }
+.rescale-tick-row input { width: 20px; height: 20px; margin: 0; flex: none; }
 /* Help (⋮ → Help: src/ui/help-sheet.ts): Take the tour, then "How do I…", each question a fold opening to its answer
    and a button that goes there, then Send feedback. */
 .help-tour { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #e7e5e4; }
