@@ -122,7 +122,7 @@ bots, or its values match one word for word. It's treated as that source.
 | **NC State Extension Gardener Plant Toolbox** | Use, and tell them | **robots.txt:** none (404). **Terms:** the toolbox links no terms page, only privacy and nondiscrimination statements; NC State University's site-wide policies are not yet checked. Nothing found forbids a paid product taking facts, and nothing grants it. **Help page:** "strongly encourage[s]" citing the toolbox. Photos carry individual CC licenses, and we don't use them. **Before launch:** a courtesy note through the site's feedback form. **Pace:** 1 request every 5 s. |
 | **Missouri Botanical Garden Plant Finder** | Not by bot. By hand is allowed. Permission asked. | **robots.txt:** `*` disallows `/PlantFinder/`, `/plant-finder/` and `/gardens-gardening/your-garden/plant-finder/*`, with a 30 s crawl delay ("For ai bots") for the rest. `ClaudeBot` is disallowed everywhere. **Terms:** forbid getting information "through any means not intentionally made available", and grant no reuse rights. A person reading the public pages is the intended use. So by-hand facts are allowed, cited per value, without waiting for the reply. If MOBOT says no, they come out. **TLS:** the server's certificate chain is incomplete (no intermediate), so strict clients fail. |
 | **Lady Bird Johnson Wildflower Center** | Not by bot. By hand only after its terms are read. Permission asked. | **Access:** turns away clients that aren't browsers (403), and we don't pretend to be one. **robots.txt and terms:** not yet read. |
-| **ASPCA toxic and non-toxic plants** | Not used, not even by hand. Permission to ask. | **robots.txt:** allows the plant pages (crawl delay 10). **Terms:** forbid "any robot, spider or other automatic device" and any "manual process to monitor or copy" the material, and allow only "personal, non-commercial use", unless they give written permission. **Reprints:** granted "case by case" through their reprint request form. |
+| **ASPCA toxic and non-toxic plants** | Not used, not even by hand. Asked: no (2026-11-05). Linking is OK. | **robots.txt:** allows the plant pages (crawl delay 10). **Terms:** forbid "any robot, spider or other automatic device" and any "manual process to monitor or copy" the material, and allow only "personal, non-commercial use", unless they give written permission. **Reprints:** granted "case by case" through their reprint request form. **Their answer** (2026-11-05): no to the app using their data. They are OK with the app linking directly to their plant pages, and with it encouraging people to contact their veterinarian or ASPCA Poison Control. The app has no such link yet. |
 | **UC ANR toxic plant classes** (people) | Ask first | **Terms** (ucanr.edu/copyright): reproduction allowed "for educational purposes"; "Distribution for commercial purposes is prohibited"; nothing may be "copied, downloaded, stored in a retrieval system" without permission. |
 | **Pet Poison Helpline** (SafetyCall International) | Ask first | **robots.txt:** allows all but `/wp-admin/` (crawl delay 10). **Terms:** no terms page linked, and /terms-of-use/ didn't load. Contact info@petpoisonhelpline.com. |
 | **Xerces Society plant lists** (regional "Native Plants for Pollinators and Beneficial Insects"; monarch nectar lists) | Ask first | Checked 2026-10-25. **robots.txt:** allows the publications. **Terms** (xerces.org/terms-of-use): a "limited license only for purposes of viewing"; forbid "selling, sublicensing and/or otherwise commercializing any Website material" and "any data mining, data harvesting, data extracting"; anything else needs "prior written consent". **Worth asking:** per plant, bloom months, life cycle, form, sun, soil, and flags for caterpillar host, specialist bees, bumble bees, beneficial insects, nesting, deer resistance (the Southeast and Southern Plains lists cover Arkansas). |
@@ -573,8 +573,9 @@ plainly lets a paid app ship its data.
   OpenFarm (shut down in 2025); nursery feeds and data resellers with
   AI-written text.
 - **Pet toxicity:** no licensable source found. ASPCA publishes no data
-  license (it offers consulting), and its poison database is internal. Pet
-  Poison Helpline and the FFL app are the requests worth making.
+  license (it offers consulting), and its poison database is internal; asked,
+  it said no on 2026-11-05 (linking to its plant pages is OK: see its row
+  above). Pet Poison Helpline and the FFL app are the requests worth making.
 
 ## Deciding each fact
 
@@ -1014,11 +1015,17 @@ writes that fact.
   that names ASPCA (src/plants.ts) changes with it.
   Until then (agreed with Jason 2026-10-25): the older list's dog warning
   for one record shows, labeled, on every record of its species
-  (`shareDogWarnings`), a plant with no rating says "not yet rated" rather
-  than nothing, and the picker's dog filter is three-way: include toxic
-  plants; hide toxic plants, include unknown; only non-toxic (unverified).
+  (`shareDogWarnings`), and a plant with no rating says "not yet rated" rather
+  than nothing. The picker's filter (Jason, 2026-11-05; three-way for dogs
+  before) is one line, "Hide plants rated toxic to:" People, Dogs, Cats, Horses:
+  each hides only the plants a source rates toxic to them, the older list's
+  dog warnings among them (hiding errs safe). There is no "rated safe"
+  filter, since the only safe ratings are the older list's, unverified, and a
+  plant not rated still shows; the line's note says so, with how many plants
+  aren't rated yet (src/plants.ts `toxicTo`, `ratedFor`).
   Requests to use their ratings: ASPCA and Pet Poison Helpline (both sent by
-  Jason, the second on 2026-10-25).
+  Jason, the second on 2026-10-25). ASPCA said no on 2026-11-05 (linking to
+  its plant pages is OK).
   If neither comes through, look at open government sources (Canada's
   Poisonous Plants Information System, the FDA Poisonous Plant Database:
   licenses and coverage not yet checked) before dropping pet toxicity.
