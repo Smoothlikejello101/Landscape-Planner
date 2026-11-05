@@ -2190,22 +2190,28 @@ describe("a bed's conditions changed here while the release edits the plan: no n
     }
   });
 
-  it("after a real copy (the back bed moved there, conditions changed and the aster moved here), the release's tick before this device's next pass makes no second copy; a second move there still does (docs/storage.md: both kept)", async () => {
+  it("after a real copy (the back bed moved there, conditions changed and the aster moved here), the release's tick before this device's next pass makes no second copy, with an edit here since too (before Nov 5 it did); a second move there still does, edit here or none (docs/storage.md: both kept)", async () => {
     for (const next of ['tick', 'move'] as const) {
-      const { server, phone, laptop, id } = await start(ALL);
-      setPlan(laptop, id, plan(undefined, { b2x: 44 }));
-      await syncDev(laptop, server);
-      setPlan(phone, id, plan(SAND, { ax: 6 }));
-      expect((await syncDev(phone, server)).conflicts).toHaveLength(1);
-      await syncDev(laptop, server);
-      if (next === 'tick') laptop.edit(id, (c) => ({ ...c, bought: TICK })); else setPlan(laptop, id, plan(undefined, { b2x: 48 }));
-      await syncDev(laptop, server);
-      // The original holds this device's conditions, filled in, which its record (the server's copy) hasn't.
-      expect((await syncDev(phone, server)).conflicts, next).toHaveLength(next === 'tick' ? 0 : 1);
-      expect(phone.projectsById.size, next).toBe(next === 'tick' ? 2 : 3);
-      expect(conditions(contentOf(phone, id)), next).toEqual([SAND, LOAM]);
-      await syncDev(phone, server); await syncDev(laptop, server);
-      await settled(server, phone, laptop);
+      for (const editHere of [false, true]) {
+        const what = `${next}${editHere ? ', the aster moved here again' : ''}`;
+        const { server, phone, laptop, id } = await start(ALL);
+        setPlan(laptop, id, plan(undefined, { b2x: 44 }));
+        await syncDev(laptop, server);
+        setPlan(phone, id, plan(SAND, { ax: 6 }));
+        expect((await syncDev(phone, server)).conflicts).toHaveLength(1);
+        await syncDev(laptop, server);
+        if (next === 'tick') laptop.edit(id, (c) => ({ ...c, bought: TICK })); else setPlan(laptop, id, plan(undefined, { b2x: 48 }));
+        await syncDev(laptop, server);
+        // The original holds this device's conditions, filled in, which its record (the server's copy) hasn't: a change
+        // here until it goes up. Edited here too, its plan is no longer the server's (as the tick finds it).
+        if (editHere) setPlan(phone, id, plan(SAND, { b2x: 44, ax: 8 }));
+        expect((await syncDev(phone, server)).conflicts, what).toHaveLength(next === 'tick' ? 0 : 1);
+        expect(phone.projectsById.size, what).toBe(next === 'tick' ? 2 : 3);
+        expect(conditions(contentOf(phone, id)), what).toEqual([SAND, LOAM]);
+        if (next === 'tick') expect(onServer(server, id), what).toMatchObject({ shapes: phone.read({ shapes: plan(SAND, { b2x: 44, ax: editHere ? 8 : 2 }) }).shapes, bought: TICK });
+        await syncDev(phone, server); await syncDev(laptop, server);
+        await settled(server, phone, laptop);
+      }
     }
   });
 

@@ -398,7 +398,7 @@ signs in):
   server's copy as this device's record has it with the choice put back as it was, none or As on screen
   (`asRecordedButUnder`): only the field dropped, and nothing else in the plan changed there, isn't a change there
   (tested: without it, a copy). Found on the way: a bed's conditions (`withBedConditions`) had that flaw, fixed Nov 5
-  by the record's `bare` (`asRecordedButConditions`: a bed's conditions, below).
+  by the record's `bare` (`asRecordedButConditions`: a bed's conditions, above).
 - **A Show through pick goes up, over a copy without one** (the review's R1). Merging, this device takes the server's
   copy as already having its result only if that copy has the choice too, where this device's has one
   (`pickNotThere`); the fingerprints alone read Show through picked as none. So a pick made here over a copy the release
@@ -410,8 +410,10 @@ signs in):
   there first made a second copy, with no device on the release needed. That fill can be this device's own pick from the
   conflicting edit, which then shows in the original here too, and goes up with this device's next edit of it. (The copy
   beside it has this device's version whole.) Found with it, and not changed here: a bed's conditions filled in after a
-  conflict make that second copy still (both kept, nothing lost) when the next edit there changes the plan's core; since
-  Nov 5 a release device's tick or photo move there doesn't (`bare`, below).
+  conflict aren't recorded so, and read as a change here until the original next goes up. So an edit there to the
+  plan's core before that still makes a second copy, with or without an edit here (both kept, nothing lost). A release
+  device's tick or photo move there first makes none without an edit here (the original's plan is the server's then),
+  and since Nov 5 none with one either (`bare`: a bed's conditions, above), where before it made one.
 
 The windows left, both only while one of the account's devices is on the release and syncs:
 - A device offline through another device's pick, with the release sending the plan in between, still has its own,
