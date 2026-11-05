@@ -21,6 +21,7 @@ import { angleSpot, clipToBox, cornerAngle, lengthText, middleOf, SIDE_LABEL_MIN
 import { render } from './ui/render';
 import { offerToVines } from './ui/vine-offers';
 import { labelShown } from './names';
+import { afterPointInserted, afterPointRemoved, markTypedSides } from './measured';
 
 // Freeform outlines (closed) and lines (open).
 //
@@ -117,7 +118,7 @@ export function setDrawKind(kind: DrawKind) {
   const d = state.draw;
   if (!d || d.kind === kind) return;
   const keep = (a: DrawKind) => a === 'poly' || a === 'line' || a === 'path';
-  if (!(keep(d.kind) && keep(kind))) { d.points = []; d.snaps = []; d.exact = []; delete d.lastTap; }
+  if (!(keep(d.kind) && keep(kind))) { d.points = []; d.snaps = []; d.exact = []; delete d.typedSides; delete d.lastTap; }
   if (!typedApplies({ ...d, kind })) delete d.typed;
   d.kind = kind;
   if (d.target && kind !== 'measure') rememberMethod(d.target, kind);
@@ -135,6 +136,8 @@ export function undoDrawPoint() {
   if (!d) return;
   d.points.pop(); d.snaps?.pop(); d.exact?.pop(); delete d.lastTap;
   delete d.typed; // (a length typed for the side after the point taken back isn't for the one before it)
+  // (Nor is a side typed to the point taken back one of its sides now.)
+  if (d.typedSides) d.typedSides = d.typedSides.filter((t) => t.from + 1 < d.points.length);
 }
 /**
  * Where a tap at `f` (feet) lands: onto another shape's corner or edge when within SNAP_PX on screen (and
@@ -213,15 +216,23 @@ function closesAt(d: DrawState, f: Point): boolean {
 export function drawTap(clientX: number, clientY: number): boolean {
   const d = state.draw;
   if (!d) return false;
-  if (d.kind === 'measure' && d.points.length >= 2) { d.points = []; d.snaps = []; d.exact = []; delete d.lastTap; } // a third tap starts a new measurement
+  if (d.kind === 'measure' && d.points.length >= 2) { d.points = []; d.snaps = []; d.exact = []; delete d.typedSides; delete d.lastTap; } // a third tap starts a new measurement
   if (closesAt(d, screenToFeet(clientX, clientY))) { finishDraw(); return true; }
   if (d.points.length >= MAX_POINTS) return false;
   // A length typed for this side: the tap gives only its direction (no grid, no snapping: the length is exact).
   const typed = typedTarget(d, screenToFeet(clientX, clientY));
   if (typed) {
+    // (Remembered with the shape, as typed: src/measured.ts. The side from the last point, to the point it puts down,
+    // or, closing the outline, to the first.)
+    const side = { from: d.points.length - 1, ft: d.typed! };
     // (A typed side that ends by the first point closes the outline there, rather than doubling the corner.)
-    if (closesAt(d, typed)) { finishDraw(); return true; }
+    if (closesAt(d, typed)) {
+      (d.typedSides ??= []).push(side);
+      if (!finishDraw()) d.typedSides.pop(); // (not made: still drawing, and that side isn't one yet)
+      return true;
+    }
     if (d.kind !== 'measure' && !tapAccepted(d.kind, d.points, typed)) { toast('That side is too short to make a shape.', 2500); return false; }
+    (d.typedSides ??= []).push(side);
     d.points.push(typed);
     (d.snaps ??= []).push(null);
     // (Both ends of a typed side stay where they are when the outline's squared, so the side keeps its length.)
@@ -306,6 +317,9 @@ export function finishDraw(): Shape | null {
   const shape = buildShape(method, seen, drawKindDef(d), state.shapes);
   if (!shape) return null;
   finishNew(shape, d);
+  // (Its sides typed as numbers, remembered for Rescale: src/measured.ts. Squaring leaves a typed side's ends where
+  // they are, and setting a rectangle level turns it whole, so the tidied shape keeps them too.)
+  markTypedSides(shape, seen, d.typedSides);
   state.draw = null;
   hover = null;
   state.shapes.push(shape);
@@ -322,6 +336,7 @@ export function finishDraw(): Shape | null {
   const after = tidied && buildShape(method, tidied, drawKindDef(d), others(shape.id), shape.id);
   if (after) {
     finishNew(after, d);
+    markTypedSides(after, tidied!, d.typedSides);
     const i = state.shapes.findIndex((x) => x.id === shape.id);
     state.shapes[i] = { ...after, label: shape.label } as Shape;
     pushHistory(how === 'square' ? 'square the corners' : how === 'level' ? 'set it level' : 'move the last point');
@@ -563,6 +578,8 @@ export function insertVertex(s: PathShape, afterIndex: number, world: Point): nu
   pts.splice(afterIndex + 1, 0, p);
   setWorldPoints(s, pts);
   if (s.features?.length) s.features = afterPointAdded(s.features, afterIndex, t);
+  // (A side typed as a number: the one split is two others now, forgotten; those after it renumbered. src/measured.ts)
+  afterPointInserted(s, afterIndex);
   return afterIndex + 1;
 }
 export function canDeleteVertex(): boolean {
@@ -582,6 +599,8 @@ export function deleteSelectedVertex() {
     const lens = Array.from({ length: closed ? n : n - 1 }, (_, j) => Math.hypot(pts[(j + 1) % n].x - pts[j].x, pts[(j + 1) % n].y - pts[j].y));
     s.features = afterPointDeleted(s.features, i, lens, closed);
   }
+  // (Sides typed as numbers: the two that met there, one now, forgotten; those after it renumbered. src/measured.ts)
+  afterPointRemoved(s, i, pts.length, s.type === 'poly');
   pts.splice(i, 1);
   setWorldPoints(s, pts);
   state.editPoints!.vertex = null;
@@ -610,6 +629,8 @@ export function convertToOutline(id: string): PathShape | null {
   const { width: _w, height: _h, ...rest } = s;
   const keep = { ...rest } as Record<string, unknown>;
   delete keep.rightAngle;
+  // (A rectangle's sides typed as numbers are its outline's, in the same order; anything else's aren't kept.)
+  if (s.type !== 'rect') delete keep.measured;
   const poly = { ...keep, type: 'poly', points: [], rotation: s.rotation || 0 } as unknown as PathShape;
   setWorldPoints(poly, outlineOf(s));
   state.shapes[i] = poly;

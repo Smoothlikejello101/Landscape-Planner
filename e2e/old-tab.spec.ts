@@ -203,6 +203,7 @@ test('a version-4 page’s unsaved edits to a plan saved at 5 are kept apart: th
   await page.goto('./');
   await expect(page.locator('.project-btn .pname')).toHaveText('Back Yard');
   await expect(page.getByTestId('kept-apart')).toContainText('“Back Yard (from an older tab)”');
+  await expect(page.getByTestId('layers-scale-dot')).toBeVisible(); // (the rough scale, there still)
   const after = await dump(other);
   const byName = Object.fromEntries(Object.entries(after.stores.meta).map(([id, m]) => [(m as { name: string }).name, after.stores.projects[id] as { shapes: Record<string, unknown>[]; bgImage: Record<string, unknown> }]));
   expect(Object.keys(byName).sort()).toEqual(['Back Yard', 'Back Yard (from an older tab)']);

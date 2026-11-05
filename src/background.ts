@@ -232,7 +232,12 @@ export function calibrationScale(p1: Point, p2: Point, distanceFt: number): numb
   if (!(distanceFt > 0) || !isFinite(distanceFt)) return 'Please enter a positive distance in feet.';
   return distanceFt / dPx;
 }
-export function finishBgCalibration(distanceFt: number) {
+/**
+ * The scale from A and B `distanceFt` apart. `rough`: that length is a rough guess (the box's checkbox), kept with the
+ * photo (BgImage roughScale) so Layers reminds them to set it again; set again without it, it's gone. One step: Undo
+ * takes the flag back with the scale.
+ */
+export function finishBgCalibration(distanceFt: number, rough = false) {
   const cal = state.bgCalibrate;
   if (!state.bgImage || !cal || !cal.p1 || !cal.p2) return;
   const result = calibrationScale(cal.p1, cal.p2, distanceFt);
@@ -240,6 +245,7 @@ export function finishBgCalibration(distanceFt: number) {
   flushHistoryDebounce();
   state.bgImage.ftPerPx = result;
   delete state.bgImage.uncalibrated; // (to scale now)
+  if (rough) state.bgImage.roughScale = true; else delete state.bgImage.roughScale;
   pushHistory();
   save();
   offerTrace(state.currentProjectId); // (next: "Now trace" the house, driveway and the rest over it: src/ui/trace-card.ts)

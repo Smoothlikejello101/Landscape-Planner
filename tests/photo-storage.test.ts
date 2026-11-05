@@ -105,6 +105,26 @@ describe('through this device\'s storage and sync', () => {
     expect(typed(state.shapes[0])).toEqual([{ side: 0, ft: 30 }, { side: 1, ft: 20 }, { side: 2, ft: 30 }, { side: 3, ft: 20 }]); // (side by side: kept)
     expect(state.bgImage).toMatchObject({ cx: 7, roughScale: true });
   });
+
+  it("a side changed and changed back may count again after a restart (the save comes before the step that forgets it): it's that length", async () => {
+    const { updateSelectedSilent } = await import('../src/mutations');
+    const { pushHistory } = await import('../src/history');
+    const { resizedPoints } = await import('../src/geometry');
+    await device();
+    const id = state.currentProjectId!;
+    const bed = { id: 'p1', type: 'poly', x: 0, y: 0, points: [[0, 0], [10, 0], [10, 10], [0, 10]], rotation: 0, color: '#92400e', label: 'Bed', opacity: 0.3, locked: false, measured: [{ side: 0, ft: 10 }] } as Shape;
+    state.shapes = [bed]; pushHistory(); save(); await flushSave();
+    state.selectedIds = ['p1'];
+    updateSelectedSilent({ points: resizedPoints((state.shapes[0] as { points: [number, number][] }).points, 20, 10) }); // (its Width typed 20)
+    await new Promise((r) => setTimeout(r, 900)); // (the save at 250 ms, the step at 600 ms)
+    expect(state.shapes[0]).not.toHaveProperty('measured');
+    expect((await readProject(id))!.shapes[0]).toHaveProperty('measured');
+    await restart();
+    state.selectedIds = ['p1'];
+    updateSelectedSilent({ points: resizedPoints((state.shapes[0] as { points: [number, number][] }).points, 10, 10) }); // (back to 10)
+    await new Promise((r) => setTimeout(r, 900));
+    expect(measuredSides(state.shapes[0])).toEqual([{ side: 0, ft: 10 }]);
+  });
 });
 
 describe('a download that brings sides typed or a rough scale is a change to the plan here (the review\'s J1)', () => {

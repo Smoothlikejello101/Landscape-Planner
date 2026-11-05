@@ -72,8 +72,10 @@ export function renderBgPanel() {
   body.appendChild(bg.uncalibrated
     ? el('div', { className: 'banner', 'data-testid': 'bg-uncalibrated' },
       tapSaid('Not to scale yet: its size on the plan is a guess. Calibrate it: tap two points on the photo you know the distance between.'))
-    : el('div', { style: { fontSize: ts(12), color: '#57534e' } },
+    : el('div', { style: { fontSize: ts(12), color: '#57534e' }, 'data-testid': 'bg-scale' },
       'Current scale: ' + (1 / bg.ftPerPx).toFixed(1) + ' pixels per foot',
+      // (Set from a length said to be a rough guess: said so, as Layers says it, until it's set again without.)
+      ...(bg.roughScale ? [' ', el('span', { className: 'scale-flag', 'data-testid': 'bg-rough' }, 'Rough scale'), el('br'), 'Set from a rough guess at a length: set it again once you’ve measured.'] : []),
       el('br'),
       'Image covers ~' + wFt.toFixed(1) + ' × ' + hFt.toFixed(1) + ' ft'
     ));
@@ -215,9 +217,18 @@ export function lengthsYouMayKnow(short = false): HTMLElement {
 export function renderBgDistanceModal() {
   const input = el('input', { type: 'number', step: 'any', min: '0.1', inputMode: 'decimal', placeholder: 'e.g. 32', 'data-testid': 'scale-distance' });
   setTimeout(() => { input.focus(); input.select(); }, 60);
+  // A length guessed, not measured (Jason on #209, Nov 4: the "rough" checkbox, "so they get a reminder about it
+  // later"): unticked to start, every time; kept with the photo, Layers says "Rough scale" until it's set again without.
+  // (Kept on the calibration as it's ticked, so a redraw of the box keeps it; ticking redraws nothing.)
+  const rough = el('input', { type: 'checkbox', 'data-testid': 'scale-rough' }) as HTMLInputElement;
+  rough.checked = !!state.bgCalibrate?.rough;
+  rough.addEventListener('change', () => { if (state.bgCalibrate) state.bgCalibrate.rough = rough.checked; });
+  const roughRow = el('div', { className: 'scale-rough' },
+    el('label', { className: 'check-row' }, rough, el('span', {}, 'This length is a rough guess')),
+    el('div', { className: 'hint' }, 'Layers will remind you to set the scale again once you’ve measured.'));
   const doIt = () => {
     const v = parseFloat(input.value);
-    finishBgCalibration(v);
+    finishBgCalibration(v, rough.checked);
   };
   const okBtn = el('button', { className: 'btn primary', 'data-testid': 'scale-set' }, 'Set scale');
   okBtn.addEventListener('click', doIt);
@@ -239,6 +250,7 @@ export function renderBgDistanceModal() {
       el('div', { className: 'scale-row' },
         el('div', { className: 'field' }, el('label', {}, 'Distance (ft)'), input),
         el('div', { className: 'scale-buttons' }, cancelBtn, okBtn)),
+      roughRow,
       hints
     )
   );

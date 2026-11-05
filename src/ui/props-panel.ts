@@ -40,6 +40,7 @@ import { bedBloomSection } from './bloom-view';
 import { featuresSection, featuresSummary, featuresTitle, hasFeaturesSection } from './feature-section';
 import { snapRot, sqFt, typeName } from '../util';
 import { inSentence, labelShown } from '../names';
+import { BOX_SIDES, setTypedSides } from '../measured';
 
 // ============================================================
 // PANELS
@@ -342,10 +343,18 @@ export function renderPropsPanelSingle(s: Shape) {
     // (Within 0.1 and MAX_SIZE ft, and the box shows what was applied once it's left: Sam, Oct 30, made a bed
     // 99,999,999 ft long, and a typed 0 or −20 stayed in the box while the bed quietly became 0.1 ft.)
     const sized = (v: string) => Math.min(MAX_SIZE, Math.max(0.1, parseFloat(v) || 0));
+    // A rectangle's Width and Length typed are its sides typed as numbers, remembered (src/measured.ts: its top and
+    // bottom, or its right and left); one out of range, or nothing, isn't a length typed: those sides forgotten.
+    // (An outline's or a line's stretch its box, not a side: nothing remembered, and the sides it changes forgotten.)
+    const typedSide = (which: keyof typeof BOX_SIDES, v: string) => {
+      if (s.type !== 'rect') return;
+      const ft = parseFloat(v);
+      setTypedSides(s, BOX_SIDES[which], Number.isFinite(ft) && sized(v) === ft ? ft : null);
+    };
     const wInput = el('input', { type: 'number', step: '0.5', min: '0', max: String(MAX_SIZE), value: round1(size.w) }) as HTMLInputElement;
-    wInput.addEventListener('input', e => { resize(sized((e.target as HTMLInputElement).value), boxSize(s).h); refreshMeasure(); });
+    wInput.addEventListener('input', e => { const v = (e.target as HTMLInputElement).value; typedSide('width', v); resize(sized(v), boxSize(s).h); refreshMeasure(); });
     const hInput = el('input', { type: 'number', step: '0.5', min: '0', max: String(MAX_SIZE), value: round1(size.h) }) as HTMLInputElement;
-    hInput.addEventListener('input', e => { resize(boxSize(s).w, sized((e.target as HTMLInputElement).value)); refreshMeasure(); });
+    hInput.addEventListener('input', e => { const v = (e.target as HTMLInputElement).value; typedSide('height', v); resize(boxSize(s).w, sized(v)); refreshMeasure(); });
     wInput.addEventListener('change', () => { saidOutOfRange(wInput.value, 0.1, MAX_SIZE, 'Sizes go'); wInput.value = String(round1(boxSize(s).w)); });
     hInput.addEventListener('change', () => { saidOutOfRange(hInput.value, 0.1, MAX_SIZE, 'Sizes go'); hInput.value = String(round1(boxSize(s).h)); });
     // A perfectly straight line has no height (or width) to stretch.
