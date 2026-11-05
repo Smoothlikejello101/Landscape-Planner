@@ -105,8 +105,40 @@ describe('drawing order', () => {
     expect(at.y).toBeLessThan(-0.75);
     // (Grazing its rim is fine: a tenth of it.)
     expect(runLabelSpot(row, w, h, ppf, [], [{ x: 4, y: 2.18, r: 2 }])).toEqual({ x: 4, y: 0 });
-    // Plants all round: nowhere clear, none (its plants named one by one, as lone plants are, or not at all).
-    expect(runLabelSpot(row, w, h, ppf, [], [{ x: 4, y: 0, r: 8 }])).toBeNull();
+    // Plants all round: none clear of them, the first spot clear of the names, over a plant (its middle here), never
+    // none: none was its plants named one by one (Jason, Nov 4, his note 4: a stack of "Creeping liriope").
+    expect(runLabelSpot(row, w, h, ppf, [], [{ x: 4, y: 0, r: 8 }])).toEqual({ x: 4, y: 0 });
+    // (A name at its middle too: the plant next to it.)
+    expect(runLabelSpot(row, w, h, ppf, [{ x0: 4 * ppf - 5, x1: 4 * ppf + 5, y0: -5, y1: 5 }], [{ x: 4, y: 0, r: 8 }])).toEqual({ x: 1, y: 0 });
+  });
+  it("names Jason's liriope once at every zoom down to where plants' names go: a pear's crown beside it no longer splits it into a stack (his note 4)", () => {
+    // (His plan, Nov 1: twelve creeping liriope 1.5 ft apart down the 1.5 ft Carport bed, two Callery pears' 25 ft crowns
+    // to their west, drawn over them, the run's middle in neither.)
+    const c = (id: string, y: number) => ({ id, type: 'circle', x: 1, y, radius: 0.75, color: '#16a34a', label: 'Creeping liriope', opacity: 0.65, locked: false, role: 'plant' } as CircleShape);
+    const column = Array.from({ length: 12 }, (_, i) => c('l' + i, -27.5 + i * 1.5));
+    const pears = [{ x: -12, y: -11.5, r: 12.5 }, { x: -12, y: -28, r: 12.5 }];
+    const w = 102, h = 12.65; // ("Creeping Liriope ×12" at 11 px: the same px at every zoom)
+    // (And, as it was drawn till now, the Carport bed's name, 36 px, moved clear of the plants to the bed's right, at
+    // its middle: on the run's middle and the two plants either side of it.)
+    const carport = (ppf: number) => ({ x0: 1.5 * ppf + 3, x1: 1.5 * ppf + 39, y0: -19.25 * ppf - 6, y1: -19.25 * ppf + 6 });
+    for (const zoom of [0.7, 0.6, 0.54, 0.4, 0.3, 0.2]) {
+      const ppf = 24 * zoom;
+      // Where nothing's clear of the crowns (60% and 54%, as Jason saw it), on the column all the same, never none: none
+      // was its twelve plants named one by one.
+      const at = runLabelSpot(column, w, h, ppf, [carport(ppf)], pears);
+      expect(at, `at ${zoom * 100}%`).not.toBeNull();
+      expect(at!.x).toBe(1);
+    }
+  });
+  it("tries past a run's ends last: above a column's top plant, below its bottom one", () => {
+    const c = (id: string, y: number) => ({ id, type: 'circle', x: 0, y, radius: 0.75, color: '#16a34a', label: 'Phlox', opacity: 0.65, locked: false, role: 'plant' } as CircleShape);
+    const column = [0, 1.5, 3, 4.5].map((y, i) => c('p' + i, y));
+    const ppf = 24, w = 60, h = 13;
+    // (Every spot on or beside the column taken by a name, all but the strip above its top plant.)
+    const taken = [{ x0: -1e4, x1: 1e4, y0: -0.8 * ppf, y1: 1e4 }];
+    const at = runLabelSpot(column, w, h, ppf, taken)!;
+    expect(at.x).toBe(0);
+    expect(at.y * ppf + h / 2).toBeLessThanOrEqual(-0.8 * ppf);
   });
   it("draws no plant's name zoomed out past 20% (Jason, Nov 4: at 5% a name twice the size of the house)", () => {
     expect(PLANT_NAMES_MIN_ZOOM).toBe(0.2);
