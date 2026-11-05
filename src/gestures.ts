@@ -60,6 +60,22 @@ function startPinchGesture() {
   if (g?.type === 'drag-feature' && featureDragChanged(g)) { flushHistoryDebounce(); pushHistory(); save(); } // (likewise a sub-feature's)
   const handleDrag = g?.type === 'shape-resize' || g?.type === 'shape-rotate';
   if (handleDrag && g.moved && handleDragChanged(g, state.shapes)) { flushHistoryDebounce(); pushHistory(); save(); }
+  // A shape selected under the first finger, dragged by it the hair it moved before the second came down: that was a
+  // pinch starting, not a move. What it dragged goes back where it was, nothing changed. (Found looking into Jason's
+  // plan flashing as he zoomed, Nov 5: with a bed selected, a pinch begun on it moved the bed and every plant in it half
+  // a foot or so, recorded nowhere, saved with the view. By touch a selected shape drags: onShapePointerDown.)
+  if (g?.type === 'drag-shape' && g.moved) {
+    for (const item of g.shapeStarts) {
+      const shape = state.shapes.find((s) => s.id === item.id);
+      if (shape) { shape.x = item.startX; shape.y = item.startY; }
+    }
+    redrawShapes(g.ids);
+    redrawHandles();
+  }
+  // (Likewise the photo, being moved or turned: a pinch begun on it, or on its handle, leaves it where it was. It was
+  // left moved, recorded nowhere, not asked about: src/ui/rescale-card.ts.)
+  if (g?.type === 'bg-drag' && g.moved && state.bgImage) { state.bgImage.cx = g.startCenter.x; state.bgImage.cy = g.startCenter.y; redrawBackground(); }
+  if (g?.type === 'bg-rot' && state.bgImage) { state.bgImage.rotation = g.startRotation; redrawBackground(); }
   forgetLastTap(); // (the plan moves: the same spot on screen will be another place)
   gesture.current = {
     type: 'pinch',

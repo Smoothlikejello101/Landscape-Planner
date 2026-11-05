@@ -272,22 +272,37 @@ function imageFrame(bg: BgImage) {
     transform: bg.rotation ? `rotate(${bg.rotation} ${c.x} ${c.y})` : null
   };
 }
+/**
+ * The photo as drawn: one <image>, kept from each drawing of the plan to the next (moved into the new one, its place and
+ * size set afresh), made again only for another photo. Made again each time, as it was until Nov 5, each full redraw
+ * (the one on releasing a pan or a pinch among them) gave the browser a new image to decode, a photo of some megabytes,
+ * and a phone draws the plan without it until that's done: the photo blinked out (Jason's screen recording, Nov 5).
+ * Decoded before it's drawn, too (decoding="sync"): the browser waits for it rather than drawing a frame without it.
+ */
+let photo: { el: SVGImageElement; url: string } | null = null;
 /** Drawn by renderGrid between the tan base and the grid lines. */
 export function renderBgImageInto(svg: SVGElement) {
   const bg = state.bgImage;
+  if (!bg) photo = null; // (gone: nothing kept of it)
   if (!bg || !bg.visible) return;
   const f = imageFrame(bg);
-  const img = svgEl('image', {
-    href: bg.dataUrl,
+  if (photo?.url !== bg.dataUrl) {
+    const el = svgEl('image', { href: bg.dataUrl, decoding: 'sync', preserveAspectRatio: 'none' }); // (aspect is already exact: same ftPerPx both axes)
+    el.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', bg.dataUrl); // older SVG stacks
+    photo = { el, url: bg.dataUrl };
+  }
+  const img = photo.el;
+  const attrs: Record<string, string | number | null> = {
     x: f.x, y: f.y, width: f.w, height: f.h,
     opacity: bg.opacity,
-    preserveAspectRatio: 'none', // aspect is already exact (same ftPerPx both axes)
     'pointer-events': state.bgEditMode ? 'auto' : 'none',
     style: state.bgEditMode ? 'cursor:move;touch-action:none;' : '',
     transform: f.transform,
     'data-role': state.bgEditMode ? 'bg-body' : null,
-  });
-  img.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', bg.dataUrl); // older SVG stacks
+  };
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null) img.removeAttribute(k); else img.setAttribute(k, String(v));
+  }
   svg.appendChild(img);
 }
 function calibrationMarker(svg: SVGElement, bg: BgImage, p: Point, letter: string) {
