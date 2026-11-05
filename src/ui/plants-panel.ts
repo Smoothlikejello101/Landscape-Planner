@@ -10,7 +10,7 @@ import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
 import { byMatch, hostMatchText, inNotes, matchPlant, nearShows, readQuery, unsearchable } from '../search';
 import { seasonMonths, byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, noSoilRating, sunFit, sunRangeSaid, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, planCounts, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, bannedLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById, swapFiltersOn, treeFiltersAside } from '../plants';
-import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
+import { startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { SPREAD_WAYS, spreadWays } from '../spread';
 import { heightLabel, heightRange, sizeLabel } from './height-range';
@@ -24,15 +24,15 @@ import { render } from './render';
 import { plantDetails } from './plant-details';
 import { addCompareToggle, compareBar, compareMark, compareOver, pickerBeneath, refreshCompare, syncCompareMarks, type CompareHost } from './compare-sheet';
 import { bannedHere, escapeHere, escapeShort, gardenStateName, lawShort, loadWild, regulatedHere } from '../wild';
-import { plantDot, plantSpot } from '../plant-looks';
-import { dragsPicker, pickerHandle, pickerSheetClass, showShapes } from './picker-view';
-import { bedBox, forHint, forRow } from './plant-for';
-import { bedLayer, bedsToPlant, partName, PART_OF, setPartOff, SET_BY_BED, withFilters, type BedLayer, type BedPart } from '../bed-plant';
+import { plantSpot } from '../plant-looks';
+import { closePicker, dragsPicker, pickerFromSheet, pickerHandle, pickerSheetClass, showShapes } from './picker-view';
+import { bedBox, forRow } from './plant-for';
+import { sourceButton } from './source-pane';
+import { bedLayer, partName, PART_OF, setPartOff, SET_BY_BED, withFilters, type BedLayer, type BedPart } from '../bed-plant';
 import { redrawCanvas } from '../canvas';
 import { noteView } from './render';
 import type { Shape } from '../types';
 
-const dotColor = plantDot;
 /** The small flower before a row's bloom months, in the text's own color. */
 const FLOWER_GLYPH = '<svg viewBox="0 0 20 20" width="1em" height="1em" fill="currentColor"><circle cx="10" cy="5.6" r="3.4"/><circle cx="14.2" cy="8.6" r="3.4"/><circle cx="12.6" cy="13.6" r="3.4"/><circle cx="7.4" cy="13.6" r="3.4"/><circle cx="5.8" cy="8.6" r="3.4"/><circle cx="10" cy="10" r="2.2" fill="#fff"/></svg>';
 
@@ -64,9 +64,9 @@ export function pickerOpened() { keptSearch = !!plantFilter.q; }
  */
 let askingAtTop: boolean | null = null;
 /**
- * Recent and "Anyone you need to protect?" folded away while a search is typed, as the filters fold, so its results are
- * what's in view (the picker bug hunt, Nov 1: on a 360 × 640 phone they left one result row in sight, at Extra large
- * none); back once the search is cleared, or the picker closes. Kept across a redraw while typing.
+ * "Anyone you need to protect?" folded away while a search is typed, as the filters fold, so its results are what's in
+ * view (the picker bug hunt, Nov 1: on a 360 × 640 phone it and Recent, since gone, left one result row in sight, at
+ * Extra large none); back once the search is cleared, or the picker closes. Kept across a redraw while typing.
  */
 let typingFold = false;
 /** The picker closed (src/ui/render.ts): asked again or not by what's kept, the next time it opens. */
@@ -106,14 +106,6 @@ function addNativeHereOption() {
   sel.insertBefore(o, sel.options[1] ?? null);
 }
 
-/** Opened from a plant's sheet to swap it, or from a circle's to link it. */
-const pickerFromSheet = () => !!state.pickerLinkId && state.selectedIds.length > 0;
-function closePicker() {
-  // (Opened from a sheet: closed, back on that sheet, as picking a plant brings you back there. The UI review,
-  // 2026-11-01: it closed the sheet too.)
-  const fromSheet = pickerFromSheet();
-  state.panel = fromSheet ? 'props' : null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; state.pickerForTree = false; render();
-}
 // (A tree among its forms: a shrub that grows into a tree, mimosa or wax myrtle, can be the tree in the yard.)
 const isTree = (p: Plant) => formsOf(p).includes('Tree');
 // My plants folded away in the picker: kept here, and remembered on this device when storage allows. Folded until
@@ -254,35 +246,28 @@ export function renderPlantsPanel() {
   const swapping = linking && [state.pickerLinkId!, ...state.pickerLinkAlso].every((id) => { const s = state.shapes.find((x) => x.id === id); return !!s?.plantId && !!plantsById[s.plantId]; });
   const forTree = !linking && state.pickerForTree;
   if (forTree) treeFiltersAside(); // (naming a tree in the yard: no shopping filters, src/plants.ts)
-  const browsing = !swapping && !linking && !forTree && !state.placing;
   // Plant this bed (Jason, Nov 2): which bed it's For, a row of its own at the top; not in Swap, Link or Which tree.
   const showsFor = !swapping && !linking && !forTree;
-  const title = swapping ? 'Swap for another plant' : linking ? 'Link to a plant' : forTree ? 'Which tree?' : state.placing ? 'Switch plant' : 'Plant Picker';
-  // (The plain picker's count, of the plants it offers: written with the count line, from the same numbers. The UI
-  // review, 2026-11-01: drawn before the garden's state's law came in, it said 3,747 beside "of 3,745".)
-  const titleNode = el('div', { className: 'title' }, title);
-  const header = el('div', { className: 'sheet-header' },
-    titleNode,
-    sheetCloseButton(closePicker, pickerFromSheet() ? 'props' : null) // (← back to the plant's sheet: closePicker)
-  );
+  /**
+   * A task of its own keeps a title saying what it is: Swap, Link, Which tree. The picker itself (and Switch plant, the
+   * same picker while placing, its rows' buttons saying Switch) has none: the For row, or the search where there's no bed
+   * to choose, takes its row, beside the ✕ (Jason, Nov 4, note 1: "I wonder if it needs the 'Plant Picker (xxxx)'
+   * header? It seems like mostly wasted space"). How many plants it offers: its count line, over the list.
+   */
+  const title = swapping ? 'Swap for another plant' : linking ? 'Link to a plant' : forTree ? 'Which tree?' : null;
 
   const body = el('div', { className: 'sheet-body' });
-  // ---- For: Anywhere, a bed, or Pick on the plan (src/ui/plant-for.ts). Chosen in place: the search keeps its keyboard.
+  // ---- For: Anywhere, a bed, or Pick on the plan (src/ui/plant-for.ts), in view while the list scrolls, once the plan
+  // has a bed to choose (Jason, Nov 4, note 1: '"for: anywhere" probably doesn't need to be there if they don't have a
+  // bed'). Chosen in place: the search keeps its keyboard.
   const forBar = showsFor ? forRow((bed) => forChanged(bed)) : null;
-  // (In view while the list scrolls, over the search, once the plan has a bed to choose. With none, "For: Anywhere · Draw
-  // a bed to plant for it" heads the list instead, folded away while a search is typed, as Recent is, and left off a short
-  // screen at Large and Extra large text (src/styles.css): nothing to choose, and the list keeps its room on a small
-  // phone, as the picker bug hunt asked, Nov 1.)
-  const forSticky = forBar && bedsToPlant(state.shapes).length ? forBar : null;
-  if (forBar && !forSticky) forBar.hidden = typingFold;
   /**
    * The bed planted for, as a layer over the filters (src/bed-plant.ts): its conditions filter the list, the person's
    * own Sun, Water needs, Drought tolerant, Takes wet soil and Clay OK set aside meanwhile, untouched. Null: anywhere.
    */
   let layer: BedLayer | null = showsFor ? bedLayer() : null;
-  /** Under it, at the list's top: what a bed would do (For anywhere), or the bed's box (For a bed). */
+  /** Under it, at the list's top, For a bed: the bed's box. (For anywhere, nothing: Jason, Nov 4, dropped "Planting a bed? …".) */
   const forTop = el('div', { className: 'for-top', 'data-testid': 'for-top' });
-  if (forBar && !forSticky) body.appendChild(forBar);
   if (showsFor) body.appendChild(forTop);
   function forChanged(bed: Shape | null) {
     syncFor();
@@ -295,10 +280,7 @@ export function renderPlantsPanel() {
   function syncFor() {
     if (!showsFor) return;
     layer = bedLayer();
-    forTop.replaceChildren(...[layer ? bedBox(layer, partToggled, editConditions) : forHint()].filter((x): x is HTMLElement => !!x));
-    // (For a bed, its box takes the place of Recent and the note on checking: the list starts high on a phone.)
-    if (recentField) recentField.hidden = typingFold || !!layer;
-    if (checkingNote) checkingNote.hidden = !!layer;
+    forTop.replaceChildren(...(layer ? [bedBox(layer, partToggled, editConditions)] : []));
     syncSetBy();
   }
   /** A part of the bed's conditions taken off with its ×, or put back: for now, never on the bed. */
@@ -331,30 +313,10 @@ export function renderPlantsPanel() {
     unknown.addEventListener('click', () => { startTreeDraw(); render(); });
     body.appendChild(unknown);
   }
-  // The plants placed most recently, one tap each.
-  const recent = linking || forTree ? [] : recentPlants();
-  let recentField: HTMLElement | null = null;
-  if (recent.length) {
-    const row = el('div', { className: 'recent-plants', 'data-testid': 'recent-plants' });
-    for (const p of recent) {
-      const chip = el('button', { className: 'recent-plant' },
-        el('span', { className: 'sw-dot', style: { background: dotColor(p) } }), el('span', {}, p.common));
-      chip.addEventListener('click', () => pick(p));
-      row.appendChild(chip);
-    }
-    recentField = el('div', { className: 'field', 'data-testid': 'recent-field', hidden: typingFold }, el('label', {}, 'Recent'), row);
-    body.appendChild(recentField);
-  }
-  let checkingNote: HTMLElement | null = null;
-  if (PLANTS.some((p) => p.unverified || p.partlyChecked)) {
-    // (One line, so the list starts high on a phone; the link tells the rest.)
-    const full = el('div', { id: 'unverified-more', hidden: true },
-      'Plants are being checked against published references. Unverified: all its details are from an earlier list with no sources. Partly checked: some are sourced; open it to see which (the rest say "earlier list"). Treat unchecked details as a rough guide.');
-    const more = el('button', { className: 'link-btn inline', 'aria-expanded': 'false', 'aria-controls': 'unverified-more', 'data-testid': 'unverified-more' }, 'What that means');
-    more.addEventListener('click', () => { full.hidden = !full.hidden; more.setAttribute('aria-expanded', String(!full.hidden)); more.textContent = full.hidden ? 'What that means' : 'Less'; });
-    checkingNote = el('div', { className: 'hint checking-note', 'data-testid': 'unverified-note' }, 'Not every detail is checked yet. ', more, full);
-    body.appendChild(checkingNote);
-  }
+  // (No Recent, the plants placed last, one tap each (Jason, Nov 4, note 1: "'In this plan' gives much of the same 'find
+  // that plant I put down a little bit ago' functionality"); nor "Not every detail is checked yet", the details mark the
+  // facts that aren't instead (src/ui/plant-details.ts markUnverified). The rows' Unverified and Partly checked say
+  // what they mean when pointed at.)
   if (!PLANTS.length) {
     body.appendChild(el('div', { className: 'hint' }, 'The plant catalog is still loading (or could not load). Your own plants work either way.'));
   }
@@ -596,7 +558,6 @@ export function renderPlantsPanel() {
     const n = hits.length + mine.length - foundBanned, all = PLANTS.length + activeMyPlants().length - banned.length;
     // (For a bed: those no source rates for clay aren't counted as fitting it; their divider says how many.)
     const unratedN = hits.filter((p) => noSoilRating.has(p.id)).length;
-    if (browsing) titleNode.textContent = 'Plant Picker' + (PLANTS.length ? ` (${countWord(all)})` : '');
     // (Nothing matched as typed, only close spellings: said so, not counted as matches (Lena, Oct 30).)
     // ("In this plan": the plan's kinds, not a share of the catalog (Dana, Oct 30: "6 of 3,725 plants match").)
     const found = hits.length + mine.length;
@@ -606,8 +567,9 @@ export function renderPlantsPanel() {
     countLine.textContent = (near ? `Nothing matches as typed${found ? ` \u00b7 ${countWord(found)} close spelling${found === 1 ? '' : 's'}` : ''}`
       : plantFilter.inPlan ? (found ? `${countWord(inPlanPlants)} plant${inPlanPlants === 1 ? '' : 's'}, ${countWord(found)} kind${found === 1 ? '' : 's'} in this plan${q ? ` match \u201c${plantFilter.q.trim()}\u201d` : ''}` : q ? `No plant in this plan matches \u201c${plantFilter.q.trim()}\u201d` : 'No plants placed in this plan yet')
       : pickerCount(n - unratedN, all, out.filter((p) => !forTree || isTree(p)).length, foundBanned, gardenStateName() ?? 'here', layer?.filtering ? layer.name : undefined)) +
-      (swapping ? ' \u00b7 Pick the plant to swap in' : linking ? ' \u00b7 Link the plant this circle stands for' : forTree ? ' \u00b7 trees only'
-        : tapSaid(layer ? ' \u00b7 Place a plant, then tap inside the bed; tap a plant for its details' : ' \u00b7 Place a plant, then tap the plan where it goes; tap a plant for its details'));
+      // (Not how to place one: Jason, Nov 4, note 1, "we can probably lose 'place a plant ...', leaving just how many
+      // match, which saves us a line on my phone".)
+      (swapping ? ' \u00b7 Pick the plant to swap in' : linking ? ' \u00b7 Link the plant this circle stands for' : forTree ? ' \u00b7 trees only' : '');
     // Too big for its spot (a Swap from crowding, or from a plant wider than its bed): the smaller forms of the same
     // plant first, smallest first, by their sources' sizes, each saying how wide it grows and whether that fits; then the
     // usual list, without them (Jason's UI review, Nov 2: "Blue Jean Baby for Russian sage"; never "plants like this").
@@ -976,8 +938,8 @@ export function renderPlantsPanel() {
     if (!(e as InputEvent).isComposing) takeNeeds(false);
     plantFilter.q = search.value; clearSearch.hidden = !search.value;
     if (typed) foldForSearch();
-    // (Words typed fold Recent and the question away; the search emptied by hand brings them back. Words of need made
-    // filters empty it too, while typing: those leave them folded.)
+    // (Words typed fold the question away; the search emptied by hand brings it back. Words of need made filters empty
+    // it too, while typing: those leave it folded.)
     foldTops(typed);
     rebuildList();
   });
@@ -1025,11 +987,9 @@ export function renderPlantsPanel() {
     else if (s.key === 'native') plantFilter.native = gardenStateName() ? '@here' : '@na';
     else Object.assign(plantFilter, { [s.key]: s.value });
   }
-  /** Recent and "Anyone you need to protect?" folded away, or back (typingFold). */
+  /** "Anyone you need to protect?" folded away, or back (typingFold). */
   function foldTops(on: boolean) {
     typingFold = on;
-    if (recentField) recentField.hidden = on || !!layer;
-    if (forBar && !forSticky) forBar.hidden = on;
     if (topLine) topLine.hidden = on;
   }
   /**
@@ -1145,7 +1105,10 @@ export function renderPlantsPanel() {
     const loc = state.location;
     const cb = el('input', { type: 'checkbox', 'data-testid': 'hardy-here' });
     cb.checked = !!loc && plantFilter.hardyHere;
-    const source = el('div', { className: 'hint zone-source', hidden: !cb.checked }, `Zones: ${ZONE_SOURCE_SHORT}.`);
+    // (Its source a small "Source" beside it, the citation in a little pane: Jason, Nov 4, note 1, "The 2-line citation
+    // on hardiness needs to be minimized somehow".)
+    const source = sourceButton(() => `Zones: ${ZONE_SOURCE_SHORT}.`, { name: 'the hardiness zones', testid: 'zone-source' });
+    source.hidden = !cb.checked;
     cb.addEventListener('change', () => {
       if (!state.location) { cb.checked = false; openLocation('plants'); return; }
       plantFilter.hardyHere = cb.checked;
@@ -1343,7 +1306,7 @@ export function renderPlantsPanel() {
   const filtersBtn = el('button', { className: 'btn ghost fold-btn', 'aria-expanded': String(filtersOpen), 'aria-controls': 'all-filters', 'data-testid': 'filters' },
     el('span', { className: 'fold-icon', html: I.filter }), filtersLabel, el('span', { className: 'fold-chev', html: I.chevronDown }));
   filtersBtn.addEventListener('click', () => { setFiltersOpen(!filtersOpen); filtersBtn.setAttribute('aria-expanded', String(filtersOpen)); all.hidden = !filtersOpen; });
-  const foldRow = el('div', { className: 'fold-row' }, filtersBtn, hardy.box);
+  const foldRow = el('div', { className: 'fold-row' }, filtersBtn, hardy.box, hardy.source);
 
   // ---- What's on, above the list: a chip each, tap to take it off ----
   const activeRow = el('div', { className: 'active-filters', 'data-testid': 'active-filters' });
@@ -1375,7 +1338,7 @@ export function renderPlantsPanel() {
   planToggle.addEventListener('click', () => { plantFilter.inPlan = !plantFilter.inPlan; planToggle.setAttribute('aria-pressed', String(plantFilter.inPlan)); rebuildList(); });
   const searchBar = el('div', { className: 'picker-search field' }, el('div', { className: 'search-row' }, el('div', { className: 'search-wrap' }, search, clearSearch), planToggle));
   // (One block, so its spacing is its own: the sheet spaces its parts widely. "Anyone you need to protect?" first.)
-  body.appendChild(el('div', { className: 'picker-filters' }, topLine, foldRow, hardy.source, all, whyLine, activeRow));
+  body.appendChild(el('div', { className: 'picker-filters' }, topLine, foldRow, all, whyLine, activeRow));
   body.appendChild(countLine);
   body.appendChild(listWrap);
   syncFor();
@@ -1385,9 +1348,15 @@ export function renderPlantsPanel() {
   // between a click and the next. Marcus, Diego, Tom, Oct 30.)
   // (The plants chosen to compare, in a bar at its foot.)
   const compare = compareBar(compareHost);
-  // (Half height on a phone, its handle at the top; a panel beside the plan on a computer: src/ui/picker-view.ts.)
+  // (At rest on a phone, 60% of the screen, its handle at the top; a panel beside the plan on a computer:
+  // src/ui/picker-view.ts.) Its top row: a task's title, or the For row, or the search; then the search, if it isn't
+  // there; the ✕ (← back to the plant's sheet) at the top row's end.
+  const close = sheetCloseButton(closePicker, pickerFromSheet() ? 'props' : null);
+  const first = title ? el('div', { className: 'title' }, title) : forBar ?? searchBar;
+  const header = el('div', { className: 'sheet-header' + (title ? '' : ' picker-head') },
+    title ? null : el('h2', { className: 'sr-only' }, 'Plant Picker'), first, close);
   dragsPicker(header);
-  const sheet = el('div', { className: pickerSheetClass() }, el('div', { className: 'sheet-top' }, pickerHandle(), header, forSticky, searchBar), body, compare.el);
+  const sheet = el('div', { className: pickerSheetClass() }, el('div', { className: 'sheet-top' }, pickerHandle(), header, first === searchBar ? null : searchBar), body, compare.el);
   // Typing: the start of the results in view, under the search (scrolling only; the keyboard stays). Back up to it from
   // far down the list; or down to it, past what's above it, where the first result is out of sight below (Jason, Nov
   // 1, from the UI review). The filters' chips, a word of need's among them, stay in view above it.

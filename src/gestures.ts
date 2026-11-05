@@ -28,7 +28,7 @@ import { featureTap } from './feature-edit';
 import { deepClone } from './util';
 import type { HandleKind } from './handle-math';
 import { isTree } from './trees';
-import { planLookOnly } from './ui/picker-view';
+import { planLookOnly, planTapped } from './ui/picker-view';
 import { bedAt, pickingBed } from './bed-plant';
 import { pickBedAt } from './ui/plant-for';
 import { inSentence, sameName } from './names';
@@ -98,8 +98,8 @@ export function onCanvasPointerDown(e: PointerEvent) {
   if (activePointers.size === 2) { startPinchGesture(); return; }
   if (activePointers.size > 2) return; // palm rejection
   // Behind the plant picker, the plan is there to look at: a drag pans it and two fingers zoom it, wherever they press;
-  // nothing on it is picked, moved or placed, so a stray touch never loses the picker (Jason, Nov 2, from the bed
-  // review: src/ui/picker-view.ts).
+  // nothing on it is picked, moved or placed (Jason, Nov 2, from the bed review: src/ui/picker-view.ts). A tap closes
+  // the picker (Jason, Nov 4: as panels close everywhere else).
   if (planLookOnly()) {
     gesture.current = { type: 'pan', startX: e.clientX, startY: e.clientY, startOffset: { x: state.offsetX, y: state.offsetY }, moved: false, look: true };
     return;
@@ -483,13 +483,15 @@ export function onCanvasPointerUp(e: PointerEvent) {
       return;
     case 'pan':
       if (g.look) {
-        // (Behind the picker: a drag moved the view, the plan alone drawn again. A tap is nothing at all, the view put
-        // back from the hair it followed the finger.)
+        // (Behind the picker: a drag moved the view, the plan alone drawn again. A tap picks nothing, the view put back
+        // from the hair it followed the finger; it closes the picker, as a tap on the plan closes a panel everywhere
+        // else (Jason, Nov 4, note 3).)
         if (g.moved) { saveView(); forgetLastTap(); viewSettled(); }
         else {
           state.offsetX = g.startOffset.x; state.offsetY = g.startOffset.y; previewView();
           // (Picking a bed for the picker: a tap on one is For it, back in the picker. src/ui/plant-for.ts.)
           if (pickingBed()) { pickBedAt(screenToFeet(g.startX, g.startY), (p) => bedAt(p, state.shapes.filter((s) => shownWith(s, state.viewFilter)))); render(); }
+          else planTapped();
         }
         return;
       }

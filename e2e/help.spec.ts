@@ -119,7 +119,7 @@ test('each answer\'s button goes to its place: Print, the Plant list, backup, Wa
   await shut(page);
   // Kids and pets: the picker, and Warnings at Poison, with who's in the yard.
   await go(page, 'protect', 'help-go-picker');
-  await expect(sheetTitle(page)).toHaveText(/^Plant Picker/);
+  await expect(page.getByTestId('picker')).toBeVisible();
   await shut(page);
   await go(page, 'protect', 'help-go-warnings');
   await expect(page.getByTestId('warnings-kind-head-poison')).toHaveAttribute('aria-expanded', 'true');
@@ -137,7 +137,7 @@ test('Add my own plant: the form, back to the picker, where My plants holds it',
   // The form again from Help: its ← goes back to the picker, with My plants.
   await go(page, 'own-plant', 'help-go-own');
   await page.getByTestId('sheet-back').click();
-  await expect(sheetTitle(page)).toHaveText(/^Plant Picker/);
+  await expect(page.getByTestId('picker')).toBeVisible();
   await expect(page.getByTestId('my-plants-fold')).toHaveText(/^My plants \(1\)/);
 });
 

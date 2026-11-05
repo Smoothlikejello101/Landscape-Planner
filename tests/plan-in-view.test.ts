@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { FULL, HALF, KEYBOARD_PX, SETTLE_PX, keyboardUp, sameView, settleSheet, sheetHeights, viewToShow, type Room, type View } from '../src/plan-in-view';
+import { FULL, REST, KEYBOARD_PX, SETTLE_PX, keyboardUp, sameView, settleSheet, sheetHeights, viewToShow, type Room, type View } from '../src/plan-in-view';
 import { MIN_ZOOM, PX_PER_FOOT_BASE } from '../src/constants';
 import type { Bounds } from '../src/types';
 
-// The plan in view while choosing plants (Jason, Nov 2, from the bed review's S3): the arithmetic behind the picker at
-// half height on a phone and beside the plan on a computer (src/plan-in-view.ts).
+// The plan in view while choosing plants (Jason, Nov 2, from the bed review's S3): the arithmetic behind the picker
+// at rest (60%, half until Nov 4) on a phone and beside the plan on a computer (src/plan-in-view.ts).
 
 /** Where `b` is drawn (px from the plan's top left) at `v`. */
 function drawn(b: Bounds, v: View) {
@@ -91,24 +91,30 @@ describe('the selected thing brought into the part of the plan in sight', () => 
 });
 
 describe('where the phone\'s picker settles when its handle is let go', () => {
-  const half = 420, full = 714;
-  it('dragged up far enough: full height; down far enough: half', () => {
-    expect(settleSheet(half, half + SETTLE_PX, half, full)).toBe('full');
-    expect(settleSheet(full, full - SETTLE_PX, half, full)).toBe('half');
+  const rest = 504, full = 714;
+  it('dragged up far enough: full height; down far enough: at rest', () => {
+    expect(settleSheet(rest, rest + SETTLE_PX, rest, full)).toBe('full');
+    expect(settleSheet(full, full - SETTLE_PX, rest, full)).toBe('rest');
   });
   it('a short drag goes back to whichever it\'s nearer', () => {
-    expect(settleSheet(half, half + 10, half, full)).toBe('half');
-    expect(settleSheet(full, full - 10, half, full)).toBe('full');
-    expect(settleSheet(560, 580, half, full)).toBe('full'); // (past the middle, 567)
+    expect(settleSheet(rest, rest + 10, rest, full)).toBe('rest');
+    expect(settleSheet(full, full - 10, rest, full)).toBe('full');
+    expect(settleSheet(600, 620, rest, full)).toBe('full'); // (past the middle, 609)
   });
-  it('never closes: dragged down from half, it stays half', () => {
-    expect(settleSheet(half, half - 200, half, full)).toBe('half');
+  it('swiped down below its height at rest, it closes (Jason, Nov 4, note 3); not by a short drag', () => {
+    expect(settleSheet(rest, rest - SETTLE_PX, rest, full)).toBe('closed');
+    expect(settleSheet(rest, rest - 200, rest, full)).toBe('closed');
+    expect(settleSheet(rest, rest - SETTLE_PX + 1, rest, full)).toBe('rest');
+    // From full height: down to rest, or on past it, closed.
+    expect(settleSheet(full, rest + 5, rest, full)).toBe('rest');
+    expect(settleSheet(full, rest - SETTLE_PX - 5, rest, full)).toBe('closed');
   });
-  it('its heights: half the layer it\'s on; full as it always was, 85% of the screen less the keyboard', () => {
-    expect(sheetHeights(840, 0)).toEqual({ half: Math.round(840 * HALF), full: Math.round(840 * FULL) });
+  it('its heights: 60% of the layer it\'s on at rest (Jason, Nov 4); full as it always was, 85% of the screen less the keyboard', () => {
+    expect(REST).toBe(0.6);
+    expect(sheetHeights(840, 0)).toEqual({ rest: Math.round(840 * REST), full: Math.round(840 * FULL) });
     // (A keyboard measured over the page, iOS: the layer is the screen less the keyboard.)
-    expect(sheetHeights(500, 340)).toEqual({ half: 250, full: Math.round(FULL * 840 - 340) });
-    expect(sheetHeights(100, 600).full).toBe(50); // (never less than half)
+    expect(sheetHeights(500, 340)).toEqual({ rest: 300, full: Math.round(FULL * 840 - 340) });
+    expect(sheetHeights(100, 600).full).toBe(60); // (never less than at rest)
   });
 });
 

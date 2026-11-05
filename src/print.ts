@@ -1,16 +1,17 @@
 import { bedOf, isPlant } from './beds';
 import { utilityLabel } from './utility-kinds';
-import { hiddenIds, paintOrder, seeThroughIds } from './canvas';
+import { paintOrder, paperUnder } from './canvas';
 import { escapeHtml } from './dom';
-import { areaNamesSvg, gatherAreaNames, hiddenRimsSvg, plantCircles, shapeToSvgString, withNames, withSeeThrough } from './export';
+import { areaNamesSvg, gatherAreaNames, hiddenRimsSvg, plantCircles, shapeToSvgString, windowCircles, withNames, withSeeThrough, withWindows } from './export';
 import { rotatedBoxBounds, shapeBBox, unionBounds } from './geometry';
-import type { Plant } from './plants';
+import { plantsById, type Plant } from './plants';
 import { ROLES, roleKey, roleLabel } from './roles';
-import type { BgImage, Bounds, PaperSize, PrintSettings, RoleKey, Shape, ShapeFilter, SizeMode } from './types';
+import type { BgImage, Bounds, PaperSize, PrintSettings, PrintUnder, RoleKey, Shape, ShapeFilter, SizeMode } from './types';
 import { NO_FILTER } from './status';
 import { fullRingRadius } from './my-plants';
 import { bedNames } from './print-area';
 import { labelShown } from './names';
+import { SUN_KEY, SUN_RAMP, sunRecorded } from './sun';
 
 // The printable plan: a to-scale drawing on a standard sheet, with a title
 // block, scale bar, north arrow, legend and a plant list grouped by bed.
@@ -168,9 +169,42 @@ export function plantKeys(plants: Shape[], order: Shape[] = plants): Map<string,
   return new Map(names.map((n, i) => [n, i + 1]));
 }
 
+// ---------- Plants under taller ones ----------
+/**
+ * The numbered dots for plants hidden under taller ones on paper or in a picture, with their key (Jason, Nov 4: "same as
+ * on screen with numbered dots", "a key on the page listing each number with the plant's name"). `numbers`: each hidden
+ * plant's number, by id; `rows`: each number once, with its plant's name, botanical name and how many dots it marks;
+ * `inList`: numbered as in the plant list on the sheet (its number in the circles), which is then their key.
+ */
+export interface DotKey { numbers: Map<string, number>; rows: ScheduleRow[]; inList: boolean }
+/**
+ * Number the plants hidden under taller ones (`hidden`): by the sheet's plant numbers (`listKeys`, the plant list's,
+ * when the sheet prints them), so a dot's number is its plant's everywhere on the sheet; else 1, 2, 3… among them alone,
+ * a plant's copies one number, in the order the plan got them (`order`, as plantKeys numbers).
+ */
+export function dotKey(hidden: Shape[], plantsById: Record<string, Plant | undefined>, listKeys: Map<string, number> | null, order: Shape[]): DotKey {
+  const plants = hidden.filter(isPlant);
+  const keys = listKeys ?? plantKeys(plants, order);
+  const numbers = new Map<string, number>(), rows = new Map<number, ScheduleRow>();
+  for (const p of plants) {
+    const label = labelShown(p).trim() || 'Unlabeled plant', key = keys.get(label);
+    if (key == null) continue;
+    numbers.set(p.id, key);
+    const row = rows.get(key) ?? { label, botanical: (p.plantId && plantsById[p.plantId]?.botanical) || '', count: 0, key };
+    row.count++;
+    rows.set(key, row);
+  }
+  return { numbers, rows: [...rows.values()].sort((a, b) => a.key - b.key), inList: !!listKeys };
+}
+/** What a drawing shows of the plants under taller ones, for its legend: how many are marked, and their numbers. */
+export interface UnderShown { marks: number; dots: DotKey | null }
+
 // ---------- Legend ----------
-/** `solid`: a line drawn unbroken in the legend (a power line), not dashed as a boundary's is. */
-export interface LegendEntry { key: RoleKey; label: string; color: string; outline: boolean; solid?: boolean }
+/**
+ * `solid`: a line drawn unbroken in the legend (a power line), not dashed as a boundary's is. `sunKey`: the sun areas'
+ * key instead of a swatch (src/print-pdf.ts): their hours, warm to cool, and plain ground with no sun recorded.
+ */
+export interface LegendEntry { key: RoleKey; label: string; color: string; outline: boolean; solid?: boolean; sunKey?: boolean }
 /** One entry per role on the plan, in the usual role order, colored like most of its shapes. */
 export function legendEntries(shapes: Shape[], sizeMode: SizeMode = 'typical', rings = false): LegendEntry[] {
   // (Their width when grown, in plain words: Kayla, Nov 4, "What is mature spread?")
@@ -181,9 +215,20 @@ export function legendEntries(shapes: Shape[], sizeMode: SizeMode = 'typical', r
   for (const k of keys) {
     const of = shapes.filter((s) => roleKey(s) === k && s.type !== 'text');
     if (!of.length) continue;
-    const counts = new Map<string, number>();
-    for (const s of of) counts.set(s.color.toLowerCase(), (counts.get(s.color.toLowerCase()) ?? 0) + 1);
-    const color = [...counts].sort((a, b) => b[1] - a[1])[0][0];
+    const usual = (these: Shape[]) => {
+      const counts = new Map<string, number>();
+      for (const s of these) counts.set(s.color.toLowerCase(), (counts.get(s.color.toLowerCase()) ?? 0) + 1);
+      return [...counts].sort((a, b) => b[1] - a[1])[0][0];
+    };
+    const color = usual(of);
+    if (k === 'shade' && of.some(sunRecorded)) {
+      // Sun areas with hours recorded: the key to the ramp they're drawn in (Jason, Nov 4), in place of one swatch. Any
+      // with no hours recorded yet are drawn in their own color: a swatch of their own, after it.
+      out.push({ key: k, label: SUN_KEY.printTitle, color: SUN_RAMP.gold.color, outline: false, sunKey: true });
+      const not = of.filter((s) => !sunRecorded(s));
+      if (not.length) out.push({ key: k, label: SUN_KEY.printUnrecorded, color: usual(not), outline: false });
+      continue;
+    }
     if (k === 'utility') {
       // (Each kind its own line: a power line, a buried line dashed, a septic field.)
       for (const kind of [...new Set(of.map((s) => s.utility ?? ''))]) {
@@ -210,7 +255,12 @@ export function gridStep(ftPerIn: number): number {
  * screen: the same plant has the same number on each); `listed`: the plants given their number, if not every one drawn
  * (one cut by the screen's edge, its middle off the sheet, isn't).
  */
-export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage | null, opts: Pick<PrintSettings, 'includeBackground' | 'includeGrid' | 'includePlantList'> & { includeFullRings?: boolean; order?: Shape[]; names?: boolean; keyFrom?: Shape[]; listed?: Set<string> }, pxPerIn: number): { svg: string; w: number; h: number } {
+/**
+ * `under`: how the plants under taller ones are drawn (src/canvas.ts paperUnder): windows, the default, or as on the
+ * screen, with `seeThroughFrom` the height Layers' "See through tall plants" goes from when it's on. Returned with the
+ * drawing: what it shows of them (`under`), for the legend and the key.
+ */
+export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage | null, opts: Pick<PrintSettings, 'includeBackground' | 'includeGrid' | 'includePlantList'> & { includeFullRings?: boolean; order?: Shape[]; names?: boolean; keyFrom?: Shape[]; listed?: Set<string>; under?: PrintUnder; seeThroughFrom?: number | null }, pxPerIn: number): { svg: string; w: number; h: number; under: UnderShown } {
   // (Names hidden, as on the screen: no names, lengths, sun hours or plant numbers. Jason, Oct 31.)
   const names = opts.names !== false;
   const { window: win, ftPerIn } = layout;
@@ -245,8 +295,19 @@ export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage |
     const r = opts.includeFullRings && s.type === 'circle' ? fullRingRadius(s) : null;
     return r ? `<circle cx="${(s.x - win.minX) * pxPerFt}" cy="${(s.y - win.minY) * pxPerFt}" r="${r * pxPerFt}" fill="none" stroke="${s.color}" stroke-width="${1.2 * k}" stroke-dasharray="${5 * k} ${4 * k}"/>` : '';
   };
-  const thin = seeThroughIds(shapes, NO_FILTER);
-  const { out: body, names: areas } = gatherAreaNames(() => withNames(names, () => withSeeThrough(thin, () => shapes.map((s) => ring(s) + (() => {
+  // (Tall plants: windows over what's under them, or as on the screen. Jason, Nov 4.)
+  const under = opts.under ?? 'windows';
+  const paper = paperUnder(shapes, NO_FILTER, under, opts.seeThroughFrom ?? null);
+  const windows = windowCircles(shapes, paper.windows);
+  // Plants hidden under a solid one: a pin over it, as on the plan; numbered, a numbered dot, its number in it (round 3,
+  // Hank: four of six daffodils were white dots the list and legend didn't explain; their numbers were under the
+  // catmint). Numbered with the sheet's plant numbers where it has them; as on the screen, with names, numbered among
+  // themselves, with a key (dotKey). Numbered, its name isn't drawn under the plant over it: bits of it showed at the
+  // edges ("Cro", Jason's crocuses under his viburnum); the key has it.
+  const hiddenPlants = shapes.filter((s) => paper.hidden.has(s.id) && isPlant(s) && numbered(s));
+  const dots = names && (keys || under === 'screen') ? dotKey(hiddenPlants, plantsById, keys, opts.order ?? shapes) : null;
+  const { out: body, names: areas } = gatherAreaNames(() => withNames(names, () => withSeeThrough(paper.thin, () => withWindows(windows, () => shapes.map((s) => ring(s) + (() => {
+    if (dots?.numbers.has(s.id)) return shapeToSvgString({ ...s, label: '' }, win.minX, win.minY, pxPerFt, k); // (its dot has its number)
     if (!keys || !isPlant(s)) return shapeToSvgString(s, win.minX, win.minY, pxPerFt, k);
     const key = keys.get(labelShown(s).trim() || 'Unlabeled plant');
     let out = shapeToSvgString({ ...s, label: '' }, win.minX, win.minY, pxPerFt, k);
@@ -256,20 +317,14 @@ export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage |
     const fs = 11 * k;
     out += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="${fs}" font-weight="700" fill="#0f172a" font-family="sans-serif" stroke="#ffffff" stroke-width="${2.5 * k}" paint-order="stroke" stroke-linejoin="round">${key}</text>`;
     return out;
-  })()).join(''))));
-  // Plants hidden under a solid one: a pin over it, as on the plan, and its number beside the pin (round 3, Hank: four
-  // of six daffodils were white dots the list and legend didn't explain; their numbers were under the catmint).
-  const hidden = hiddenIds(shapes, NO_FILTER, thin);
-  const pins = hiddenRimsSvg(shapes, hidden, win.minX, win.minY, pxPerFt, k) + (keys ? shapes.filter((s) => hidden.has(s.id) && isPlant(s) && numbered(s)).map((s) => {
-    const key = keys.get(labelShown(s).trim() || 'Unlabeled plant');
-    const cx = (s.x - win.minX) * pxPerFt + 6 * k, cy = (s.y - win.minY) * pxPerFt;
-    return `<text x="${cx}" y="${cy}" dominant-baseline="central" font-size="${9 * k}" font-weight="700" fill="#0f172a" font-family="sans-serif" stroke="#ffffff" stroke-width="${2.5 * k}" paint-order="stroke" stroke-linejoin="round">${key}</text>`;
-  }).join('') : '');
+  })()).join('')))));
+  const pins = hiddenRimsSvg(shapes, paper.hidden, win.minX, win.minY, pxPerFt, k, dots?.numbers);
   // The beds', paths' and buildings' names last, clear of each other and of the plants (src/export.ts areaNamesSvg):
   // "Driveway" printed over "Driveway flower bed", beside it (the UI review, 2026-11-01).
   const areaSvg = areaNamesSvg(areas, plantCircles(shapes, win.minX, win.minY, pxPerFt), w, h, k);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><rect width="${w}" height="${h}" fill="#ffffff"/>${grid}${bgSvg}${body}${pins}${areaSvg}</svg>`;
-  return { svg, w, h };
+  const marks = shapes.filter((s) => s.type === 'circle' && paper.hidden.has(s.id)).length;
+  return { svg, w, h, under: { marks, dots: dots && dots.rows.length ? dots : null } };
 }
 
 /** Only characters the PDF's built-in fonts can show (Latin-1), with smart punctuation made plain. */

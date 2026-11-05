@@ -199,14 +199,24 @@ export function planOf(c: ProjectContent): ProjectContent {
  * dismissal taken back before the plan synced (Undo, Show again) isn't taken for a change, which against another
  * device's edit made a conflict copy (the second review, Nov 1); dismissed words to '' still differ, as words to none
  * do, so a Show again still goes up. Likewise a bed's conditions cleared on purpose (`conditions: {}`, Nov 2): set to
- * {} is a change, as set to none is; none to {} isn't. A plan with neither is fingerprinted exactly as before (the
- * same object).
+ * {} is a change, as set to none is; none to {} isn't. And Show through picked for the plants under taller ones
+ * (`print.under: 'windows'`, Nov 4) reads as none picked, which prints the same: As on screen and back before the plan
+ * synced isn't a change of its own, while As on screen to Show through still is, and goes up. A plan with none of these
+ * is fingerprinted exactly as before (the same object).
  */
 function forHash(c: ProjectContent): ProjectContent {
-  if (!Array.isArray(c.shapes)) return c;
-  const cleared = withoutClearedMarks(c.shapes);
-  const shapes = withoutMeasured(cleared ?? c.shapes) ?? cleared;
-  return shapes ? { ...c, shapes } : c;
+  let out = c;
+  if (Array.isArray(c.shapes)) {
+    const cleared = withoutClearedMarks(c.shapes);
+    const shapes = withoutMeasured(cleared ?? c.shapes) ?? cleared;
+    if (shapes) out = { ...out, shapes };
+  }
+  const print = c.print;
+  if (isObject(print) && print.under === 'windows') {
+    const { under: _u, ...rest } = print;
+    out = { ...out, print: rest };
+  }
+  return out;
 }
 /**
  * The shapes with their sides typed as numbers (`measured`, Nov 4: src/measured.ts) left out, for the fingerprints;
@@ -348,7 +358,42 @@ export function withLocalParts(server: ProjectContent, mine: ProjectContent | un
   if (!mine) return server;
   let out = server;
   for (const k of NEWER_PARTS) if (!(k in server) && k in mine) out = { ...out, [k]: mine[k] };
-  return withRoughScale(withMeasuredSides(withBedConditions(withFruitDismissals(withChosenColors(withStructures(withVineSupports(withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine), mine), mine), mine), mine), mine), mine), mine);
+  return withPrintUnder(withRoughScale(withMeasuredSides(withBedConditions(withFruitDismissals(withChosenColors(withStructures(withVineSupports(withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine), mine), mine), mine), mine), mine), mine), mine), mine);
+}
+/**
+ * A plan's print choice for the plants under taller ones (`print.under`, Nov 4: src/view-settings.ts printUnder), which
+ * an older version drops from the print settings it sends (its sanitizePrint builds them from the fields it knows):
+ * kept from here when the server's copy's print settings say nothing of it at all. Once picked, this version keeps one
+ * (Show through too), so a copy without one is a plan never picked anywhere, or an older version's copy, or a copy of
+ * that. Where the server's has one, it stands. The server's copy goes without it until a device that has it sends the
+ * plan again (any edit). (Filled in from here, it isn't taken for a change there: asRecordedButUnder.)
+ */
+function withPrintUnder(server: ProjectContent, mine: ProjectContent): ProjectContent {
+  const there = server.print, here = mine.print;
+  if (!isObject(there) || 'under' in there || !isObject(here) || (here.under !== 'windows' && here.under !== 'screen')) return server;
+  return { ...server, print: { ...there, under: here.under } };
+}
+/**
+ * Whether the server's copy (`server`, as read here, this device's choice filled in) is the plan as this device's
+ * record has it but for the print choice for the plants under taller ones, which the copy as sent (`sent`) doesn't have
+ * at all: an older version's copy, with that field dropped and nothing else in the plan's core changed there (a tick,
+ * the photo moved, or no edit of its own). Filled from here, the choice picked again here would read as changed there,
+ * and a copy would be made against any other edit of the plan here (as for a bed's conditions: found Nov 4, building
+ * this). Tried as recorded: none picked (or Show through: the same), or As on screen.
+ */
+function asRecordedButUnder(rec: SyncRecord, name: string, server: ProjectContent, sent: ProjectContent, mine: ProjectContent): boolean {
+  if (!isObject(sent.print) || 'under' in sent.print || !isObject(server.print)) return false;
+  const { under: _u, ...rest } = server.print;
+  return [rest, { ...rest, under: 'screen' }].some((print) => coreAsRecorded(rec, name, { ...server, print }, mine));
+}
+/**
+ * Whether `here` has a print choice for the plants under taller ones that `there`'s print settings say nothing of at
+ * all. The fingerprints read Show through picked as none picked, but a server's copy without it isn't one that has it:
+ * a device still holding As on screen, from before an older version dropped it, would fill its own back in
+ * (withPrintUnder) and send it with its next edit, over the pick (the review's R1, Nov 4).
+ */
+function pickNotThere(here: ProjectContent, there: ProjectContent): boolean {
+  return isObject(here.print) && 'under' in here.print && isObject(there.print) && !('under' in there.print);
 }
 /**
  * The sides of a shape typed as numbers (`measured`, Nov 4: src/measured.ts), which an older version drops from every
@@ -845,8 +890,12 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
       await local.remove(copy.id, copy.token);
       return;
     }
-    const n = local.normalize(serverName, asOnServer);
-    // What the server has (anything else here goes up next time), still holding this device's photo if the original kept it.
+    // What the server has (anything else here goes up next time), still holding this device's photo if the original kept
+    // it. But the print choice for the plants under taller ones, where the server's copy says nothing of it, as the
+    // original has it, filled in from here (withPrintUnder), as a download records it: recorded without it, that fill
+    // was a change made here at the next pass, and another edit there first made a second copy (the review's R2, Nov 4;
+    // a bed's conditions still do: docs/storage.md).
+    const n = local.normalize(serverName, withPrintUnder(asOnServer, serverContent));
     await local.setRecord(p.id, recordAfter(n.name, n.content, serverRev, records[p.id], photoKey(serverContent)));
     report.conflicts.push({ name: serverName, copyName: copyLabel, otherDevice: by });
     const copied: LocalProject = { id: copy.id, name: copyLabel, content: p.content, token: copy.token };
@@ -870,7 +919,8 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     const localPhoto = photoKey(p.content) ?? 'none', serverPhoto = photoKey(n.content);
     // (The other side's parts as each has them: the server's as it sent them, without this device's filled in.)
     const sentHere = local.normalize(serverName, sent).content;
-    const planHere = !rec || !coreAsRecorded(rec, p.name, p.content, sentHere), planThere = !rec || !coreAsRecorded(rec, n.name, n.content, p.content);
+    const planHere = !rec || !coreAsRecorded(rec, p.name, p.content, sentHere);
+    const planThere = !rec || !(coreAsRecorded(rec, n.name, n.content, p.content) || asRecordedButUnder(rec, n.name, n.content, sent, p.content));
     const photoHere = localPhoto !== basePhoto, photoThere = serverPhoto !== undefined && serverPhoto !== basePhoto;
     const photoClash = photoHere && photoThere && localPhoto !== serverPhoto;
     if ((planHere && planThere && localPlan !== serverPlan) || photoClash) {
@@ -899,7 +949,8 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     }
     // Whether the server already has the result: judged by what it sent, not with this device's parts filled in.
     const raw = local.normalize(serverName, sent);
-    const samePlan = merged.name === raw.name && planHash(merged.name, merged.content) === planHash(raw.name, raw.content);
+    const samePlan = merged.name === raw.name && planHash(merged.name, merged.content) === planHash(raw.name, raw.content)
+      && !pickNotThere(merged.content, raw.content);
     const mergedPhoto = photoKey(merged.content) ?? 'none', rawPhoto = photoKey(raw.content) ?? 'none';
     if (samePlan && (mergedPhoto === rawPhoto || (rawPhoto === 'kept' && rec?.held && mergedPhoto === rec.photo))) {
       await local.setRecord(p.id, recordAfter(raw.name, raw.content, serverRev, rec, mergedPhoto)); // the server has it (or the held photo stands)

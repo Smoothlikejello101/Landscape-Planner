@@ -1,10 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
 import { shapeCount } from './helpers';
 
-// On the plan itself, plants no longer hide the names of the bed or sun area under them (the general bug hunt, Nov 1:
-// with three plants in "Bed", its name was gone; "Morning sun" showed only a stray "n"). They're placed as a printout
-// places them (src/area-names.ts): where the shape puts them, or with a plant there, just above it, below it, to its
-// right or left; and drawn over the plants.
+// On the plan itself, plants no longer hide the names of the sun area under them (the general bug hunt, Nov 1: "Morning
+// sun" showed only a stray "n"). They're placed as a printout places them (src/area-names.ts): where the shape puts
+// them, or with a plant there, just above it, below it, to its right or left; and drawn over the plants. A bed's name,
+// lifted so too from Nov 1 to Nov 4, is quiet and under its plants while plants are shown (Jason, Nov 4: "I'm happy to
+// have bed names be low-contrast and get buried under plants unless plants are hidden"): e2e/plan-labels.spec.ts.
 
 const base = { color: '#a16207', opacity: 0.65, locked: false };
 const box = (id: string, role: string, label: string, x: number, y: number, width: number, height: number, extra: object = {}) =>
@@ -34,11 +35,11 @@ const clearOf = (b: Box, c: Box) => {
   return Math.hypot(Math.max(b.x, Math.min(cx, b.x + b.width)) - cx, Math.max(b.y, Math.min(cy, b.y + b.height)) - cy) - c.width / 2;
 };
 
-test('a bed\'s or a sun area\'s name is drawn clear of the plants in it, over them all (the general bug hunt, Nov 1)', async ({ page }) => {
+test('a sun area\'s name is drawn clear of the plants in it, over them all (the general bug hunt, Nov 1); a bed\'s, under them', async ({ page }) => {
   await openPlan(page);
   const plants = await Promise.all(['p1', 'p2', 'p3', 'p4'].map(async (id) => (await page.locator(`#canvas-svg [data-shape-id=${id}]`).first().boundingBox())!));
   const plan = (await page.locator('#canvas-svg').boundingBox())!;
-  for (const [id, words] of [['bed', 'Bed'], ['ms', 'Morning sun']]) {
+  for (const [id, words] of [['ms', 'Morning sun']]) {
     const name = page.locator(`#canvas-svg g[data-role=area-names] > [data-name-of=${id}]`);
     await expect(name).toContainText(words);
     const b = (await name.boundingBox())!;
@@ -55,8 +56,11 @@ test('a bed\'s or a sun area\'s name is drawn clear of the plants in it, over th
   expect(last.indexOf('area-names')).toBeGreaterThan(last.lastIndexOf('shape'));
   // A name with no plant on it stays where it was, in its shape's middle.
   await expect(page.locator('#canvas-svg [data-name-of=lawn]')).not.toHaveAttribute('transform', /./);
+  // The bed's name in its own group, quiet, under its plants (Jason, Nov 4).
+  await expect(page.locator('#canvas-svg [data-name-of=bed]')).toHaveCount(0);
+  await expect(page.locator('#canvas-svg [data-shape-group=bed] > text[data-quiet]')).toHaveText('Bed');
   // Dragging the bed takes its name along.
-  const name = page.locator('#canvas-svg [data-name-of=bed]');
+  const name = page.locator('#canvas-svg [data-shape-group=bed] > text');
   const before = (await name.boundingBox())!;
   const bed = (await page.locator('#canvas-svg [data-shape-id=bed]').boundingBox())!;
   await page.mouse.move(bed.x + 6, bed.y + bed.height - 6);

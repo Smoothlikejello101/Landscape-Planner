@@ -1,6 +1,6 @@
 // Plant this bed in the picker (Jason, Nov 2: the proposal "Plant this bed", answer B, the chip row): which bed it's
-// For, at the picker's top in view while the list scrolls, and the bed's box over the list: its conditions as chips,
-// each with ×, and Edit. What a bed filters on: src/bed-plant.ts.
+// For, at the picker's top in view while the list scrolls (beside its ✕ since Jason's notes of Nov 4), and the bed's box
+// over the list: its conditions as chips, each with ×, and Edit. What a bed filters on: src/bed-plant.ts.
 
 import { bedName, bedsToPlant, pickingBed, plantingFor, setPickingBed, setPlantingFor, type BedLayer, type BedPart } from '../bed-plant';
 import { el, tapSaid } from '../dom';
@@ -13,17 +13,15 @@ import { toast } from './toast';
 import type { Shape } from '../types';
 
 /**
- * The For row: Anywhere, each bed by name, then Pick on the plan; "For: Anywhere · Draw a bed to plant for it" in a
- * plan with none. Scrolls sideways with many beds. `chosen`: a bed chosen in it (in place, the search keeping the
+ * The For row: Anywhere, each bed by name, then Pick on the plan. Scrolls sideways with many beds. None in a plan with
+ * no bed to choose (Jason, Nov 4, note 1: '"for: anywhere" probably doesn't need to be there if they don't have a bed';
+ * it said "For: Anywhere · Draw a bed to plant for it"). `chosen`: a bed chosen in it (in place, the search keeping the
  * keyboard).
  */
-export function forRow(chosen: (bed: Shape | null) => void): HTMLElement {
+export function forRow(chosen: (bed: Shape | null) => void): HTMLElement | null {
   const beds = bedsToPlant(state.shapes);
   const now = plantingFor();
-  if (!beds.length) {
-    return el('div', { className: 'for-row no-beds', 'data-testid': 'plant-for' },
-      el('span', { className: 'for-label' }, 'For:'), el('span', { className: 'for-none' }, 'Anywhere · Draw a bed to plant for it'));
-  }
+  if (!beds.length) return null;
   const chips: HTMLButtonElement[] = [];
   const chip = (bed: Shape | null) => {
     const on = (bed?.id ?? null) === (now?.id ?? null);
@@ -44,11 +42,6 @@ export function forRow(chosen: (bed: Shape | null) => void): HTMLElement {
   return el('div', { className: 'for-row', role: 'group', 'aria-label': 'Plant for', 'data-testid': 'plant-for' },
     el('span', { className: 'for-label', 'aria-hidden': 'true' }, 'For'),
     el('div', { className: 'for-chips' }, chip(null), beds.map(chip), pick));
-}
-/** Under the row, at the list's top, while it's For anywhere in a plan with beds: what a bed would do. */
-export function forHint(): HTMLElement | null {
-  if (plantingFor() || !bedsToPlant(state.shapes).length) return null;
-  return el('div', { className: 'hint for-hint', 'data-testid': 'for-hint' }, 'Planting a bed? Pick it above: its sun, soil and moisture filter the list.');
 }
 
 // ---------- Pick on the plan ----------

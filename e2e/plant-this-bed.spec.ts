@@ -32,6 +32,26 @@ async function tapPlan(page: Page, x: number, y: number) {
   await page.mouse.click(p.x, p.y);
 }
 const picker = (page: Page) => page.getByTestId('picker');
+/** The plan's plain ground, #ede0c8 (src/constants.ts BG_COLOR), as [r, g, b]. */
+const GROUND = [0xed, 0xe0, 0xc8];
+/** The average color in a 6 px square (CSS px) around a point of the plan (feet), as drawn: [r, g, b]. */
+async function colorAt(page: Page, x: number, y: number): Promise<number[]> {
+  const p = await planPoint(page, x, y);
+  const png = await page.screenshot({ clip: { x: Math.round(p.x) - 3, y: Math.round(p.y) - 3, width: 6, height: 6 }, scale: 'css' });
+  return page.evaluate(async (b64) => {
+    const img = new Image();
+    img.src = 'data:image/png;base64,' + b64;
+    await img.decode();
+    const c = document.createElement('canvas');
+    c.width = img.width; c.height = img.height;
+    const g = c.getContext('2d')!;
+    g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    const sum = [0, 0, 0];
+    for (let i = 0; i < d.length; i += 4) for (let k = 0; k < 3; k++) sum[k] += d[i + k];
+    return sum.map((v) => v / (d.length / 4));
+  }, png.toString('base64'));
+}
 const forRow = (page: Page) => page.getByTestId('plant-for');
 const pressed = (page: Page) => forRow(page).locator('[aria-pressed=true]');
 
@@ -45,13 +65,20 @@ test('a bed\'s chip says Plant this bed, in place of Another bed, and opens the 
   await expect(pressed(page)).toHaveText('Front bed');
   // (Anywhere, each bed by name, an unnamed one by its size, then Pick on the plan.)
   await expect(forRow(page).locator('button')).toHaveText(['Anywhere', 'Front bed', 'Bed, 16 × 8 ft', 'Pick on the plan']);
-  // Anywhere, and back.
+  // At the picker's top, beside its ✕, with no title row (Jason, Nov 4, note 1); the search under it.
+  await expect(page.locator('.picker-sheet .sheet-header [data-testid=plant-for]')).toBeVisible();
+  await expect(page.locator('.picker-sheet .sheet-header .title')).toHaveCount(0);
+  const top = (await forRow(page).boundingBox())!, x = (await page.locator('.picker-sheet .sheet-header button[aria-label=Close]').boundingBox())!;
+  expect(Math.abs((top.y + top.height / 2) - (x.y + x.height / 2))).toBeLessThan(6);
+  expect((await search(page).boundingBox())!.y).toBeGreaterThan(top.y + top.height - 2);
+  // Anywhere, and back: nothing said under the row about planting a bed (Jason, Nov 4: "it will be fairly obvious").
   await forRow(page).getByTestId('for-anywhere').click();
   await expect(pressed(page)).toHaveText('Anywhere');
-  await expect(page.getByTestId('for-hint')).toContainText('Planting a bed? Pick it');
+  await expect(page.getByTestId('for-top')).toBeHidden();
+  await expect(page.getByTestId('picker')).not.toContainText('Planting a bed?');
   await forRow(page).getByTestId('for-bed').first().click();
   await expect(pressed(page)).toHaveText('Front bed');
-  await expect(page.getByTestId('for-hint')).toHaveCount(0);
+  await expect(page.getByTestId('bed-box')).toBeVisible();
 });
 
 test('the Plant button starts at Anywhere, or at the bed selected; Pick on the plan closes the list for a tap on a bed', async ({ page }) => {
@@ -85,20 +112,29 @@ test('the Plant button starts at Anywhere, or at the bed selected; Pick on the p
   await expect(pressed(page)).toHaveText('Front bed');
 });
 
-test('a plan with no beds: For Anywhere, and how to get a bed; not in Which tree', async ({ page }) => {
+test('a plan with no beds: no For row, the search at the top beside the ✕ (Jason, Nov 4); a bed drawn, the row; not in Which tree', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
-  await expect(forRow(page)).toHaveText('For:Anywhere · Draw a bed to plant for it');
-  // (Nothing to choose: it heads the list, folded away while a search is typed, as Recent is.)
-  await expect(page.locator('.sheet-top [data-testid=plant-for]')).toHaveCount(0);
-  await search(page).fill('aster');
-  await expect(forRow(page)).toBeHidden();
-  await page.getByTestId('clear-search').click();
-  await expect(forRow(page)).toBeVisible();
+  await expect(picker(page)).toBeVisible();
+  await expect(forRow(page)).toHaveCount(0);
+  await expect(picker(page)).not.toContainText('Draw a bed to plant for it');
+  await expect(page.locator('.picker-sheet .sheet-header [data-testid=plant-search]')).toBeVisible();
   await page.locator('.picker-sheet .sheet-header button.iconbtn').last().click();
   await addKind(page, 'tree');
   await expect(picker(page)).toBeVisible();
   await expect(forRow(page)).toHaveCount(0);
+});
+
+test('a plan with a bed: the For row at the top beside the ✕, the search under it', async ({ page }) => {
+  await seed(page);
+  await page.locator('.tool-btn.plants').click();
+  await expect(page.locator('.picker-sheet .sheet-header [data-testid=plant-for]')).toBeVisible();
+  await expect(page.locator('.picker-sheet .sheet-header [data-testid=plant-search]')).toHaveCount(0);
+  await expect(search(page)).toBeVisible();
+  // In view while the list scrolls.
+  await page.locator('.picker-sheet').evaluate((e) => { e.scrollTop = 600; });
+  await expect(forRow(page)).toBeInViewport();
+  await expect(search(page)).toBeInViewport();
 });
 
 /** The bed's panel (Edit on its chip), its Conditions section open. */
@@ -184,8 +220,8 @@ test('For a bed, its conditions filter the list as a layer of their own: the box
   await expect(page.getByTestId('bed-box')).toContainText('Front bed’s conditions');
   await expect(chips(page)).toHaveText(['Takes part shade to full sun', 'Clay OK', 'Water needs: low or moderate']);
   await expect(page.getByTestId('bed-box-note')).toHaveText('Sun from the 2 sun areas over it (3.5 to 7 h). Only plants whose facts fit are listed; nothing is ranked.');
-  await expect(count(page)).toHaveText(tapping(' plants fit Front bed · Place a plant, then tap inside the bed; tap a plant for its details'));
-  await expect(count(page)).toHaveText(/^[\d,]+ of [\d,]+ plants fit Front bed/);
+  // (Just how many, not how to place them: Jason, Nov 4.)
+  await expect(count(page)).toHaveText(/^[\d,]+ of [\d,]+ plants fit Front bed$/);
   await expect(page.getByTestId('active-filters')).toBeHidden();
   await expect(page.getByTestId('filters')).toHaveText(/^Filters$/);
   await expect(page.getByRole('combobox', { name: 'Sun' })).toBeDisabled();
@@ -318,8 +354,10 @@ test('For a loam or sandy bed: plants rated for it, those rated for no texture b
   await expect(rowNamed(page, 'Hairy alumroot').getByTestId('plant-details').locator('dt', { hasText: /^Soil$/ })).toHaveCount(0);
 });
 
-test('placing For a bed: the bed outlined, the rest washed red; one placed outside it is placed, ringed red, with Undo', async ({ page }) => {
+test('placing For a bed: the bed outlined, the rest dimmed; one placed outside it is placed, ringed red, with Undo', async ({ page }) => {
   await seed(page, ANSWERED);
+  // (Inside the Front bed, clear of the oak's shade, as the plan rests.)
+  const inBed = await colorAt(page, 10.5, 4.5);
   await tapPlan(page, 9, 1.5);
   await page.getByTestId('pill-plant-bed').click();
   // (The bed outlined on the plan while the picker is For it.)
@@ -329,7 +367,25 @@ test('placing For a bed: the bed outlined, the rest washed red; one placed outsi
   const banner = page.getByTestId('place-banner');
   await expect(banner).toHaveText(tapping('Tap to place Arkansas Bluestar in Front bed · 0 placed'));
   await expect(page.locator('#canvas-svg [data-role=bed-outline]')).toHaveCount(1);
-  await expect(page.locator('#canvas-svg [data-role=bed-wash]')).toHaveCount(1);
+  await expect(page.locator('#canvas-svg [data-role=bed-veil]')).toHaveCount(1);
+  // Outside the bed, dimmed and not tinted (Jason, Nov 4, his note 2: a red wash over his reddish brown beds left only
+  // the ring to tell the bed by): darker by about a third, its red, green and blue in the same proportions. Inside, as
+  // it was: the bright, clear part of the plan.
+  // (Plain ground in view, between grid lines: between the beds; on a phone, where the plan moved to show the bed, below
+  // the yard.)
+  const box = (await page.locator('#canvas-svg').boundingBox())!;
+  let spot: [number, number] | null = null;
+  for (const [x, y] of [[8.5, -3.5], [8.5, 23.5]] as [number, number][]) {
+    const p = await planPoint(page, x, y);
+    if (p.x > box.x + 20 && p.x < box.x + box.width - 20 && p.y > box.y + 20 && p.y < box.y + box.height - 20) { spot = [x, y]; break; }
+  }
+  expect(spot).not.toBeNull();
+  const dimmed = await colorAt(page, ...spot!);
+  expect(dimmed[0] + dimmed[1] + dimmed[2]).toBeLessThan(0.8 * (GROUND[0] + GROUND[1] + GROUND[2]));
+  expect(Math.abs(dimmed[0] / dimmed[1] - GROUND[0] / GROUND[1])).toBeLessThan(0.02);
+  expect(Math.abs(dimmed[1] / dimmed[2] - GROUND[1] / GROUND[2])).toBeLessThan(0.03);
+  const bright = await colorAt(page, 10.5, 4.5);
+  for (let k = 0; k < 3; k++) expect(Math.abs(bright[k] - inBed[k])).toBeLessThan(4);
   const shapes = await shapeCount(page);
   await tapPlan(page, 9, 2); // inside
   await expect(banner).toHaveText(tapping('Tap to place Arkansas Bluestar in Front bed · 1 placed'));
@@ -355,10 +411,10 @@ test('placing For a bed: the bed outlined, the rest washed red; one placed outsi
   await tapPlan(page, 2, 4.5); // (in the bed, under the oak: 3.5 h)
   await expect.poll(() => shapeCount(page)).toBe(shapes + 4);
   await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(1);
-  // Done: For the bed no more, the outline, wash and rings gone.
+  // Done: For the bed no more, the outline, veil and rings gone.
   await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
   await expect(page.locator('#canvas-svg [data-role=bed-outline]')).toHaveCount(0);
-  await expect(page.locator('#canvas-svg [data-role=bed-wash]')).toHaveCount(0);
+  await expect(page.locator('#canvas-svg [data-role=bed-veil]')).toHaveCount(0);
   await expect(page.locator('#canvas-svg [data-role=outside-bed]')).toHaveCount(0);
   await page.locator('.tool-btn.plants').click();
   await expect(pressed(page)).toHaveText('Anywhere');

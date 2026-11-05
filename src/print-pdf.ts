@@ -2,13 +2,14 @@ import type { jsPDF as JsPDF } from 'jspdf';
 import { plantsById } from './plants';
 import {
   buildPlanSvg, legendEntries, pdfSafe, planLayout, plantSchedule, printContent, scaleBarFeet, scaleText,
-  type Box, type LegendEntry, type PrintLayout, type ScheduleGroup,
+  type Box, type LegendEntry, type PrintLayout, type ScheduleGroup, type UnderShown,
 } from './print';
-import type { BgImage, PrintSettings, Shape, SizeMode, Status } from './types';
+import type { BgImage, PrintSettings, PrintUnder, Shape, SizeMode, Status } from './types';
 import { filterText } from './status';
 import { shownCaption } from './export';
 import { state } from './state';
 import { areaWords, frameArea, WHOLE_PLAN, type PrintArea } from './print-area';
+import { keyHoursAt, SUN_KEY, washAt, washOver } from './sun';
 
 // Writes the printable plan as a PDF (browser only). Layout and content come
 // from print.ts; this file only draws them.
@@ -55,7 +56,11 @@ function onPaper(hex: string, alpha: number): string {
  * How the plan is drawn, as the screen shows it unless changed in the dialog (Jason, Oct 31): names, numbers, lengths
  * and sun hours, or none; the month Through the year shows, or none (every plant in leaf and bloom).
  */
-export interface PrintView { names: boolean; month: number | null }
+export interface PrintView {
+  names: boolean; month: number | null;
+  /** The plants under taller ones (src/canvas.ts paperUnder), and Layers' see-through height when it's on: per device. */
+  under?: PrintUnder; seeThroughFrom?: number | null;
+}
 
 /**
  * `area`: the whole plan, the part of it on the screen, or one bed (src/print-area.ts), scaled to fill the page; its
@@ -84,6 +89,7 @@ export async function buildPlanPdf(
   try {
     plan = buildPlanSvg(layout, framed.shapes, bg, {
       ...settings, order: shapes, names: view.names, keyFrom: content.shapes, ...(framed.exact ? { listed: new Set(framed.plants.map((s) => s.id)) } : {}),
+      under: view.under ?? 'windows', seeThroughFrom: view.seeThroughFrom ?? null,
     }, pxPerIn);
   }
   finally { state.month = wasMonth; }
@@ -101,13 +107,19 @@ export async function buildPlanPdf(
   let cy = titleBlock(doc, cols[0], settings, projectName, layout, shownCaption(filter, view.month), areaWords(framed));
   cy = legend(doc, cols[0], cy, legendEntries(framed.shapes, sizeMode, settings.includeFullRings && sizeMode === 'typical'));
   cy = statusLegend(doc, cols[0], cy, new Set(framed.shapes.map((s) => s.status).filter((x): x is Status => !!x)));
+  cy = underLegend(doc, cols[0], cy, plan.under);
   const schedule = settings.includePlantList ? plantSchedule(framed.plants, plantsById, shapes, content.shapes) : [];
+  // (The numbered dots' key, where the sheet has no plant list numbered as they are: in the plant list's place.)
+  const dots = plan.under.dots;
+  const key = dots && !dots.inList ? dots.rows : [];
   let pages = 1;
+  const first = (): Box[] => layout.sideAt === 'right'
+    ? [{ x: side.x, y: cy + 0.15, w: side.w, h: side.y + side.h - cy - 0.15 }]
+    : [cols[1]];
   if (schedule.length) {
-    const first: Box[] = layout.sideAt === 'right'
-      ? [{ x: side.x, y: cy + 0.15, w: side.w, h: side.y + side.h - cy - 0.15 }]
-      : [cols[1]];
-    pages = plantList(doc, schedule, first, layout, [framed.name, filterText(filter)].filter(Boolean).join(' · '), view.names);
+    pages = plantList(doc, schedule, first(), layout, [framed.name, filterText(filter)].filter(Boolean).join(' · '), view.names);
+  } else if (key.length) {
+    pages = plantList(doc, [{ bed: '', rows: key, total: key.reduce((n, r) => n + r.count, 0) }], first(), layout, '', true, DOT_KEY_WORDS);
   }
   footer(doc, layout, 1, pages);
   return { blob: doc.output('blob'), pages, layout };
@@ -195,6 +207,11 @@ function legend(doc: JsPDF, box: Box, y: number, entries: LegendEntry[]): number
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
   for (const e of entries) {
     if (y + pt(12) > box.y + box.h) break;
+    if (e.sunKey) {
+      if (y + pt(36) > box.y + box.h) break;
+      y = sunKey(doc, box, y);
+      continue;
+    }
     if (e.outline) {
       doc.setDrawColor(e.color); doc.setLineWidth(pt(1.5));
       if (!e.solid) doc.setLineDashPattern([0.06, 0.03], 0);
@@ -209,6 +226,31 @@ function legend(doc: JsPDF, box: Box, y: number, entries: LegendEntry[]): number
     y += pt(12);
   }
   return y;
+}
+
+/**
+ * The sun areas' key, in the legend's place for them (Jason, Nov 4; as on the page he answered): "Sun Exposure: hours of
+ * direct sun"; a bar of the ramp as it prints on white paper, "8 h+" to "2 h or less"; and a white swatch, "Plain: no
+ * sun recorded". (No hatch on paper: his answer 3.)
+ */
+function sunKey(doc: JsPDF, box: Box, y: number): number {
+  doc.setTextColor('#1c1917');
+  doc.text(SUN_KEY.printTitle, box.x + 0.38, y + 0.06, { baseline: 'middle' });
+  y += pt(12);
+  const x0 = box.x + 0.38, bw = 0.6, n = 40;
+  doc.text(SUN_KEY.printMost, x0 - 0.05, y + 0.06, { baseline: 'middle', align: 'right' });
+  for (let i = 0; i < n; i++) {
+    doc.setFillColor(washOver(washAt(keyHoursAt((i + 0.5) / n)), '#ffffff'));
+    doc.rect(x0 + (bw / n) * i, y, bw / n + (i < n - 1 ? 0.004 : 0), 0.12, 'F'); // (a hair over the next: no seams)
+  }
+  doc.setDrawColor('#a8a29e'); doc.setLineWidth(pt(0.5));
+  doc.rect(x0, y, bw, 0.12, 'S');
+  doc.text(SUN_KEY.least, x0 + bw + 0.06, y + 0.06, { baseline: 'middle' });
+  y += pt(12);
+  doc.setFillColor('#ffffff');
+  doc.rect(box.x, y, 0.28, 0.12, 'FD');
+  doc.text(SUN_KEY.plain, box.x + 0.38, y + 0.06, { baseline: 'middle' });
+  return y + pt(12);
 }
 
 /** Legend lines for statuses on the sheet (planned, to move, to remove). */
@@ -233,17 +275,55 @@ function statusLegend(doc: JsPDF, box: Box, y: number, present: Set<Status>): nu
   return y;
 }
 
-/** Fill boxes with the plant list, adding continuation pages as needed. Returns the page count. */
-function plantList(doc: JsPDF, groups: ScheduleGroup[], firstBoxes: Box[], layout: PrintLayout, which = '', numbered = true): number {
+/**
+ * A line in the legend for the plants under taller ones, marked as on the plan (src/print.ts buildPlanSvg): a numbered
+ * dot, its number in the plant list or in the key; or, not numbered, a pin. None when none is marked.
+ */
+function underLegend(doc: JsPDF, box: Box, y: number, under: UnderShown): number {
+  if (!under.marks || y + pt(12) > box.y + box.h) return y;
+  const cx = box.x + 0.14, cy = y + 0.06;
+  doc.setLineWidth(pt(1));
+  if (under.dots) {
+    doc.setFillColor('#292524'); doc.setDrawColor('#ffffff');
+    doc.circle(cx, cy, 0.065, 'FD');
+  } else {
+    doc.setFillColor('#ffffff'); doc.setDrawColor('#a8a29e'); doc.setLineWidth(pt(0.5));
+    doc.circle(cx, cy, 0.05, 'FD');
+    doc.setFillColor('#292524'); doc.circle(cx, cy, 0.028, 'F');
+  }
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor('#1c1917');
+  const lines = doc.splitTextToSize(pdfSafe(underLegendText(under)), box.w - 0.38) as string[];
+  lines.forEach((line, i) => doc.text(line, box.x + 0.38, cy + i * pt(10.5), { baseline: 'middle' }));
+  return y + pt(12) + (lines.length - 1) * pt(10.5);
+}
+/** What the legend says of the plants under taller ones (underLegend). */
+export function underLegendText(under: UnderShown): string {
+  if (!under.dots) return 'Plant under a taller one';
+  return under.dots.inList ? 'Plant under a taller one, numbered as in the plant list' : 'Plant under a taller one, numbered (see the key)';
+}
+
+/**
+ * A plan's plant list in words: its heading, the note on its numbers, and its heading on a page of its own. The key to
+ * the numbered dots (Jason, Nov 4) is drawn as a list of its own with DOT_KEY_WORDS.
+ */
+interface ListWords { head: string; note: string; continued: string }
+const PLANT_LIST_WORDS: ListWords = { head: 'Plant list', note: 'Numbers match the numbers in the circles on the plan.', continued: 'Plant list (continued)' };
+export const DOT_KEY_WORDS: ListWords = { head: 'Plants under taller ones', note: 'Numbers match the numbered dots on the plan.', continued: 'Plants under taller ones (continued)' };
+
+/**
+ * Fill boxes with the plant list, adding continuation pages as needed. Returns the page count. A group with no bed name
+ * (the dots' key) has no heading.
+ */
+function plantList(doc: JsPDF, groups: ScheduleGroup[], firstBoxes: Box[], layout: PrintLayout, which = '', numbered = true, words: ListWords = PLANT_LIST_WORDS): number {
   type Item = { kind: 'head'; text: string } | { kind: 'note'; text: string } | { kind: 'group'; text: string; total: number } | { kind: 'row'; key: number; count: number; label: string; botanical: string };
   const total = groups.reduce((n, g) => n + g.total, 0);
   const items: Item[] = [
-    { kind: 'head', text: `Plant list${which ? ': ' + which : ''} (${total})` },
+    { kind: 'head', text: `${words.head}${which ? ': ' + which : ''} (${total})` },
     // (Names hidden, the plan has no numbers: the list has none either.)
-    ...(numbered ? [{ kind: 'note' as const, text: 'Numbers match the numbers in the circles on the plan.' }] : []),
+    ...(numbered ? [{ kind: 'note' as const, text: words.note }] : []),
   ];
   for (const g of groups) {
-    items.push({ kind: 'group', text: g.bed, total: g.total });
+    if (g.bed) items.push({ kind: 'group', text: g.bed, total: g.total });
     for (const r of g.rows) items.push({ kind: 'row', key: r.key, count: r.count, label: r.label, botanical: r.botanical });
   }
   const NAME_X = 0.62;
@@ -264,7 +344,7 @@ function plantList(doc: JsPDF, groups: ScheduleGroup[], firstBoxes: Box[], layou
     const ncol = layout.pageW > 10 ? 3 : 2;
     const cw = (layout.pageW - 2 * m - colGap * (ncol - 1)) / ncol;
     doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor('#1c1917');
-    doc.text('Plant list (continued)', m, m, { baseline: 'top' });
+    doc.text(words.continued, m, m, { baseline: 'top' });
     boxes = Array.from({ length: ncol }, (_, i) => ({ x: m + i * (cw + colGap), y: m + 0.3, w: cw, h: layout.pageH - 2 * m - 0.6 }));
     box = boxes.shift()!; y = box.y;
   };

@@ -15,7 +15,7 @@ import { photoFingerprint } from './sync/photo';
 import { canonical, coreHash, fingerprint, withoutClearedMarks } from './sync/engine';
 import { sanitizeLocation } from './climate';
 import { householdFromDevice } from './yard';
-import { applySwitches, planSwitches, switchesAllOn, switchesFromDevice, WARNING_SWITCHES } from './view-settings';
+import { applySwitches, planSwitches, switchesAllOn, switchesFromDevice, underOf, WARNING_SWITCHES } from './view-settings';
 
 // Persistence. Projects live in IndexedDB:
 //   meta/<projectId>          ProjectMeta (name, dates, shape count)
@@ -466,6 +466,9 @@ export function sanitizePrint(raw: unknown): PrintSettings {
     northDeg: ((num(o.northDeg, 0) % 360) + 360) % 360,
     statusFilter: isStatus(o.statusFilter) ? o.statusFilter : '',
     phaseFilter: str(o.phaseFilter).slice(0, 40),
+    // (The plants under taller ones, Nov 4: kept as picked, Show through too; anything else is none, never picked, and
+    // the rest kept. Plans from before have none and gain none: they read and fingerprint exactly as before.)
+    ...(o.under === 'windows' || o.under === 'screen' ? { under: o.under } : {}),
   };
 }
 /** Phase names: unique, trimmed, capped; any phase a shape uses is kept in the list. */
@@ -753,7 +756,9 @@ function contentKey(d: ProjectData, bg: Partial<BgImage> | StoredBg | null | und
   // fingerprints have them. Otherwise a journal differing only by one was kept apart as a copy: the review, Nov 4.)
   const synced = syncedContent(d);
   const shapes = withoutClearedMarks(synced.shapes);
-  return canonical({ ...synced, ...(shapes ? { shapes } : {}), photo, photoElsewhere: d.photoElsewhere ?? null });
+  // (The plants under taller ones as this device prints them: Show through picked is none picked, unless this device
+  // had As on screen before plans kept it: src/view-settings.ts underOf.)
+  return canonical({ ...synced, ...(shapes ? { shapes } : {}), print: { ...synced.print, under: underOf(synced.print) }, photo, photoElsewhere: d.photoElsewhere ?? null });
 }
 /** What a journal's plan is kept as when it isn't put over its plan: "<name> (from an older tab)", a second "(2)", and so on. */
 const OLDER_TAB_SUFFIX = ' (from an older tab)';
@@ -1204,10 +1209,11 @@ export async function replaceProjectContent(
   // the day the first device updates. The review of the storage change, Nov 1.)
   // (Sides typed as numbers, which the fingerprints leave out, Nov 4, count here: a download that brings them is a change
   // to the plan, so an older tab's unsaved edit from before it is kept apart, not put over it. The review's J1. The
-  // photo's rough scale is in samePhoto's placement already.)
+  // photo's rough scale is in samePhoto's placement already. Likewise the plants under taller ones picked or not, Nov 4,
+  // where the fingerprints read Show through picked as none: here it's what's stored that counts.)
   const newName = name.trim() || 'Untitled';
   const onlyParts = newName === meta.name && coreHash('', syncedContent(base) as unknown as Record<string, unknown>) === coreHash('', syncedContent(data) as unknown as Record<string, unknown>)
-    && sameTypedSides(base.shapes, data.shapes) && samePhoto(base, data);
+    && sameTypedSides(base.shapes, data.shapes) && base.print?.under === data.print?.under && samePhoto(base, data);
   const metaNext = { ...meta, name: newName, lastModified: onlyParts ? meta.lastModified : now(), shapeCount: data.shapes.length };
   bumpChange(id);
   // The write is queued before any later save's (and any read by a switch to this project), so they see it.

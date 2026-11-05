@@ -1,7 +1,8 @@
 import { groundcoverRadius, isVine, supportOf, supportsNear, vineSpacing } from '../vines';
 import { supportName } from './vine-offers';
 import { SWATCH_NAMES } from './a11y';
-import { SWATCHES } from '../constants';
+import { BG_COLOR, SWATCHES } from '../constants';
+import { sunRecorded, sunWash, washOver } from '../sun';
 import { el, escapeHtml, tapSaid, ts } from '../dom';
 import { I } from '../icons';
 import { defaultLook, isLocked, roleKey, roleLabel, roleLocked } from '../roles';
@@ -17,7 +18,7 @@ import { setRoleForIds, bringForward, bringToFront, copySelected, duplicateSelec
 import { getSelected, selectOnly, singleSelected } from '../selection';
 import { state } from '../state';
 import { render } from './render';
-import type { CircleShape, Corner, RoleKey, Shape } from '../types';
+import type { CircleShape, Corner, RoleKey, Shape, SunInfo } from '../types';
 import { formatSize, fullRingRadius, isMine, MY_PREFIX, plantRadius, plantSpread, type Range } from '../my-plants';
 import { canLinkToPlant, formsOf, linkShapesToPlant, plantColor, plantFilter, plantsById, rowLines, unlinkedWithLabel, type Plant } from '../plants';
 import { plantDetails } from './plant-details';
@@ -123,7 +124,11 @@ export function defaultColorOf(s: Shape): string {
   if (s.role === 'utility' && isUtilityKind(s.utility)) return utilityLook(s.utility).color;
   return defaultLook(roleKey(s), s.type).color;
 }
+/** What a sun area with hours recorded says in place of a color (lookParts). */
+export const SUN_LOOK_HINT = 'Colored by its hours of sun, warm for sun and cool for shade. The key is in Layers, under Sun Exposure.';
 function lookSummary(s: Shape): HTMLElement {
+  // (A sun area with hours recorded: the ramp's color for them, as it looks on the plan; its opacity is the ramp's.)
+  if (sunRecorded(s)) return el('span', { className: 'look-sum' }, el('span', { className: 'sw-dot', style: { background: washOver(sunWash(s.sun!), BG_COLOR) } }));
   const outline = s.role === 'boundary' || (s.type === 'line' && !s.pathWidth) || s.type === 'text';
   return el('span', { className: 'look-sum' }, el('span', { className: 'sw-dot', style: { background: s.color } }),
     outline ? '' : ` ${Math.round((s.opacity ?? 0.65) * 100)}%`);
@@ -242,7 +247,13 @@ export function renderPropsPanelSingle(s: Shape) {
   if (s.role === 'shade') {
     // Recording the sun is the point of a sun exposure area: open until there's a record.
     const sunSum = document.createTextNode(s.sun ? sunListText(s.sun) : 'Not recorded');
-    body.appendChild(section('sun', 'Sun record', sunSum, [shadeSunSection(s, (sun) => { sunSum.textContent = sunListText(sun); })], !s.sun));
+    // (Its hours dragged: the Look line's dot follows, in the ramp's color for them, in place, as the plan does.)
+    const onSun = (sun: SunInfo) => {
+      sunSum.textContent = sunListText(sun);
+      const dot = body.querySelector<HTMLElement>('[data-section=look] .sw-dot');
+      if (dot) dot.style.background = washOver(sunWash(sun), BG_COLOR);
+    };
+    body.appendChild(section('sun', 'Sun record', sunSum, [shadeSunSection(s, onSun)], !s.sun));
   }
   if (s.role === 'utility' && s.type !== 'circle' && s.type !== 'text') {
     body.appendChild(section('utility', 'Utility', document.createTextNode(s.utility ? utilityLabel(s.utility) : 'Which is it?'), [utilitySection(s)], true));
@@ -513,6 +524,10 @@ export function renderPropsPanelSingle(s: Shape) {
       toggle.textContent = leafColorOpen ? 'Hide leaf color' : 'Change leaf color\u2026';
     });
     lookParts.push(toggle, colorField);
+  } else if (sunRecorded(s)) {
+    // A sun area with hours recorded is drawn in the ramp's color for them (Jason, Nov 4): a color picked here would show
+    // nowhere, so none is offered. (Its own color is kept, as it was.)
+    lookParts.push(el('div', { className: 'hint', 'data-testid': 'sun-look' }, SUN_LOOK_HINT));
   } else lookParts.push(colorField);
   // Opacity (not for outlines; sun exposure with a record is shaded by its sun hours; not a picture, whose paleness is its
   // status and the canopy rule, so the slider did nothing there: Jason, Oct 30)

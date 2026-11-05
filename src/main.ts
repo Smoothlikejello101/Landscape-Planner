@@ -49,6 +49,7 @@ import { pxPerFoot } from './geometry';
 import { ask, asking, dismissAsk, tell } from './ui/ask';
 import { installFocusKeeping } from './ui/focus';
 import { closeCompare, compareShown } from './ui/compare-sheet';
+import { closeSourcePane } from './ui/source-pane';
 import { placePicker } from './ui/picker-view';
 import { pickingBed } from './bed-plant';
 import { stopPickingBed } from './ui/plant-for';
@@ -139,6 +140,8 @@ function onKey(e: KeyboardEvent) {
   const tag = (target?.tagName || '').toLowerCase();
   // Esc in the picker closes it, from its search too (where the cursor starts, with a keyboard); in the More menu,
   // closes that. Other sheets keep Esc while one has focus: some hold typing that closing would throw away.
+  // (A source's little pane open, src/ui/source-pane.ts: Esc closes it, back on its Source; the next one, the sheet.)
+  if (e.key === 'Escape' && closeSourcePane(true)) { e.preventDefault(); return; }
   // (The comparison over the picker: Esc goes back to the picker, the plants still chosen.)
   if (e.key === 'Escape' && state.panel === 'plants' && compareShown()) { e.preventDefault(); closeCompare(); return; }
   if (e.key === 'Escape' && state.panel === 'plants' && target?.closest?.('.overlay')) {
@@ -291,6 +294,7 @@ window.addEventListener('pointerdown', guard, true);
 window.addEventListener('keydown', guard, true);
 window.addEventListener('popstate', () => {
   if (dismissAsk()) { guard(); return; } // (a question up: back answers no)
+  if (closeSourcePane()) { guard(); return; } // (a source's little pane: closed, in place)
   if (state.panel === 'plants' && compareShown()) { closeCompare(); guard(); return; } // (back to the picker, in place)
   if (closeOne()) { render(); guard(); return; }
   toast('Press back again to leave FullGrown.');
