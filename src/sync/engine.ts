@@ -944,8 +944,10 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     // What the server has (anything else here goes up next time), still holding this device's photo if the original kept
     // it. But the print choice for the plants under taller ones, where the server's copy says nothing of it, as the
     // original has it, filled in from here (withPrintUnder), as a download records it: recorded without it, that fill
-    // was a change made here at the next pass, and another edit there first made a second copy (the review's R2, Nov 4;
-    // a bed's conditions still do: docs/storage.md).
+    // was a change made here at the next pass, and another edit there first made a second copy (the review's R2, Nov 4).
+    // A bed's conditions filled in (withBedConditions) aren't recorded so: an edit there to the plan's core before the
+    // original next goes up still makes that second copy; a tick or the photo moved there doesn't, with an edit here or
+    // none (asRecordedButConditions, Nov 5). docs/storage.md.
     const n = local.normalize(serverName, withPrintUnder(asOnServer, serverContent));
     await local.setRecord(p.id, recordAfter(n.name, n.content, serverRev, records[p.id], photoKey(serverContent)));
     report.conflicts.push({ name: serverName, copyName: copyLabel, otherDevice: by });
