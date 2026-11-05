@@ -31,7 +31,7 @@ describe('poisonous to people, in its source\'s words', () => {
   it("a hybrid no source rates: what its parents are rated (Jason, 2026-10-29), each named, the unrated said too", () => {
     const mulberry = { id: 'm', common: "Mulberry 'Illinois Everbearing'", prov: { poison: { src: ['ncsu'], unknown: true } },
       poison_parents: { via: 'name', parents: [{ name: 'Morus alba', poison: null }, { name: 'Morus rubra', id: 'morus-rubra', common: 'Red mulberry', poison: { severity: 'low', parts: ['sap'], skin: true } }] } } as Plant;
-    expect(poisonRow(mulberry)).toBe('No rating available for this hybrid. 1 parent is rated. Morus alba: none listed. Red mulberry (Morus rubra): Sap, low severity; can irritate skin.');
+    expect(poisonRow(mulberry)).toBe('No rating available for this hybrid. 1 parent is rated. Morus alba: none listed. Red Mulberry (Morus rubra): Sap, low severity; can irritate skin.');
     const both = { ...mulberry, poison_parents: { via: 'kew', parents: [{ name: 'Abelia chinensis', poison: { severity: 'low' } }, { name: 'Abelia uniflora', poison: { parts: ['seeds'] } }] } } as Plant;
     expect(poisonRow(both)).toBe('No rating available for this hybrid. Both parents are rated. Abelia chinensis: Low severity. Abelia uniflora: Seeds.');
     const notRated = { ...mulberry, poison_parents: { via: 'kew', parents: [{ name: 'Daphne caucasica', poison: { severity: 'high' } }, { name: 'Daphne cneorum' }] } } as Plant;
@@ -205,7 +205,7 @@ describe('plant filters', () => {
     // (A source's foliage, where there is one, is what's said.)
     expect(winterText({ ...heuchera, foliage: 'evergreen', winter_leaves: rel('deciduous', 5) })).toBe('Evergreen: keeps its leaves');
     const parts = (p: Plant) => winterParts(p).map(([text, line]) => [text, line]);
-    expect(parts({ ...heuchera, winter_leaves: { leaves: 'deciduous', basis: 'records', n: 23 } })).toEqual([['Dies back in winter', 'USA-NPN observers recorded it bare: 23 plant-years']]);
+    expect(parts({ ...heuchera, winter_leaves: { leaves: 'deciduous', basis: 'records', n: 23 } })).toEqual([['Dies back in winter', 'Source: USA-NPN observers, who recorded it bare: 23 plant-years']]);
     expect(parts({ ...heuchera, winter_leaves: rel('deciduous', 5) })[0][1]).toBe('Not from a source: other species of its genus, as their sources give them');
   });
   it('says what makes its winter interest: showy bark, fruit into winter, colored stems where it\'s listed for winter, winter flowers', () => {
@@ -424,7 +424,7 @@ describe('plant filters', () => {
     expect(other.dogVia).toBeUndefined(); // (another species)
     expect(nonToxicToDogs(safe)).toBe(false); // (a warning beats the earlier list's "Safe" for one record)
     expect(toxicToDogs(sp)).toBe(true);
-    expect(toxRow(sp)).toEqual({ value: 'dogs: Toxic - rarely eaten', line: "earlier list, unverified · given for Butterfly weed 'for Clay', the same species" });
+    expect(toxRow(sp)).toEqual({ value: 'dogs: Toxic - rarely eaten', line: "Source: earlier list, unverified · given for Butterfly weed 'for Clay', the same species" });
     expect(toxRow(safe)!.line).toContain('the earlier list calls this one safe');
     expect(toxRow(other)).toEqual({ value: 'Not rated for pets', line: 'No source we\u2019ve read rates it for dogs, cats or horses' });
     // NC State's "Problem for Dogs" (cats, horses): a warning, ahead of the earlier list's word; an NC State page that
@@ -432,11 +432,11 @@ describe('plant filters', () => {
     const flagged: Plant = { id: 'ff', common: 'Flagged', dog: 'Safe', problem_for: ['dogs', 'cats'], prov: { problem_for: { src: ['ncsu'], check: 'single' } } };
     expect(toxicToDogs(flagged)).toBe(true);
     expect(nonToxicToDogs(flagged)).toBe(false);
-    expect(toxRow(flagged)!.value).toBe('A problem for dogs and cats');
+    expect(toxRow(flagged)!.value).toBe('Toxic to dogs and cats');
     const catsOnly: Plant = { id: 'fc', common: 'Cats only', dog: 'Mild GI', problem_for: ['cats'], prov: { problem_for: { src: ['ncsu'], check: 'single' } } };
-    expect(toxRow(catsOnly)!.value).toBe('A problem for cats; dogs: Mild GI');
+    expect(toxRow(catsOnly)!.value).toBe('Toxic to cats; dogs: Mild GI');
     const readNone: Plant = { id: 'rn', common: 'Read', prov: { poison: { src: ['ncsu'], unknown: true } } };
-    expect(toxRow(readNone)!.value).toBe('Not listed as a problem for dogs, cats or horses');
+    expect(toxRow(readNone)!.value).toBe('Not listed as toxic to dogs, cats or horses');
     expect(toxRow({ id: 'u-1', common: 'Mine' })).toBeNull(); // (a plant of mine: the person's own notes)
     // The species' own record's warning is the one given, where it has one.
     const a: Plant = { id: 'a', common: "Oakleaf 'Alice'", botanical: "Hydrangea quercifolia 'Alice'", dog: 'Mild GI' };
@@ -476,7 +476,7 @@ describe('a picker row', () => {
     const sources = { compendium: { title: 'Earlier list', trust: 'unverified' as const }, ncsu: { title: 'NC State', trust: 'reference' as const } };
     const p = { ...heuchera, deer: 'Resistant', wet_feet: true, prov: { deer: { src: ['compendium'] }, sun_most: { src: ['ncsu'] }, sun_least: { src: ['ncsu'] }, wet_feet: { src: ['compendium'] } } } as Plant;
     expect(earlierOnly(p, f({ sun: 'Shade' }), sources)).toEqual([]);
-    expect(earlierOnly(p, f({ sun: 'Shade', deerResistant: true, wetFeet: true }), sources)).toEqual(['deer resistance', 'wet feet']);
+    expect(earlierOnly(p, f({ sun: 'Shade', deerResistant: true, wetFeet: true }), sources)).toEqual(['deer resistance', 'wet soil']);
     // (A plant of mine is its own word.)
     expect(earlierOnly(heuchera, f({ wetFeet: true }), sources)).toEqual([]);
   });

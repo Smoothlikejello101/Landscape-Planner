@@ -1,4 +1,7 @@
 import type { Plant } from './plants';
+import { sameName, writtenName } from './names';
+/** A name with a cultivar in it: what's before it, 'Name' (straight or curly quotes, first to last), what's after. */
+const CULTIVAR = /^(.*?)\s*(['‘’].+['‘’])\s*(.*)$/;
 
 // Plant names inside their circles. A name is wrapped onto up to three lines
 // and shrunk until it fits inside the circle; if even a shorter form of the
@@ -102,17 +105,20 @@ export function shortNames(label: string, plant?: Plant): string[] {
     const t = s?.replace(/\s+/g, ' ').trim();
     if (t && t !== label.trim() && !out.includes(t)) out.push(t);
   };
-  if (plant?.short && label.trim() === plant.common) add(plant.short);
+  if (plant?.short && sameName(label, plant.common)) add(plant.short);
   const noParens = label.replace(/\s*\([^)]*\)/g, '');
   add(noParens);
   // A cultivar: 'Name' (straight or curly quotes), from the first quote to the last.
-  const m = noParens.match(/^(.*?)\s*(['‘’].+['‘’])\s*(.*)$/);
+  const m = noParens.match(CULTIVAR);
   if (m) {
     // The cultivar with the plant's kind: "'Haas' Halo' hydrangea", "'Julia Child' Rose";
     // not "'American Gold Rush' Susan", where the last word alone isn't the kind.
     const words = (m[1] + ' ' + m[3]).trim().split(/\s+/).filter(Boolean);
     const last = words.at(-1) ?? '';
-    if (last && (words.length === 1 || last === last.toLowerCase())) add(`${m[2]} ${last}`);
+    // (Told by the name as the catalog writes it: shown in Title Case, every word starts with a capital. src/names.ts.)
+    const asWritten = plant && sameName(label, plant.common) ? writtenName(plant.id)?.replace(/\s*\([^)]*\)/g, '').match(CULTIVAR) : null;
+    const lastWritten = asWritten ? (asWritten[1] + ' ' + asWritten[3]).trim().split(/\s+/).at(-1) ?? last : last;
+    if (last && (words.length === 1 || lastWritten === lastWritten.toLowerCase())) add(`${m[2]} ${last}`);
     add(m[2]);
   }
   return out;

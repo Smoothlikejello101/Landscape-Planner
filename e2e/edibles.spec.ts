@@ -45,7 +45,7 @@ test('a male holly offers two females alike, and "All 4…" opens the picker on 
   const looks = await choices.evaluateAll((bs) => bs.map((b) => getComputedStyle(b).backgroundColor));
   expect(looks[0]).toBe(looks[1]);
   await notice.getByRole('button', { name: 'All 4\u2026' }).click();
-  await expect(page.locator('.sheet')).toContainText("Partners for Japanese holly 'Latifolia'");
+  await expect(page.locator('.sheet')).toContainText("Partners for Japanese Holly 'Latifolia'");
   // (Under their species, its fold open to them: "4 of 8 cultivars match your filters; the species itself doesn't".)
   await expect(page.locator('.sheet')).toContainText('4 of 8 cultivars match');
   for (const n of ['Convexa', 'Helleri', 'Hetzii', 'Sky Pencil']) await expect(page.locator('.sheet .proj-row', { hasText: n })).toHaveCount(1);

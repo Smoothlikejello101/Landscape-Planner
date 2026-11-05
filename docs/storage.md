@@ -51,6 +51,14 @@ The history (src/db.ts keeps it beside `DB_VERSION`):
   plant), which a version-2 page would drop, saving or syncing a plan. A version-2 page's journal, written without it,
   is kept apart from a plan saved at 3, not put over it. (Sync has its own guard for versions before the field: a
   device that has it keeps it when the server's copy has none, src/sync/engine.ts `withFruitDismissals`.)
+- 4 (Nov 2): no store or record changed. Beds' `conditions` (Plant this bed: soil, moisture, drip, and sun where no
+  sun area covers the bed), which a version-3 page would drop, saving or syncing a plan. A version-3 page's journal,
+  written without them, is kept apart from a plan saved at 4, not put over it. (Sync: `withBedConditions`, below.) Sync
+  records gain `marks` (Nov 4: where a cleared mark may go, below), which no page before it writes or reads.
+- 5 (Nov 4): no store or record changed. A photo's rough scale (`roughScale`) and the sides of a shape typed as
+  numbers (`measured`), which a version-4 page would drop, saving or syncing a plan. A version-4 page's journal, written
+  without them, is kept apart from a plan saved at 5, not put over it (checked: at 4 it went in place, both lost).
+  (Sync: `withRoughScale` and `withMeasuredSides`, below.)
 
 When raising it:
 1. Add a line to the history beside `DB_VERSION`: the version, the day, what changed.
@@ -58,7 +66,9 @@ When raising it:
    change that must rewrite records does it after the open, in one transaction (`KV.changeAllOnce`, as
    `takeFromDevice` does), so nothing another tab saves meanwhile is put back as it was read.
 3. Test the upgrade from the version before, with real data in it (tests/storage.test.ts: "the upgrade from 1 keeps
-   every store and record", "the upgrade from 2 keeps every store and record"), and the migration spec against
+   every store and record", "the upgrade from 2 keeps every store and record", "the upgrade from 3 keeps every store
+   and record", "the upgrade from 4 keeps every store and record"), the page of the version before told
+   (tests/fixtures/db-v2.ts, db-v3.ts, db-v4.ts: that version's src/db.ts, verbatim), and the migration spec against
    e2e/fixtures/legacy-app.
 4. A storage change gets a pull request of its own (CLAUDE.md).
 
@@ -108,12 +118,184 @@ see it. So each device of this version keeps its own when the server's copy of t
 words (dismissed for that plant alone), or `''` (shown again on purpose: Show again, or Undo taking one away), which
 is never filled back from another device's words. A `''` reads as none in the plan's fingerprint, so a dismissal taken
 back before the plan synced isn't a change of its own (no conflict copy against another device's edit), while words
-to `''` still is, and goes up.
+to `''` still is, and goes up. Since Nov 4, `''` goes only where the server's copy had a dismissal on that copy when
+this device last sent or took the plan (src/marks.ts `mayMark`, the same rule as a bed's `{}`, below). Dismissed here
+and taken away before it was ever sent, it goes, as it was.
 
 The window left: a device offline through another device's Show again, with a device on the release sending the plan
 in between, still has the words, and the server's copy no longer says otherwise. It keeps them; if it sends the plan
 (any edit) before the device that showed it again does, the dismissal comes back for everyone; if that one sends
 first, its `''` goes up and the offline one takes it. Only while one of the account's devices is on the release.
+
+## A bed's `conditions`, and older versions
+
+A bed's conditions (Plant this bed, Nov 2: src/types.ts `BedConditions`) are stored on the bed shape, answers only:
+its soil, its moisture, drip irrigated, and its sun where no sun area covers it (the sun worked out from sun areas is
+never stored). `migrateShape` keeps them on a bed only, each part checked: a word a later version adds is kept as it
+came, and so is a question a later version adds whose answer is a word or true (dropped, it would be lost for everyone
+the next time this device sent the plan); a part that isn't one is dropped and the rest kept, never the plan. `{}` is
+cleared on purpose, kept, and read as none wherever two copies are compared for what they hold (the sync fingerprints,
+a journal against its plan, an imported plan against one already here: src/sync/engine.ts `withoutClearedMarks`), as a
+`''` dismissal is.
+
+How they travel within a plan:
+- **Duplicate** copies them with the bed; **Copy and Paste** carry them (pasted as a stored plan's shapes are read).
+- **Where `{}` goes** (src/marks.ts `mayMark`): taking answers away (clearing them, or Undo or Redo) leaves `{}` only
+  on a bed whose answers the server's copy had when this device last sent or took the plan. Each sync record keeps
+  those beds' ids (its `marks`, src/sync/engine.ts `marksOf`, from the server's copy only, not this device's own parts
+  filled in), so it holds across restarts and goes with the records when the account changes. Anywhere else (set here
+  and taken away before they were ever sent, a plan that doesn't sync) they're none again, as they were: a `{}` would go
+  up with the next edit and take away, everywhere, answers another device has that this one never got, an older version
+  having dropped them on the way. Where it does go, the clear reaches every device, as it should. Saying no only ever
+  lets answers come back from another device's copy, never erases them: an upload whose answer was lost (a dropped
+  connection) isn't recorded, so a clear right after leaves none and the answers come back once from the server. So
+  does an edit from a device on release 3 between this device's send and its clear: the server's copy it then takes
+  has none, so the clear leaves none, and another device of this version brings the answers back with its next edit;
+  a second clear sticks. (The
+  independent review, Nov 4, in three rounds: through Undo, through clearing, and across a restart.) A fruit-partner
+  dismissal taken away follows the same rule (`''`).
+- **Undo or Redo** taking them away leaves `{}` by that rule (src/history.ts `conditionsCleared`).
+- A bed **made something else** loses them, in that step; a shape **made a bed** starts with `{}` (src/mutations.ts
+  `setRoleForIds`), so conditions it had as a bed before, still on a device offline through both changes, aren't
+  filled back in.
+- `setBedConditions` (src/mutations.ts) sets this version's answers as one step, the whole set of them (a question
+  left out, false or null is no answer: drip unticked), keeping a later version's questions on the bed as they are.
+  Nothing answered clears them, by the rule above; on a bed with none it does nothing. It takes only the questions this
+  version asks (`BedAnswers`), so a typo isn't kept as a later version's question.
+- **A rule for later versions:** a question they add must have a word or true as its answer, or a sync guard of its
+  own (like `withBedConditions`). This version keeps those and drops anything else, and its next upload would then lose
+  it everywhere. The same goes for a new form of an answer this version asks (a sun with hours, soil as a list).
+
+Versions of database version 3 and before (release 3 is at 1, Next at 3 until this change) drop them: on this device the
+database version stops such a page saving over a plan saved at 4, and its journals are kept apart. Through sync, each
+device of this version keeps its own when the server's copy of that bed (its id, still a bed) has no `conditions` at all
+(src/sync/engine.ts `withBedConditions`), `{}` included, so a device that cleared them says so again with its next edit.
+The server's copy goes without them until a device that has them sends the plan again: until then they're only on the
+devices of this version that had them, and a device reset or signed out meanwhile takes its copy with it.
+
+The windows left, as for `fruitDismissed` and wider, all only while one of the account's devices is on database version
+3 or before and syncs: Next never signs in, so in practice a device still on release 3 (database version 1), until it
+updates:
+- A device offline through another device's change to a bed's conditions (set, changed or cleared), with a device on an
+  older version sending the plan in between, still has its own, which the server's copy no longer contradicts. It keeps
+  them, and whichever of the two sends the plan first (any edit) decides for everyone: the offline one's older answers
+  can replace the newer ones.
+- A device on an older version turns the bed into something else and back (a bed, then lawn, then a bed). A device of
+  this version that missed both changes still has the answers, sees a bed with none on the server, and keeps them; its
+  next edit brings them back for everyone. (The `{}` a shape made a bed starts with covers this only when a device of
+  this version makes the change.)
+- A device of this version that never had them (it took the plan only after an older version had sent it without them)
+  shows none until a device that has them sends the plan again; answers set on it in the meantime go up and stand.
+
+## A photo's rough scale, and sides typed as numbers (database version 5, Nov 4)
+
+Two optional fields, in one change (Jason, Nov 4: "one"). Nothing in a plan from before has either, and nothing is
+worked out for one: an old photo has no rough scale, an old shape no sides typed. Opening a plan from before writes
+nothing new into it; a plan without them reads, saves and syncs exactly as before (the same fingerprints).
+
+### What's stored
+
+- **`BgImage.roughScale?: true`** (src/types.ts): the photo's scale was set from a length said to be a rough guess (the
+  checkbox in the box asking how far A is from B). Read as src/storage.ts `migrateBgImage` has it: kept when it's `true`
+  and the photo isn't also `uncalibrated` (a scale not set yet isn't rough; that one wins); anything else is none.
+  Setting the scale sets it (ticked) or takes it away (not ticked); nothing else touches it, so it always goes with a
+  scale. It goes with the photo everywhere the photo goes: the plan record's `bgImage`, the journal, backups and plan
+  files, the support file, Undo steps (a calibration undone takes it back with the scale), and sync's photo reference
+  (`PhotoRef`, src/storage.ts `photoRefOf`, `sanitizePhotoRef`).
+- **`measured?: { side: number; ft: number }[]`** on a rectangle, an outline or a line (src/types.ts `MeasuredSide`):
+  the sides whose lengths were typed as numbers, and the feet typed. An outline's or a line's side `side` runs from
+  point `side` to the next (an outline's last, back to its first); a rectangle's sides are 0 top, 1 right, 2 bottom, 3
+  left, as it is before it's turned, which is the order its outline has once it's made one, and a typed Width is both 0
+  and 2. Read as src/measured.ts `sanitizeMeasured` has it, from src/storage.ts `migrateShape`: each entry a whole
+  number from 0 to one less than the shape's sides, each side once (the first kept), `ft` a number above 0 and at most
+  5,000; anything else in an entry, or an entry that isn't one, is dropped and the rest kept; none left, no field. Kept
+  on a rectangle, an outline or a line only (an oval, a triangle, a circle or a note is left without it). On an outline
+  or a line, kept only while every point came through (a point that can't be read is dropped, and the sides after it
+  would shift: then none is kept). Never the plan or the shape: whatever the field holds, the shape is read as it would
+  be without it. Typed from: the drawing bar's length for the next side (an outline, a line, a path, a rectangle's two
+  sides) and a rectangle's Width and Length in its edit pane. Not from an outline's or a line's Width and Length (they
+  stretch its box, not a side), an oval's, an older plan's triangle's, a circle's size, a path's width or a door's.
+
+### When a side typed is forgotten (the rule)
+
+A remembered side counts while that side is the length typed, within 0.05 ft, and only then (src/measured.ts
+`measuredSides`, which Rescale will use, returns only those). A step that leaves it at another length takes it off the
+shape as the step is recorded (src/history.ts `pushHistory`, with the change that records sides typed); adding or
+taking out a point renumbers the sides after it, and forgets the sides it split or joined, so a number never moves onto
+another side. A side changed and changed back may count again: another device's copy that still has it brings it back
+(the shape side for side as there), and so does this device's own plan as saved, after a restart (the save, a quarter
+second after an edit, comes before the step that takes it off, at 0.6 s). That's harmless: the side is the length typed
+again. Examples:
+
+- A house drawn 30 by 20 ft, both typed: sides 0 and 2 are 30, 1 and 3 are 20. Moved, turned 12°, nudged, copied, pasted
+  or duplicated: all four kept. Made an outline: all four, the same sides of the outline.
+- Its Width typed 32 in the edit pane: 0 and 2 are 32 now (typed again), 1 and 3 still 20. Its width dragged with a
+  handle to 31: 0 and 2 forgotten; dragged back to 32, they stay off here, but may come back from another device's
+  copy, or the plan as saved (above): it's 32 again. Undo brings them back with the size they were typed for; Redo
+  takes them away again.
+- An outline with side 2 typed 7.5: a point added on side 0 (two sides now, neither typed) makes side 2 side 3, still
+  7.5. A point added on side 2 forgets it, even if the new point is dragged so one half is 7.5 ft. Point 2 taken out
+  (where sides 1 and 2 met): side 2 is forgotten, the sides after it move down one.
+- A corner dragged: the two sides at it forgotten (unless the drag leaves them their length, within 0.05 ft), the rest
+  kept. An outline stretched taller: its upright sides forgotten, its level ones kept.
+- A typed side that closed an outline at its first point is kept only if it came out that long (closing moves its end
+  onto the first point). Squaring after drawing leaves a typed side's ends where they are; setting a rectangle level
+  turns it whole: both keep their typed sides.
+
+Older versions can't break the rule: they read a shape into a new object of the fields they know, so they drop
+`measured` whole whenever they save or sync the shape; they never keep a stale one on a side they've reshaped.
+
+### Older versions, and sync
+
+What a version without them does (read from the release's code, `origin/release` at bdeb911, and tested with it:
+tests/fixtures/release-migrate-shape.ts and release-photo.ts, verbatim): it **drops them, and nothing else**. Its
+`migrateShape` builds each shape from the fields it knows, its `migrateBgImage` the photo; it doesn't refuse the plan,
+or any shape, or the photo. So the worst it can do is lose the new fields: on this device, the database version stops it
+saving at all (a version-4 page is told and lets go; one opened later is refused), and its journals are kept apart from
+a plan saved at 5. Through sync (a device still on the release: Next never signs in):
+- It takes a plan with them and sends nothing back for that alone (its record is of the copy as it keeps it).
+- Its own edit (anything: a tick in the Plant list, the photo moved) sends the plan without them. Each device of this
+  version keeps its own where the server's copy says nothing of them (src/sync/engine.ts). A shape's sides typed, side
+  by side (`withMeasuredSides`): the server's copy's own entries stand, and one here for a side they don't name is kept
+  only where it's provably the same side and still the length typed: a rectangle with that dimension the same (its
+  Width for sides 0 and 2, its Length for 1 and 3), an outline or a line with as many points and both ends of that side
+  where they are here. Moved or turned there, kept; that side changed there, or a point added or taken out (the sides
+  perhaps renumbered), not. So a typed Length here stays beside a Width typed on a device that never had them (the
+  review's R4: a release device's tick had sent the plan without them, and a tablet took it then). The photo's
+  `roughScale` when the server's is the same photo at exactly the same scale, and says neither rough nor not to scale
+  yet (`withRoughScale`). The server's copy goes without them until a device that has them sends the plan again (any
+  edit).
+- The fingerprints leave them out (`planHash`, `coreHash`: `measured`; `photoKey`: `roughScale`). This version changes
+  them only with the sides, or the scale, they're about, which the fingerprints see anyway; seen, a release device's
+  tick or photo move would read here as a change to the plan or the photo there, and a copy would be made against a
+  shape reshaped, or a scale set again, here (tested: both copies, without it). So a side typed again at the length it
+  already has, alone, goes up with the next edit, not by itself. On this device, though, a download that brings or
+  changes them is a change to the plan (its "last modified": src/storage.ts replaceProjectContent), so an older tab's
+  unsaved edit from before it is kept apart, not put over it (the review's J1).
+- Reshaped on the release device, a shape's sides typed are lost (the honest rule: this device can't tell what changed).
+  Its scale set again there (no checkbox there), the rough scale is gone too.
+
+Found on the way, and fixed here (src/storage.ts `placePhoto`): a synced placement of the same photo was laid over this
+device's own, so a field the incoming one didn't have stayed: a scale set on another device left "Not to scale yet" here
+(`uncalibrated`), and this device's next sync pass sent it back (its photo no longer what its record says), so for
+every device. Now the incoming placement is the whole of how the photo sits, `uncalibrated` and `roughScale` included.
+Its one cost: a build from before Oct 30, which has no word for "not to scale yet", sending the same photo (moved, say)
+now clears it here, where before it stayed. Builds from release 3 on send it, so that's accepted.
+
+The release still does it (tested with its own engine: tests/sync-release.test.ts). A scale set here, while a device on
+the release holds that photo as "not to scale yet": the release takes the new scale and keeps its own "not to scale
+yet", and its next sync pass, with no edit there, sends that back. Here, the flag flips back ("Not to scale yet" in
+Layers again) and the rough scale goes with it (never both); the scale set here stays, and it settles there. Setting it
+again here does the same, until that device updates.
+
+The windows left, both between devices of this version (no release device needed), and both only about the marks:
+- A rough scale taken away on purpose (the scale set again, the box not ticked) at exactly the same scale as before (the
+  same image pixels, the same length) changes nothing the fingerprints see, and looks like a release device's copy:
+  another device that had it keeps it, and sends it again with its next edit. Setting the scale again almost never gives
+  exactly the same number.
+- A side typed again at the length it already has changes nothing the fingerprints see, so it waits for this device's
+  next edit to go up. If another device's edit comes down first, it's kept side by side (above), unless the server's
+  copy names that side too: then the server's stands.
 
 ## Two tabs on the same version
 

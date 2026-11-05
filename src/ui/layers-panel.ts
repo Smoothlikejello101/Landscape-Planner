@@ -20,6 +20,7 @@ import { startBgCalibration, updateBgImageSilent } from '../background';
 import { ask } from './ask';
 import { sheetTitle } from './props-panel';
 import { settingsLink } from './settings-panel';
+import { labelShown } from '../names';
 
 const fmtFt = (v: number) => String(Math.round(v * 10) / 10);
 
@@ -56,7 +57,7 @@ export function renderLayersPanel() {
     for (const s of reversed) {
       const sel = isSelected(s.id);
       let dims;
-      if (s.type === 'circle') dims = fmtFt(s.radius * 2) + (s.role === 'plant' ? ' ft spread' : ' ft across');
+      if (s.type === 'circle') dims = fmtFt(s.radius * 2) + (s.role === 'plant' ? ' ft wide' : ' ft across');
       else if (s.type === 'line') dims = fmtFt(shapePerimeter(s)) + ' ft long';
       else if (s.type === 'text') dims = 'text · ' + fmtFt(s.fontSize) + ' ft tall';
       else if (s.type === 'poly') dims = s.points.length + ' points · ' + fmtFt(boxSize(s).w) + ' × ' + fmtFt(boxSize(s).h) + ' ft';
@@ -98,10 +99,10 @@ export function renderLayersPanel() {
       }
       // (A button to a keyboard and a screen reader: Enter selects it, as a tap on the row does. Alex, Oct 30: only the
       // padlocks could be reached with Tab.)
-      const name = s.label || 'unlabeled ' + typeName(s.type);
+      const name = labelShown(s) || 'unlabeled ' + typeName(s.type);
       const info = el('div', { className: 'layer-info', role: 'button', tabIndex: 0, 'aria-label': `Select ${name}`, 'data-testid': 'layer-select' },
         s.label
-          ? el('div', { className: 'layer-label' }, s.label)
+          ? el('div', { className: 'layer-label' }, labelShown(s))
           : el('div', { className: 'layer-label empty' }, sheetTitle(s)),
         el('div', { className: 'layer-meta' },
           el('span', { className: 'layer-role' }, roleLabel(roleKey(s)) + (roleHidden(s) ? ' · hidden' : '')), meta)
@@ -110,7 +111,7 @@ export function renderLayersPanel() {
         className: 'layer-lock ' + (s.locked ? 'on' : ''),
         html: s.locked ? I.lock : I.unlock,
         title: s.locked ? 'Unlock' : 'Lock',
-        'aria-label': (s.locked ? 'Unlock ' : 'Lock ') + (s.label || 'unlabeled ' + typeName(s.type)),
+        'aria-label': (s.locked ? 'Unlock ' : 'Lock ') + name,
         'aria-pressed': s.locked ? 'true' : 'false',
       });
       lockBtn.addEventListener('click', (e) => {
@@ -234,15 +235,23 @@ function backgroundSection(): HTMLElement {
   const more = el('button', { className: 'link-btn', 'data-testid': 'layers-bg-more' }, 'Adjust\u2026');
   more.disabled = busy;
   more.addEventListener('click', () => { state.panel = 'bg'; render(); });
-  // Not to scale yet: marked rough until its scale is set (Jason, Nov 2, from the UI review), with the way to set it.
-  // (What's kept with the photo since Oct 30, src/types.ts BgImage.uncalibrated: no new stored field.)
-  const rough = bg.uncalibrated ? el('span', { className: 'rough-flag', 'data-testid': 'layers-bg-rough' }, 'Rough scale') : null;
-  wrap.appendChild(el('div', { className: 'role-row' + (bg.visible ? '' : ' hidden') }, eye, el('span', { className: 'name' }, 'Background image', ...(rough ? [' ', rough] : [])), more));
-  if (rough) {
-    const set = el('button', { className: 'link-btn', 'data-testid': 'layers-bg-set-scale' }, 'Set its scale');
+  // Not to scale yet: marked so until its scale is set (Jason, Nov 2, from the UI review), with the way to set it. Said as
+  // the background sheet says it: "Rough scale" until Jason's note on #209, Nov 4: "uncalibrated isn't rough, it's just
+  // uncalibrated". (What's kept with the photo since Oct 30, src/types.ts BgImage.uncalibrated: no new stored field.)
+  const unscaled = bg.uncalibrated ? el('span', { className: 'scale-flag', 'data-testid': 'layers-bg-not-to-scale' }, 'Not to scale yet') : null;
+  // Its scale set from a length said to be a rough guess (the checkbox setting it: Jason on #209, Nov 4, "so they get a
+  // reminder about it later"): marked as one not to scale is, with the way to set it again. Never both: a scale not set
+  // yet isn't rough (src/types.ts BgImage.roughScale).
+  const rough = !unscaled && bg.roughScale ? el('span', { className: 'scale-flag', 'data-testid': 'layers-bg-rough' }, 'Rough scale') : null;
+  const flag = unscaled ?? rough;
+  wrap.appendChild(el('div', { className: 'role-row' + (bg.visible ? '' : ' hidden') }, eye, el('span', { className: 'name' }, 'Background image', ...(flag ? [' ', flag] : [])), more));
+  if (flag) {
+    const set = el('button', { className: 'link-btn', 'data-testid': 'layers-bg-set-scale' }, unscaled ? 'Set its scale' : 'Set its scale again');
     set.disabled = busy;
     set.addEventListener('click', () => startBgCalibration());
-    wrap.appendChild(el('div', { className: 'hint rough-line' }, 'Its size on the plan is a guess until its scale is set: what\u2019s traced over it is too. ', set));
+    wrap.appendChild(el('div', { className: 'hint scale-line' }, unscaled
+      ? 'Its size on the plan is a guess until its scale is set: what\u2019s traced over it is too. '
+      : 'Its scale was set from a length you guessed. ', set));
   }
   // Opacity: redraws the plan only, so the slider keeps its place (and the keyboard, on a phone).
   const pct = el('span', { className: 'count' }, Math.round(bg.opacity * 100) + '%');

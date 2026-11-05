@@ -7,11 +7,12 @@ import { cancelHistoryDebounce } from './history';
 import { DEFAULT_PRINT, state } from './state';
 import { isRole } from './roles';
 import { cleanPhaseName, filterActive, isStatus, MAX_PHASES } from './status';
-import type { BgImage, Clipboard, PathShape, PhotoRef, PlanBought, PlanDismissals, PlanHousehold, PlanSwitches, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, ShapeFilter, SunInfo, UtilityKind, WarningSwitch } from './types';
+import type { BedConditions, BgImage, Clipboard, MeasuredSide, PathShape, PhotoRef, PlanBought, PlanDismissals, PlanHousehold, PlanSwitches, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, ShapeFilter, SunInfo, UtilityKind, WarningSwitch } from './types';
 import { setWorldPoints } from './geometry';
+import { sanitizeMeasured, sideCount } from './measured';
 import { now, uid } from './util';
 import { photoFingerprint } from './sync/photo';
-import { canonical, coreHash, fingerprint } from './sync/engine';
+import { canonical, coreHash, fingerprint, withoutClearedMarks } from './sync/engine';
 import { sanitizeLocation } from './climate';
 import { householdFromDevice } from './yard';
 import { applySwitches, planSwitches, switchesAllOn, switchesFromDevice, WARNING_SWITCHES } from './view-settings';
@@ -148,6 +149,48 @@ function crowdOk(v: unknown): string[] | null {
   return ids.length ? ids : null;
 }
 
+/** A word as a bed's conditions keep one: those this version asks, or one a later version adds (kept as it came). */
+const conditionWord = (v: unknown): v is string => typeof v === 'string' && /^[A-Za-z][A-Za-z0-9-]{0,30}$/.test(v);
+const plainObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+/** The questions this version asks of a bed (src/types.ts BedConditions). */
+const ASKED = new Set(['sun', 'soil', 'moisture', 'drip']);
+/** A bed's answers to questions a later version asks, as kept: setting this version's leaves them as they are. */
+export function laterQuestionsOf(c: BedConditions | undefined): BedConditions {
+  return Object.fromEntries(Object.entries(c ?? {}).filter(([k]) => !ASKED.has(k)));
+}
+/** A question's name as a later version might add one: a word, no markup, nothing an object has of its own. */
+const laterQuestion = (k: string): boolean => /^[a-z][A-Za-z0-9]{0,30}$/.test(k) && !(k in Object.prototype);
+/** How many questions a later version may add that are kept (more than a bed could be asked: anything past is noise). */
+const MAX_LATER_QUESTIONS = 12;
+/**
+ * A bed's conditions (src/types.ts BedConditions) as they're kept: each part checked on its own, the rest kept.
+ * - A word this version doesn't ask is kept as it came (one a later version adds, as a utility's kind is).
+ * - A question this version doesn't know (one a later version adds) is kept as it came when its answer is a word or
+ *   true: dropped here, it would be lost for everyone when this device next sent the plan (the review, Nov 4).
+ * - A part that isn't one is dropped: not a word, a sun without both its ends, `drip` other than true.
+ * - `{}`, cleared on purpose, is kept: sync doesn't fill it back (src/sync/engine.ts withBedConditions).
+ * Undefined, none: not an object; or one with parts, none of which could be kept. That's read as none, not as cleared
+ * on purpose, so sync may still fill it back from a device that has it.
+ */
+export function sanitizeBedConditions(raw: unknown): BedConditions | undefined {
+  if (!plainObject(raw)) return undefined;
+  const out: BedConditions = {};
+  const sun = raw.sun;
+  if (conditionWord(sun)) out.sun = sun;
+  else if (plainObject(sun) && conditionWord(sun.most) && conditionWord(sun.least)) out.sun = { most: sun.most, least: sun.least };
+  if (conditionWord(raw.soil)) out.soil = raw.soil;
+  if (conditionWord(raw.moisture)) out.moisture = raw.moisture;
+  if (raw.drip === true) out.drip = true;
+  let later = 0;
+  for (const [k, v] of Object.entries(raw)) {
+    if (ASKED.has(k) || !laterQuestion(k) || !(conditionWord(v) || v === true)) continue;
+    if (++later > MAX_LATER_QUESTIONS) break;
+    out[k] = v;
+  }
+  const hadParts = Object.values(raw).some((v) => v !== undefined);
+  return Object.keys(out).length || !hadParts ? out : undefined;
+}
+
 /** Fill defaults and drop anything that would break rendering. Returns null for unusable input. */
 export function migrateShape(raw: unknown): Shape | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -163,6 +206,11 @@ export function migrateShape(raw: unknown): Shape | null {
     // Shapes placed from the plant picker are plants; others stay unassigned until tagged.
     ...(isRole(s.role) ? { role: s.role } : typeof s.plantId === 'string' ? { role: 'plant' as const } : {}),
     ...(s.carryPlants === false ? { carryPlants: false } : {}),
+    // (A bed's conditions, as answered (Nov 2): on a bed only, left out of anything else. Older plans have none, and
+    // versions before it drop it. {} is cleared on purpose: kept, so sync doesn't fill it back from this device's copy
+    // (src/sync/engine.ts withBedConditions), which it does when the server's has none, an older version having
+    // dropped it.)
+    ...(s.role === 'bed' && sanitizeBedConditions(s.conditions) ? { conditions: sanitizeBedConditions(s.conditions)! } : {}),
     ...(sanitizeSun(s.sun) ? { sun: sanitizeSun(s.sun)! } : {}),
     ...(typeof s.sunDismissed === 'string' && s.sunDismissed ? { sunDismissed: s.sunDismissed.slice(0, 300) } : {}),
     ...(typeof s.hardyDismissed === 'string' && s.hardyDismissed ? { hardyDismissed: s.hardyDismissed.slice(0, 300) } : {}),
@@ -227,7 +275,11 @@ export function migrateShape(raw: unknown): Shape | null {
     }
     case 'rect':
     case 'oval':
-      return { ...base, type: s.type, width: size(s.width, 4), height: size(s.height, 3), rotation: num(s.rotation, 0), ...featured };
+      return {
+        ...base, type: s.type, width: size(s.width, 4), height: size(s.height, 3), rotation: num(s.rotation, 0), ...featured,
+        // (Sides typed as numbers, Nov 4: a rectangle's only; older shapes have none, and versions before it drop them.)
+        ...(s.type === 'rect' && sanitizeMeasured(s.measured, 4) ? { measured: sanitizeMeasured(s.measured, 4)! } : {}),
+      };
     case 'triangle': {
       const ra = s.rightAngle;
       return {
@@ -245,12 +297,17 @@ export function migrateShape(raw: unknown): Shape | null {
         }
       }
       if (pts.length < MIN_POINTS[s.type]) return null;
+      // (Sides typed as numbers, Nov 4, by their place in the points: only while every point came through, so a point
+      // dropped here, or one past the most kept, can't put a number on another side. Older shapes have none.)
+      const whole = Array.isArray(s.points) && pts.length === s.points.length;
+      const measured = whole ? sanitizeMeasured(s.measured, sideCount({ type: s.type, points: pts })) : undefined;
       const shape = {
         ...base, type: s.type, points: [], rotation: num(s.rotation, 0),
         ...(s.type === 'line' && s.showLength === true ? { showLength: true } : {}),
         // Paths: a width in feet (a quarter foot to 50 ft); anything else draws as a thin line.
         ...(s.type === 'line' && typeof s.pathWidth === 'number' && s.pathWidth >= 0.25 && s.pathWidth <= 50 ? { pathWidth: s.pathWidth } : {}),
         ...featured,
+        ...(measured ? { measured } : {}),
       } as PathShape;
       setWorldPoints(shape, pts); // re-normalize, whatever the file said
       return shape;
@@ -276,6 +333,9 @@ export function migrateBgImage(raw: Partial<BgImage>): BgImage {
     ...(raw.deviceOnly === true ? { deviceOnly: true } : {}),
     // (Not to scale yet; older photos have no word on it, and are taken as calibrated.)
     ...(raw.uncalibrated === true ? { uncalibrated: true as const } : {}),
+    // (Its scale set from a rough guess, Nov 4; older photos have none. Never with "not to scale yet": a scale not set
+    // isn't rough, and that one says more.)
+    ...(raw.roughScale === true && raw.uncalibrated !== true ? { roughScale: true as const } : {}),
   };
 }
 const isFingerprint = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{64}$/.test(v);
@@ -291,8 +351,8 @@ export function sanitizePhotoRef(raw: unknown): PhotoRef | null {
 /** How a background photo is synced: its fingerprint and placement (`fingerprint` known), or kept here. */
 export function photoRefOf(bg: BgImage, fingerprint: string): PhotoRef {
   if (bg.deviceOnly) return { deviceOnly: true };
-  const { naturalWidth, naturalHeight, ftPerPx, cx, cy, rotation, opacity, visible, uncalibrated } = migrateBgImage(bg);
-  return { fingerprint, naturalWidth, naturalHeight, ftPerPx, cx, cy, rotation, opacity, visible, ...(uncalibrated ? { uncalibrated } : {}) };
+  const { naturalWidth, naturalHeight, ftPerPx, cx, cy, rotation, opacity, visible, uncalibrated, roughScale } = migrateBgImage(bg);
+  return { fingerprint, naturalWidth, naturalHeight, ftPerPx, cx, cy, rotation, opacity, visible, ...(uncalibrated ? { uncalibrated } : {}), ...(roughScale ? { roughScale } : {}) };
 }
 const MINUTES_PER_DAY = 24 * 60;
 /** Validate observed-sun data; null if unusable. */
@@ -689,7 +749,11 @@ function contentKey(d: ProjectData, bg: Partial<BgImage> | StoredBg | null | und
     const { dataUrl: _d, fingerprint: _f, ...placed } = migrateBgImage({ ...(bg as Partial<BgImage>), dataUrl: '' });
     photo = { ...placed, imageId: bg.imageId ?? null };
   }
-  return canonical({ ...syncedContent(d), photo, photoElsewhere: d.photoElsewhere ?? null });
+  // (A bed's conditions cleared on purpose, {}, and a fruit warning shown again, '', read as none: as the sync
+  // fingerprints have them. Otherwise a journal differing only by one was kept apart as a copy: the review, Nov 4.)
+  const synced = syncedContent(d);
+  const shapes = withoutClearedMarks(synced.shapes);
+  return canonical({ ...synced, ...(shapes ? { shapes } : {}), photo, photoElsewhere: d.photoElsewhere ?? null });
 }
 /** What a journal's plan is kept as when it isn't put over its plan: "<name> (from an older tab)", a second "(2)", and so on. */
 const OLDER_TAB_SUFFIX = ' (from an older tab)';
@@ -1011,7 +1075,7 @@ export async function renameProject(id: string, name: string) {
  * Plant list's ticks, who's in the yard and the warning switches too, and `parts`, those
  * three as the server had them (both absent from before them).
  */
-export interface SyncRecord { revision: number; hash: string; photo?: string; held?: 'room' | 'refused'; core?: string; parts?: Record<string, unknown> }
+export interface SyncRecord { revision: number; hash: string; photo?: string; held?: 'room' | 'refused'; core?: string; parts?: Record<string, unknown>; marks?: { conditions?: string[]; fruit?: string[] } }
 let syncRecords: Record<string, SyncRecord> = {};
 /** Synced projects deleted here, still to be moved to the server's trash: id → revision. */
 let syncTombstones: Record<string, number> = {};
@@ -1138,9 +1202,12 @@ export async function replaceProjectContent(
   // (When only the ticks, the yard or the warning switches came, the plan keeps when it was last modified: what another
   // device carried over when plans got their own mustn't make every plan here "modified just now", and re-sort the list,
   // the day the first device updates. The review of the storage change, Nov 1.)
+  // (Sides typed as numbers, which the fingerprints leave out, Nov 4, count here: a download that brings them is a change
+  // to the plan, so an older tab's unsaved edit from before it is kept apart, not put over it. The review's J1. The
+  // photo's rough scale is in samePhoto's placement already.)
   const newName = name.trim() || 'Untitled';
   const onlyParts = newName === meta.name && coreHash('', syncedContent(base) as unknown as Record<string, unknown>) === coreHash('', syncedContent(data) as unknown as Record<string, unknown>)
-    && samePhoto(base, data);
+    && sameTypedSides(base.shapes, data.shapes) && samePhoto(base, data);
   const metaNext = { ...meta, name: newName, lastModified: onlyParts ? meta.lastModified : now(), shapeCount: data.shapes.length };
   bumpChange(id);
   // The write is queued before any later save's (and any read by a switch to this project), so they see it.
@@ -1175,6 +1242,14 @@ export async function replaceProjectContent(
     throw e;
   }
   return true;
+}
+/** Whether two versions of a plan have the same sides typed as numbers, shape by shape (each list in side order). */
+function sameTypedSides(a: Shape[], b: Shape[]): boolean {
+  const typed = (shapes: Shape[]) => canonical(shapes.flatMap((s) => {
+    const m = (s as { measured?: MeasuredSide[] }).measured;
+    return m?.length ? [[s.id, [...m].sort((x, y) => x.side - y.side)]] : [];
+  }));
+  return typed(a) === typed(b);
 }
 /** Whether two versions of a plan show the same photo, placed the same (its bytes and placement; not storage details). */
 function samePhoto(a: ProjectData, b: ProjectData): boolean {
@@ -1218,7 +1293,10 @@ export function placePhoto(base: ProjectData, baseFp: string | null, ref: PhotoR
   if ('deviceOnly' in ref) return base.bgImage?.deviceOnly ? { bgImage: base.bgImage, photoElsewhere: null } : { bgImage: null, photoElsewhere: ref };
   const { fingerprint, ...placed } = ref;
   if (base.bgImage && baseFp === fingerprint) {
-    const { deviceOnly: _o, ...bg } = base.bgImage;
+    // (How it sits is the incoming one's, whole: its "not to scale yet" and its rough scale too, where it says neither.
+    // Kept from here, a scale set on another device stayed "not to scale yet" here, and went back up so with this
+    // device's next edit, for every device: found Nov 4, with the rough scale, which would have done the same.)
+    const { deviceOnly: _o, uncalibrated: _u, roughScale: _r, ...bg } = base.bgImage;
     return { bgImage: { ...bg, ...placed, fingerprint }, photoElsewhere: null };
   }
   if (bytes) return { bgImage: migrateBgImage({ ...placed, dataUrl: bytes, imageId: uid(), fingerprint }), photoElsewhere: null };
@@ -1571,11 +1649,19 @@ function sanitizeSyncRecords(raw: unknown): Record<string, SyncRecord> {
         if (typeof r.photo === 'string' && /^(none|kept|[0-9a-f]{64}@[0-9a-z]+:[0-9a-z]+)$/.test(r.photo)) out[k].photo = r.photo;
         if (r.held === 'room' || r.held === 'refused') out[k].held = r.held;
         else if ((r.held as unknown) === true) out[k].held = 'room'; // (an early test build stored true)
+        // (Where a mark of something taken away may go, src/marks.ts: shape ids, plain words, as many as a plan has.)
+        const ids = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && /^[\w:.-]{1,120}$/.test(x)).slice(0, 20000) : []);
+        const marks = r.marks && typeof r.marks === 'object' ? { conditions: ids(r.marks.conditions), fruit: ids(r.marks.fruit) } : null;
+        if (marks && (marks.conditions.length || marks.fruit.length)) {
+          out[k].marks = { ...(marks.conditions.length ? { conditions: marks.conditions } : {}), ...(marks.fruit.length ? { fruit: marks.fruit } : {}) };
+        }
       }
     }
   }
   return out;
 }
+/** Test hook: the sync records as they'd be kept (in memory only). */
+export function _setSyncRecordsForTests(records: Record<string, SyncRecord>) { syncRecords = { ...records }; }
 /** Test hook: forget module state between tests. */
 export function _resetStorageForTests() {
   kv = null; clipboardCache = null; storedImageKeys = new Set(); committedImageKeys = new Set(); cleared.clear();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { helpAnswers, TOUR_LINE, type HelpDevice, type HelpId } from '../src/help';
+import { GUIDED_START_LINE, helpAnswers, type HelpDevice, type HelpId } from '../src/help';
 
 // Help's "How do I…" answers (src/help.ts), worded for the device: Jason, Nov 2, from the UI review.
 
@@ -9,10 +9,10 @@ const MAC: HelpDevice = { ...PC, mac: true };
 const said = (d: HelpDevice, id: HelpId) => helpAnswers(d).find((a) => a.id === id)!.lines.join(' ');
 
 describe('Help: "How do I…"', () => {
-  it('asks the seven questions, in order, each answered in two or three lines', () => {
+  it('asks the eight questions, in order, each answered in two or three lines', () => {
     for (const d of [PHONE, PC, MAC, { ...PHONE, roomy: false, signIn: false, shareFiles: false }]) {
       const list = helpAnswers(d);
-      expect(list.map((a) => a.id)).toEqual(['print', 'list', 'backup', 'undo', 'own-plant', 'location', 'protect']);
+      expect(list.map((a) => a.id)).toEqual(['print', 'list', 'backup', 'undo', 'own-plant', 'location', 'protect', 'install']); // (install: Nov 4)
       for (const a of list) {
         expect(a.lines.length).toBeGreaterThanOrEqual(2);
         expect(a.lines.length).toBeLessThanOrEqual(3);
@@ -21,7 +21,7 @@ describe('Help: "How do I…"', () => {
   });
   it('never says tap or click, on a phone or a computer, and spells it the American way', () => {
     for (const d of [PHONE, PC, MAC]) {
-      const words = [TOUR_LINE, ...helpAnswers(d).flatMap((a) => [a.q, ...a.lines])].join(' ');
+      const words = [GUIDED_START_LINE, ...helpAnswers(d).flatMap((a) => [a.q, ...a.lines])].join(' ');
       expect(words).not.toMatch(/\b(tap|click)/i);
       expect(words).not.toMatch(/colour|grey|favour|organis|recognis|centre/i);
     }

@@ -6,6 +6,7 @@ import { state } from '../state';
 import { isLocked } from '../roles';
 import type { Shape, SubFeature } from '../types';
 import { render } from './render';
+import { inSentence } from '../names';
 
 // The properties' section for what sits on a shape's edges (src/features.ts): each listed, its width typed in place,
 // taken off with ✕; and buttons to add more, tapped onto the plan.
@@ -28,7 +29,7 @@ export function featuresSummary(s: Shape): string {
   if (!fs.length) return 'None yet';
   const counts = new Map<SubFeature['kind'], number>();
   for (const f of fs) counts.set(f.kind, (counts.get(f.kind) ?? 0) + 1);
-  const text = [...counts].map(([k, n]) => (n === 1 ? SUB_FEATURES[k].label.replace(/^(?!AC)(\w)/, (c) => c.toLowerCase()) : `${n} ${PLURAL[k]}`)).join(', ');
+  const text = [...counts].map(([k, n]) => (n === 1 ? inSentence(SUB_FEATURES[k].label) : `${n} ${PLURAL[k]}`)).join(', ');
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
@@ -38,7 +39,7 @@ export function featuresSummary(s: Shape): string {
  * `<prefix>-hinge`, `<prefix>-swing`).
  */
 export function flipButtons(f: SubFeature, prefix: string, onFlip: (which: 'hinge' | 'swing') => void): [HTMLButtonElement, HTMLButtonElement] {
-  const what = SUB_FEATURES[f.kind].label.toLowerCase();
+  const what = inSentence(SUB_FEATURES[f.kind].label);
   const hinge = el('button', { className: 'iconbtn feature-flip', 'aria-label': `Hinge the ${what} at its other end`, title: 'Hinge at the other end', 'data-testid': `${prefix}-hinge` }, '⇄') as HTMLButtonElement;
   hinge.addEventListener('click', () => onFlip('hinge'));
   const now = f.swing === 'in' ? 'in' : 'out', other = f.swing === 'in' ? 'out' : 'in';
@@ -91,7 +92,7 @@ export function featuresSection(s: Shape): HTMLElement {
       hinge.disabled = swing.disabled = locked;
       flips.append(hinge, swing);
     }
-    const del = el('button', { className: 'iconbtn feature-del', 'aria-label': `Take off ${info.label.toLowerCase()}`, title: 'Take it off', 'data-testid': 'feature-delete' }, '✕');
+    const del = el('button', { className: 'iconbtn feature-del', 'aria-label': `Take off ${inSentence(info.label)}`, title: 'Take it off', 'data-testid': 'feature-delete' }, '✕');
     del.disabled = locked;
     del.addEventListener('click', () => updateSelected({ features: current().filter((x) => x.id !== f.id) }));
     row.appendChild(del);

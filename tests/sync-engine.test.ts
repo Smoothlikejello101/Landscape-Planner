@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { canonical, coreHash, fingerprint, planHash, planOf, settleBought, settleHousehold, settleSwitches, syncOnce, withLocalParts, type Local, type LocalProject, type ProjectContent, type Remote, type SyncRecord } from '../src/sync/engine';
+import { canonical, coreHash, fingerprint, photoKey, planHash, planOf, settleBought, settleHousehold, settleSwitches, syncOnce, withLocalParts, type Local, type LocalProject, type ProjectContent, type Remote, type SyncRecord } from '../src/sync/engine';
 import { FakeServer } from './fake-sync-server';
 import { keepBought, plantList } from '../src/plant-list';
 import type { PlanBought, Shape } from '../src/types';
-import { migrateShape } from '../src/storage';
+import { migrateShape, sanitizePhotoRef } from '../src/storage';
 import { releaseMigrateShape } from './fixtures/release-migrate-shape';
+import { releaseSanitizePhotoRef } from './fixtures/release-photo';
 
 // The sync engine against a stand-in server (the same rules as
 // supabase/02-sync.sql) and stand-in devices: two devices editing offline,
@@ -1284,5 +1285,483 @@ describe("a field the release doesn't know, through a device or a tab on the rel
     expect(tab.open!.content.shapes as Shape[]).toEqual(as(migrateShape, plan({ fruitDismissed: said }, 4)));
     expect(onServer(server, id)[0].fruitDismissed).toBe(said);
     expect(tab.names()).toEqual(['Back Yard']);
+  });
+});
+
+// A bed's conditions (Plant this bed, Nov 2): a field an older version doesn't know, as fruitDismissed was. Each device
+// reads shapes as its version's migrateShape does: this version's, or the release's (tests/fixtures/release-migrate-
+// shape.ts), which leaves the field out as a version-3 device's does. A device on an older version sends plans without
+// it, even over newer answers; a device of this version keeps its own then (src/sync/engine.ts withBedConditions), {}
+// (cleared on purpose) included, and never over what the server has. Nothing else is lost; nothing goes round and round.
+describe("a bed's conditions through a device or a tab on an older version (conditions, Nov 2)", () => {
+  const ALL = { sun: { most: 'Full', least: 'Part' }, soil: 'clay', moisture: 'average', drip: true };
+  const SAND = { soil: 'sand', moisture: 'dry' };
+  const bed = (id: string, x: number, extra: object = {}) => ({ id, type: 'rect', x, y: -5, width: 20, height: 10, rotation: 0, color: '#a16207', label: 'Front bed', opacity: 0.4, locked: false, role: 'bed', ...extra });
+  const aster = (x: number) => ({ id: 'a1', type: 'circle', x, y: 0, radius: 1, color: '#7c3aed', label: 'Aromatic aster', opacity: 0.65, locked: false, role: 'plant', plantId: 'symphyotrichum-oblongifolium' });
+  /** The plan: the front bed (its conditions `c`, if any; moved to `bedX`), a back bed, and an aster at `ax`. */
+  const plan = (c?: object, bedX = 0, ax = 2) => [bed('b1', bedX, c === undefined ? {} : { conditions: c }), bed('b2', 40, { label: 'Back bed' }), aster(ax)];
+  /** A device, or a tab, whose app reads shapes as `migrate` does; `sharing`: a tab on the same device (the same storage, its own records). */
+  class VersionDevice extends FakeDevice {
+    constructor(name: string, readonly migrate: (raw: unknown) => Shape | null, sharing?: FakeDevice) {
+      super(name);
+      if (sharing) this.projectsById = sharing.projectsById;
+    }
+    normalize(name: string, content: ProjectContent) {
+      const n = super.normalize(name, content);
+      return Array.isArray(n.content.shapes) ? { ...n, content: { ...n.content, shapes: n.content.shapes.map((x) => this.migrate(x)).filter((x) => x !== null) } } : n;
+    }
+    async projects() { return (await super.projects()).map((p) => ({ ...p, content: this.normalize(p.name, p.content).content })); }
+  }
+  /** A tab of this version with a plan open: sync reads that plan from the tab's memory (src/storage.ts projectNow). */
+  class OpenTab extends VersionDevice {
+    open: LocalProject | null = null;
+    openPlan(id: string) { this.open = structuredClone(this.projectsById.get(id)!); }
+    edit(id: string, shapes: unknown[]) { super.edit(id, shapes); if (this.open?.id === id) this.open = structuredClone(this.projectsById.get(id)!); }
+    async projects() { return (await super.projects()).map((p) => (p.id === this.open?.id ? { ...p, content: this.normalize(p.name, this.open.content).content } : p)); }
+    async replace(id: string, name: string, content: ProjectContent, token: number, bytes?: string) {
+      const ok = await super.replace(id, name, content, token, bytes);
+      if (ok && this.open?.id === id) this.open = structuredClone(this.projectsById.get(id)!);
+      return ok;
+    }
+  }
+  const shapesOf = (d: FakeDevice, id: string) => d.projectsById.get(id)!.content.shapes as Shape[];
+  const onServer = (server: FakeServer, id: string) => server.rows.get(id)!.content.shapes as Shape[];
+  const front = (shapes: Shape[]) => shapes.find((s) => s.id === 'b1')!;
+  async function still(server: FakeServer, ...devices: FakeDevice[]) {
+    for (let i = 0; i < 3; i++) {
+      for (const d of devices) expect(await sync(d, server)).toMatchObject({ uploaded: 0, downloaded: 0, conflicts: [], restored: [], removed: [] });
+    }
+  }
+  const as = (migrate: (raw: unknown) => Shape | null, shapes: object[]) => shapes.map((x) => migrate(x));
+  const older = () => new VersionDevice('laptop', releaseMigrateShape);
+
+  it("kept from here only for the same bed (its id, a bed there too), when the server's copy has none at all; one there, {} or answers, stands", () => {
+    const mine = { shapes: [bed('b1', 0, { conditions: ALL }), bed('b2', 40, { conditions: {} }), aster(2)] };
+    const there = (b1: object, b2: object) => ({ shapes: [bed('b1', 4, b1), bed('b2', 40, b2), aster(2)] });
+    const filled = withLocalParts(there({}, {}), mine);
+    expect(filled).toEqual(there({ conditions: ALL }, { conditions: {} }));
+    // (Its own copy: nothing shared with this device's plan.)
+    ((filled.shapes as Shape[])[0].conditions as { soil: string }).soil = 'loam';
+    expect((mine.shapes[0] as { conditions?: unknown }).conditions).toEqual(ALL);
+    // Some there ({} or answers): left as the server has them.
+    expect(withLocalParts(there({ conditions: SAND }, { conditions: ALL }), mine)).toEqual(there({ conditions: SAND }, { conditions: ALL }));
+    expect(withLocalParts(there({ conditions: {} }, {}), mine)).toEqual(there({ conditions: {} }, { conditions: {} }));
+    // Made something else there: not a bed, nothing filled in.
+    expect(withLocalParts(there({ role: 'lawn' }, { role: undefined }), mine)).toEqual(there({ role: 'lawn' }, { role: undefined }));
+    // Nothing here to keep: as the server has it (the same object).
+    const plain = there({}, {});
+    expect(withLocalParts(plain, { shapes: [bed('b1', 0), aster(2)] })).toBe(plain);
+  });
+
+  it("fingerprinted, {} reads as none: a plan without it as before, to the character; answers to {} a change, as answers to none", () => {
+    const old = (name: string, c: ProjectContent) => fingerprint(name, planOf(c)); // (planHash for a plan with neither '' nor {})
+    const withParts = (c?: object) => ({ shapes: plan(c), household: { kids: true }, photo: null });
+    for (const c of [withParts(), withParts(ALL), withParts(SAND), { shapes: [] }, { shapes: [1, 2] }, {}]) {
+      expect(planHash('Back Yard', c)).toBe(old('Back Yard', c));
+      const { household: _h, ...core } = planOf(c);
+      expect(coreHash('Back Yard', c)).toBe(fingerprint('Back Yard', core));
+    }
+    const h = (c?: object) => [planHash('X', withParts(c)), coreHash('X', withParts(c))];
+    expect(h({})).toEqual(h());
+    expect(h(ALL)).not.toEqual(h({}));
+    expect(h(ALL)[0]).not.toBe(h()[0]);
+    expect(h(ALL)[0]).not.toBe(h(SAND)[0]);
+    expect(h({ sun: 'unsure' })[0]).not.toBe(h({})[0]); // (Not sure is an answer)
+    // With a fruit-partner warning shown again ('') too: both read as none.
+    const both = { shapes: [...plan({}), { ...aster(9), id: 'a2', fruitDismissed: '' }] }, neither = { shapes: [...plan(), { ...aster(9), id: 'a2' }] };
+    expect([planHash('X', both), coreHash('X', both)]).toEqual([planHash('X', neither), coreHash('X', neither)]);
+    // (Only what's hashed: the shape itself keeps its {}, and goes up with it.)
+    const c = withParts({});
+    planHash('X', c);
+    expect((c.shapes[0] as { conditions?: object }).conditions).toEqual({});
+  });
+
+  it("each record says which beds had them on the server, as this device last sent or took the plan: where a {} may go here (src/marks.ts)", async () => {
+    const server = new FakeServer(), phone = new VersionDevice('phone', migrateShape), laptop = older(), tablet = new VersionDevice('tablet', migrateShape);
+    const id = phone.add('Back Yard', plan());
+    await sync(phone, server); await sync(laptop, server);
+    expect(phone.recs[id].marks).toBeUndefined();
+    phone.edit(id, [...plan(ALL), { ...aster(9), id: 'a2', fruitDismissed: '' }]);
+    await sync(phone, server);
+    expect(phone.recs[id].marks).toEqual({ conditions: ['b1'], fruit: ['a2'] }); // (sent: the server has them)
+    // The laptop's edit goes up without them; the phone takes it and keeps its own answers, but its record says the
+    // server's copy has none: a clear there leaves none, never a {} over answers it can't know another device has.
+    await sync(laptop, server);
+    laptop.edit(id, as(releaseMigrateShape, [...plan(undefined, 4), { ...aster(9), id: 'a2' }]));
+    await sync(laptop, server);
+    expect(onServer(server, id).map((x) => [x.id, 'conditions' in x, 'fruitDismissed' in x])).toEqual([['b1', false, false], ['b2', false, false], ['a1', false, false], ['a2', false, false]]);
+    expect(await sync(phone, server)).toMatchObject({ downloaded: 1, conflicts: [] });
+    expect(front(shapesOf(phone, id)).conditions).toEqual(ALL);
+    expect(phone.recs[id].marks).toBeUndefined();
+    // A device signing in takes the server's copy: none.
+    await sync(tablet, server);
+    expect(tablet.recs[id].marks).toBeUndefined();
+    // The phone's next edit sends them again (and its own '' too): marked again.
+    phone.edit(id, [...plan(ALL, 4, 6), { ...aster(9), id: 'a2', fruitDismissed: '' }]);
+    await sync(phone, server);
+    expect(phone.recs[id].marks).toEqual({ conditions: ['b1'], fruit: ['a2'] });
+    // A download of a copy with them: marked on the taking device too.
+    await sync(tablet, server);
+    expect(tablet.recs[id].marks).toEqual({ conditions: ['b1'], fruit: ['a2'] });
+  });
+
+  it('another device on an older version never sends anything for them alone; its own edit goes up without them, and the device that set them keeps them, and sends them again', async () => {
+    const server = new FakeServer(), phone = new VersionDevice('phone', migrateShape), laptop = older();
+    const id = phone.add('Back Yard', plan());
+    await sync(phone, server); await sync(laptop, server);
+    phone.edit(id, plan(ALL));
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 1 });
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 0, downloaded: 1 });
+    expect(shapesOf(laptop, id)).toEqual(as(releaseMigrateShape, plan()));
+    await still(server, laptop, phone);
+    expect(front(onServer(server, id)).conditions).toEqual(ALL); // (the laptop sent nothing back without them)
+    // The laptop moves the bed: its plan goes up without the field. The phone takes the bed moved and keeps its answers.
+    laptop.edit(id, as(releaseMigrateShape, plan(undefined, 4)));
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 1 });
+    expect(front(onServer(server, id))).not.toHaveProperty('conditions');
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 0, downloaded: 1, conflicts: [] });
+    expect(shapesOf(phone, id)).toEqual(as(migrateShape, plan(ALL, 4)));
+    await still(server, phone, laptop);
+    // The phone's next edit sends them again; the laptop takes the edit, as it reads it.
+    phone.edit(id, plan(ALL, 4, 6));
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 1 });
+    expect(front(onServer(server, id)).conditions).toEqual(ALL);
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 0, downloaded: 1 });
+    expect(shapesOf(laptop, id)).toEqual(as(releaseMigrateShape, plan(undefined, 4, 6)));
+    await still(server, phone, laptop);
+    expect([phone.names(), laptop.names()]).toEqual([['Back Yard'], ['Back Yard']]);
+  });
+
+  it('an older version, with an edit of its own not yet synced, sends it over newer answers: each device of this version that had them keeps them; cleared on one ({}), that goes everywhere, never filled back', async () => {
+    const server = new FakeServer(), phone = new VersionDevice('phone', migrateShape), tablet = new VersionDevice('tablet', migrateShape), laptop = older();
+    const id = phone.add('Back Yard', plan());
+    await sync(phone, server); await sync(tablet, server); await sync(laptop, server);
+    laptop.edit(id, as(releaseMigrateShape, plan(undefined, 4))); // (offline: the bed moved)
+    phone.edit(id, plan(ALL));
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 1 });
+    expect(await sync(tablet, server)).toMatchObject({ downloaded: 1 });
+    // The older merge can't see a change on the server (only the field), so it's taken as changed here only: up over it.
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 1, conflicts: [] });
+    expect(front(onServer(server, id))).not.toHaveProperty('conditions');
+    for (const d of [phone, tablet]) {
+      expect(await sync(d, server)).toMatchObject({ uploaded: 0, downloaded: 1, conflicts: [] });
+      expect(shapesOf(d, id)).toEqual(as(migrateShape, plan(ALL, 4)));
+    }
+    await still(server, phone, tablet, laptop);
+    // Cleared on the tablet ({}, on purpose): that goes everywhere, and isn't filled back from the phone's copy.
+    tablet.edit(id, plan({}, 4));
+    expect(await sync(tablet, server)).toMatchObject({ uploaded: 1 });
+    expect(front(onServer(server, id)).conditions).toEqual({});
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 0, downloaded: 1 });
+    expect(front(shapesOf(phone, id)).conditions).toEqual({});
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 0, downloaded: 1 }); // (the tablet's revision, as it reads it)
+    await still(server, phone, tablet, laptop);
+    expect([phone.names(), tablet.names(), laptop.names()]).toEqual([['Back Yard'], ['Back Yard'], ['Back Yard']]);
+  });
+
+  it('set and taken back by Undo ({}) before the plan synced, while another device edited it: no conflict copy, the edit taken; set and synced, then cleared: that goes up', async () => {
+    const server = new FakeServer(), phone = new VersionDevice('phone', migrateShape), tablet = new VersionDevice('tablet', migrateShape);
+    const id = phone.add('Back Yard', plan());
+    await sync(phone, server); await sync(tablet, server);
+    phone.edit(id, plan(ALL)); // (set)
+    phone.edit(id, plan({})); // (Undo, before its sync: src/history.ts conditionsCleared)
+    tablet.edit(id, plan(undefined, 4));
+    expect(await sync(tablet, server)).toMatchObject({ uploaded: 1 });
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 0, downloaded: 1, conflicts: [] });
+    expect(phone.names()).toEqual(['Back Yard']);
+    expect(shapesOf(phone, id)).toEqual(as(migrateShape, plan({}, 4)));
+    await still(server, phone, tablet);
+    phone.edit(id, plan(ALL, 4));
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 1 });
+    phone.edit(id, plan({}, 4));
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 1 });
+    expect(front(onServer(server, id)).conditions).toEqual({});
+    expect(await sync(tablet, server)).toMatchObject({ downloaded: 1 });
+    expect(front(shapesOf(tablet, id)).conditions).toEqual({});
+    await still(server, phone, tablet);
+  });
+
+  it('the window left (docs/storage.md): a device offline through another\'s change (cleared, or other answers), with an older device sending the plan between, keeps its own; whichever sends the plan first decides', async () => {
+    for (const change of [{}, SAND]) {
+      for (const first of ['tablet', 'phone'] as const) {
+        const server = new FakeServer(), phone = new VersionDevice('phone', migrateShape), tablet = new VersionDevice('tablet', migrateShape), laptop = older();
+        const id = phone.add('Back Yard', plan(ALL));
+        await sync(phone, server); await sync(tablet, server); await sync(laptop, server);
+        // The phone goes offline. The tablet changes them; the laptop (older) takes that and sends an edit, without them.
+        tablet.edit(id, plan(change));
+        await sync(tablet, server);
+        await sync(laptop, server);
+        laptop.edit(id, as(releaseMigrateShape, plan(undefined, 4)));
+        await sync(laptop, server);
+        expect(front(onServer(server, id))).not.toHaveProperty('conditions');
+        // The tablet takes the edit and keeps its change.
+        expect(await sync(tablet, server)).toMatchObject({ uploaded: 0, downloaded: 1 });
+        expect(front(shapesOf(tablet, id)).conditions).toEqual(change);
+        // The phone, back, has its own, which the server's copy no longer contradicts: kept.
+        expect(await sync(phone, server)).toMatchObject({ uploaded: 0, downloaded: 1, conflicts: [] });
+        expect(front(shapesOf(phone, id)).conditions).toEqual(ALL);
+        // Whichever sends the plan first, with an edit, decides for everyone.
+        const [a, b] = first === 'tablet' ? [tablet, phone] : [phone, tablet];
+        a.edit(id, plan(first === 'tablet' ? change : ALL, 4, 6));
+        expect(await sync(a, server)).toMatchObject({ uploaded: 1 });
+        expect(await sync(b, server)).toMatchObject({ downloaded: 1, conflicts: [] });
+        const won = first === 'tablet' ? change : ALL;
+        expect([front(shapesOf(phone, id)).conditions, front(shapesOf(tablet, id)).conditions], `${JSON.stringify(change)}, ${first} first`).toEqual([won, won]);
+        await sync(laptop, server);
+        await still(server, phone, tablet, laptop);
+      }
+    }
+  });
+
+  it("a device of this version that took the plan only after an older one sent it without them shows none until one that has them sends it again; answers set on it meanwhile go up and stand", async () => {
+    const server = new FakeServer(), phone = new VersionDevice('phone', migrateShape), tablet = new VersionDevice('tablet', migrateShape), laptop = older();
+    const id = phone.add('Back Yard', plan());
+    await sync(phone, server); await sync(laptop, server);
+    phone.edit(id, plan(ALL));
+    await sync(phone, server);
+    await sync(laptop, server);
+    laptop.edit(id, as(releaseMigrateShape, plan(undefined, 4)));
+    await sync(laptop, server);
+    // The tablet signs in now: the plan as the server has it, none.
+    expect(await sync(tablet, server)).toMatchObject({ downloaded: 1 });
+    expect(front(shapesOf(tablet, id))).not.toHaveProperty('conditions');
+    // Its edit to something else goes up without them; the phone keeps its own.
+    tablet.edit(id, plan(undefined, 4, 6));
+    expect(await sync(tablet, server)).toMatchObject({ uploaded: 1 });
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 0, downloaded: 1, conflicts: [] });
+    expect(front(shapesOf(phone, id)).conditions).toEqual(ALL);
+    // Answers set on the tablet: they go up, and stand on the phone.
+    tablet.edit(id, plan(SAND, 4, 6));
+    expect(await sync(tablet, server)).toMatchObject({ uploaded: 1 });
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 0, downloaded: 1, conflicts: [] });
+    expect(front(shapesOf(phone, id)).conditions).toEqual(SAND);
+    await sync(laptop, server);
+    await still(server, phone, tablet, laptop);
+  });
+
+  it("a tab on an older version sharing the device's storage, the plan not open in the new tab: the old tab writes it back without them, the new tab sends that once, and it settles (at database version 4 such a tab can't write the storage at all: src/db.ts)", async () => {
+    const server = new FakeServer(), tab = new VersionDevice('Windows PC', migrateShape), old = new VersionDevice('Windows PC', releaseMigrateShape, tab);
+    const id = tab.add('Back Yard', plan());
+    await sync(tab, server); await sync(old, server);
+    tab.edit(id, plan(ALL));
+    expect(await sync(tab, server)).toMatchObject({ uploaded: 1 });
+    expect(await sync(old, server)).toMatchObject({ uploaded: 0, downloaded: 1 });
+    expect(await sync(tab, server)).toMatchObject({ uploaded: 1, downloaded: 0 });
+    expect(await sync(old, server)).toMatchObject({ uploaded: 0, downloaded: 1 });
+    await still(server, old, tab);
+    expect(shapesOf(tab, id)).toEqual(as(releaseMigrateShape, plan()));
+    expect(onServer(server, id)).toEqual(as(releaseMigrateShape, plan()));
+    expect(tab.names()).toEqual(['Back Yard']);
+  });
+
+  it('a tab on an older version, the plan open in the new tab: the answers stay there, go up with its next edit, and no copy is made, whichever tab syncs first', async () => {
+    const server = new FakeServer(), tab = new OpenTab('Windows PC', migrateShape), old = new VersionDevice('Windows PC', releaseMigrateShape, tab);
+    const id = tab.add('Back Yard', plan());
+    tab.openPlan(id);
+    await sync(tab, server); await sync(old, server);
+    tab.edit(id, plan(ALL));
+    expect(await sync(tab, server)).toMatchObject({ uploaded: 1 });
+    expect(await sync(old, server)).toMatchObject({ uploaded: 0, downloaded: 1 });
+    expect(await sync(tab, server)).toMatchObject({ uploaded: 0, downloaded: 0 });
+    expect(tab.open!.content.shapes as Shape[]).toEqual(as(migrateShape, plan(ALL)));
+    // The new tab moves the bed (saved, the answers with it); the old tab's pass comes first and sends the bed moved
+    // without them. The new tab keeps them and sends them again: no copy.
+    tab.edit(id, plan(ALL, 4));
+    expect(await sync(old, server)).toMatchObject({ uploaded: 1 });
+    expect(await sync(tab, server)).toMatchObject({ uploaded: 1, conflicts: [] });
+    expect(onServer(server, id)).toEqual(as(migrateShape, plan(ALL, 4)));
+    expect(await sync(old, server)).toMatchObject({ uploaded: 0, downloaded: 1 });
+    await still(server, old, tab);
+    expect(tab.open!.content.shapes as Shape[]).toEqual(as(migrateShape, plan(ALL, 4)));
+    expect(tab.names()).toEqual(['Back Yard']);
+  });
+});
+
+describe("a photo's rough scale and the sides typed as numbers, through a device on an older version (Nov 4)", () => {
+  const FP = 'c'.repeat(64);
+  const M = [{ side: 0, ft: 30 }, { side: 2, ft: 30 }];
+  const FENCE_M = [{ side: 1, ft: 25 }];
+  const house = (x = 0, extra: object = {}) => ({ id: 'h1', type: 'rect', x, y: 0, width: 30, height: 20, rotation: 0, color: '#78716c', label: 'House', opacity: 0.8, locked: false, role: 'building', ...extra });
+  const fence = (points: number[][] = [[0, 0], [40, 0], [40, 25]], extra: object = {}) => ({ id: 'f1', type: 'line', x: 0, y: 30, points, rotation: 0, color: '#57534e', label: 'Fence', opacity: 1, locked: false, role: 'boundary', ...extra });
+  const oak = (x = 50) => ({ id: 'o1', type: 'circle', x, y: 10, radius: 8, color: '#166534', label: 'Old oak', opacity: 0.5, locked: false });
+  const photo = (extra: object = {}) => ({ fingerprint: FP, naturalWidth: 400, naturalHeight: 300, ftPerPx: 0.25, cx: 0, cy: 0, rotation: 0, opacity: 0.6, visible: true, ...extra });
+  /** A device whose app reads shapes and its photo as `migrate` and `photoRef` do (this version's, or the release's). */
+  class Device extends FakeDevice {
+    constructor(name: string, readonly migrate: (raw: unknown) => Shape | null, readonly photoRef: (raw: unknown) => unknown) { super(name, true); }
+    normalize(name: string, content: ProjectContent) {
+      const n = super.normalize(name, content);
+      const c = { ...n.content };
+      if (Array.isArray(c.shapes)) c.shapes = c.shapes.map((x) => this.migrate(x)).filter((x) => x !== null);
+      if ('photo' in c) c.photo = this.photoRef(c.photo);
+      return { ...n, content: c };
+    }
+    async projects() { return (await super.projects()).map((p) => ({ ...p, content: this.normalize(p.name, p.content).content })); }
+    /** A plan with its photo here (the bytes on this device), placed as `ph` says. */
+    addWithPhoto(name: string, shapes: unknown[], ph: object) {
+      const id = this.add(name, shapes);
+      const p = this.projectsById.get(id)!;
+      p.content = { ...p.content, photo: ph };
+      this.photos.set(id, FP);
+      return id;
+    }
+    /** How the photo sits changed here (moved, its scale set again). */
+    setPlacement(id: string, ph: object) { const p = this.projectsById.get(id)!; p.content = { ...p.content, photo: ph }; p.token++; }
+  }
+  const newer = (name: string) => new Device(name, migrateShape, sanitizePhotoRef);
+  const release = (name: string) => new Device(name, releaseMigrateShape, releaseSanitizePhotoRef);
+  const shapesOf = (d: FakeDevice, id: string) => d.projectsById.get(id)!.content.shapes as Shape[];
+  const photoOf = (d: FakeDevice, id: string) => d.projectsById.get(id)!.content.photo as Record<string, unknown>;
+  const onServer = (server: FakeServer, id: string) => server.rows.get(id)!.content as { shapes: Shape[]; photo: Record<string, unknown> };
+  const measuredOf = (shapes: Shape[]) => shapes.map((s) => (s as { measured?: unknown }).measured);
+  async function still(server: FakeServer, ...devices: FakeDevice[]) {
+    for (let i = 0; i < 3; i++) {
+      for (const d of devices) expect(await sync(d, server)).toMatchObject({ uploaded: 0, downloaded: 0, conflicts: [], restored: [], removed: [] });
+    }
+  }
+
+  it("kept from here where the server's copy says nothing of them: a shape exactly as it is here, side for side (moved or turned only); the same photo at the same scale", () => {
+    const mine = { shapes: [house(0, { measured: M }), fence(undefined, { measured: FENCE_M }), oak()], photo: photo({ roughScale: true }) };
+    // An older version's copy: neither field; the house moved and turned, the photo moved and made fainter.
+    const there = { shapes: [house(5, { rotation: 30 }), fence(), oak(52)], photo: photo({ cx: 3, opacity: 0.4 }) };
+    const filled = withLocalParts(there, mine);
+    expect(filled).toEqual({ shapes: [house(5, { rotation: 30, measured: M }), fence(undefined, { measured: FENCE_M }), oak(52)], photo: photo({ cx: 3, opacity: 0.4, roughScale: true }) });
+    ((filled.shapes as { measured: { ft: number }[] }[])[0].measured[0]).ft = 1; // (its own copy)
+    expect((mine.shapes[0] as unknown as { measured: { ft: number }[] }).measured[0].ft).toBe(30);
+    // Reshaped there in any way: nothing kept, so no number lands on a side another device changed.
+    const reshaped = { shapes: [house(0, { width: 31 }), fence([[0, 0], [40, 0], [40, 26]]), { ...house(0), type: 'poly', points: [[0, 0], [30, 0], [30, 20], [0, 20]] }] };
+    expect(withLocalParts(reshaped, { shapes: [house(0, { measured: M }), fence(undefined, { measured: FENCE_M }), { ...house(0), id: 'x' }] })).toEqual(reshaped);
+    expect(withLocalParts({ shapes: [{ ...house(0), type: 'poly', points: [[0, 0], [30, 0], [30, 20], [0, 20]] }] }, mine).shapes).toEqual([{ ...house(0), type: 'poly', points: [[0, 0], [30, 0], [30, 20], [0, 20]] }]);
+    // Some there: they stand, and the sides they don't name are kept from here (the house the same size).
+    expect((withLocalParts({ shapes: [house(0, { measured: [{ side: 1, ft: 20 }] })] }, mine).shapes as Shape[])[0]).toMatchObject({ measured: [{ side: 1, ft: 20 }, ...M] });
+    expect((withLocalParts({ shapes: [house(0, { measured: [{ side: 0, ft: 30.02 }, { side: 2, ft: 30.02 }] })] }, mine).shapes as Shape[])[0]).toMatchObject({ measured: [{ side: 0, ft: 30.02 }, { side: 2, ft: 30.02 }] });
+    // The photo: another scale there, "not to scale yet", rough already, another photo, kept elsewhere, none: as there.
+    for (const ph of [photo({ ftPerPx: 0.3 }), photo({ uncalibrated: true }), photo({ roughScale: true, cx: 9 }), photo({ fingerprint: 'd'.repeat(64) }), { deviceOnly: true }, null]) {
+      expect(withLocalParts({ shapes: [], photo: ph }, mine).photo, JSON.stringify(ph)).toEqual(ph);
+    }
+    // Nothing here to keep: as the server has it (the same object).
+    const plain = { shapes: [house(), fence()], photo: photo() };
+    expect(withLocalParts(plain, { shapes: [house(), fence()], photo: photo() })).toBe(plain);
+    // Fingerprinted as before: a plan without them, to the character. With them, the same: this version changes them
+    // only with the sides themselves, and an older version's copy, without them, isn't a change there.
+    expect(planHash('X', plain)).toBe(fingerprint('X', planOf(plain)));
+    const bare = { shapes: [house(), fence(), oak()], photo: photo() };
+    expect([planHash('X', mine), coreHash('X', mine), photoKey(mine)]).toEqual([planHash('X', bare), coreHash('X', bare), photoKey(bare)]);
+    expect(mine.shapes[0]).toHaveProperty('measured'); // (only what's hashed: the plan keeps them)
+    expect(photoKey({ photo: photo({ roughScale: true }) })).toBe(photoKey({ photo: photo() }));
+    expect(photoKey({ photo: photo({ ftPerPx: 0.3 }) })).not.toBe(photoKey({ photo: photo() }));
+  });
+
+  it("side by side, where the server's copy has some of its own (the review's R4): its entries stand; a side it doesn't name is kept from here only where it's provably the same side, still the length typed", () => {
+    const all = [{ side: 0, ft: 30 }, { side: 1, ft: 20 }, { side: 2, ft: 30 }, { side: 3, ft: 20 }];
+    const fill = (there: object, here: object) => (withLocalParts({ shapes: [there] }, { shapes: [here] }).shapes as Shape[])[0];
+    const typed = (s: Shape) => [...((s as { measured?: { side: number; ft: number }[] }).measured ?? [])].sort((a, b) => a.side - b.side);
+    // A rectangle: its Width typed again there (32); its Length unchanged, still typed here: kept.
+    expect(typed(fill(house(0, { width: 32, measured: [{ side: 0, ft: 32 }, { side: 2, ft: 32 }] }), house(0, { measured: all }))))
+      .toEqual([{ side: 0, ft: 32 }, { side: 1, ft: 20 }, { side: 2, ft: 32 }, { side: 3, ft: 20 }]);
+    // Its Length changed there too (21): only the server's.
+    expect(typed(fill(house(0, { width: 32, height: 21, measured: [{ side: 0, ft: 32 }, { side: 2, ft: 32 }] }), house(0, { measured: all }))))
+      .toEqual([{ side: 0, ft: 32 }, { side: 2, ft: 32 }]);
+    // A typed side there with another number than here: the server's stands.
+    expect(typed(fill(house(0, { measured: [{ side: 1, ft: 20.04 }] }), house(0, { measured: all }))))
+      .toEqual([{ side: 0, ft: 30 }, { side: 1, ft: 20.04 }, { side: 2, ft: 30 }, { side: 3, ft: 20 }]);
+    // Nothing there, one dimension changed (a release device widened it): the other's sides kept, its own not.
+    expect(typed(fill(house(0, { width: 31 }), house(0, { measured: all })))).toEqual([{ side: 1, ft: 20 }, { side: 3, ft: 20 }]);
+    // A line: a point moved there that isn't an end of the typed side: that side kept (both its ends where they were);
+    // one of its ends moved, or a point added (the sides renumbered, maybe), not.
+    const l = (points: number[][], extra: object = {}) => fence(points, extra);
+    const typedFence = l([[0, 0], [40, 0], [40, 25], [10, 25]], { measured: [{ side: 0, ft: 40 }, { side: 2, ft: 30 }] });
+    expect(typed(fill(l([[0, 0], [40, 0], [40, 25], [12, 30]], { measured: [{ side: 1, ft: 25 }] }), typedFence))).toEqual([{ side: 0, ft: 40 }, { side: 1, ft: 25 }]);
+    expect(typed(fill(l([[0, 0], [40, 0], [41, 25], [10, 25]]), typedFence))).toEqual([{ side: 0, ft: 40 }]);
+    expect(typed(fill(l([[0, 0], [20, 0], [40, 0], [40, 25], [10, 25]]), typedFence))).toEqual([]);
+    // (Its ends where they were, but no longer the length typed: not; another kind of shape there: not.)
+    expect(typed(fill(l([[0, 0], [40, 0], [40, 25], [10, 25]]), l([[0, 0], [40, 0], [40, 25], [10, 25]], { measured: [{ side: 0, ft: 39 }] })))).toEqual([]);
+    expect(typed(fill({ ...house(0), type: 'poly', points: [[0, 0], [30, 0], [30, 20], [0, 20]] }, house(0, { measured: all })))).toEqual([]);
+  });
+
+  it('between two devices of this version they go across; reshaped on one, the side is forgotten on both; the scale set again without the box ticked, the rough scale too', async () => {
+    const server = new FakeServer(), phone = newer('phone'), tablet = newer('tablet');
+    const id = phone.addWithPhoto('Back Yard', [house(0, { measured: M }), fence(undefined, { measured: FENCE_M })], photo({ roughScale: true }));
+    await sync(phone, server); await sync(tablet, server);
+    expect(measuredOf(shapesOf(tablet, id))).toEqual([M, FENCE_M]);
+    expect(photoOf(tablet, id)).toMatchObject({ roughScale: true });
+    await still(server, phone, tablet);
+    // The tablet widens the house (its typed width forgotten there) and sets the scale again, measured.
+    tablet.edit(id, [house(0, { width: 32 }), fence(undefined, { measured: FENCE_M })]);
+    tablet.setPlacement(id, photo({ ftPerPx: 0.26 }));
+    expect(await sync(tablet, server)).toMatchObject({ uploaded: 1 });
+    expect(await sync(phone, server)).toMatchObject({ downloaded: 1, conflicts: [] });
+    expect(measuredOf(shapesOf(phone, id))).toEqual([undefined, FENCE_M]);
+    expect(photoOf(phone, id)).toEqual(photo({ ftPerPx: 0.26 }));
+    await still(server, phone, tablet);
+  });
+
+  it('a device on the release takes the plan without them and sends nothing for that; its own edit goes up without them, and the device that has them keeps them, and sends them again', async () => {
+    const server = new FakeServer(), phone = newer('phone'), laptop = release('laptop');
+    const id = phone.addWithPhoto('Back Yard', [house(0, { measured: M }), fence(undefined, { measured: FENCE_M }), oak()], photo({ roughScale: true }));
+    await sync(phone, server);
+    expect(await sync(laptop, server)).toMatchObject({ downloaded: 1 });
+    expect(measuredOf(shapesOf(laptop, id))).toEqual([undefined, undefined, undefined]);
+    expect(photoOf(laptop, id)).toEqual(photo());
+    await still(server, laptop, phone);
+    expect(measuredOf(onServer(server, id).shapes)).toEqual([M, FENCE_M, undefined]); // (it sent nothing back without them)
+    // The laptop moves the house and the oak, and the photo: all of it goes up without the fields.
+    laptop.edit(id, [releaseMigrateShape(house(6)), releaseMigrateShape(fence()), releaseMigrateShape(oak(55))]);
+    laptop.setPlacement(id, photo({ cx: 4 }));
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 1 });
+    expect(measuredOf(onServer(server, id).shapes)).toEqual([undefined, undefined, undefined]);
+    expect(onServer(server, id).photo).not.toHaveProperty('roughScale');
+    // The phone takes the moves and keeps both: the house and fence are side for side as they were, the photo at its scale.
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 0, downloaded: 1, conflicts: [] });
+    expect(shapesOf(phone, id)).toEqual([house(6, { measured: M }), fence(undefined, { measured: FENCE_M }), oak(55)].map(migrateShape));
+    expect(photoOf(phone, id)).toEqual(photo({ cx: 4, roughScale: true }));
+    await still(server, phone, laptop);
+    // The phone's next edit sends them again; the laptop takes the edit, as it reads it.
+    phone.edit(id, [house(6, { measured: M }), fence(undefined, { measured: FENCE_M }), oak(57)].map(migrateShape));
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 1 });
+    expect(measuredOf(onServer(server, id).shapes)).toEqual([M, FENCE_M, undefined]);
+    expect(onServer(server, id).photo).toMatchObject({ roughScale: true, cx: 4 });
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 0, downloaded: 1 });
+    await still(server, phone, laptop);
+    // The laptop reshapes the house and sets the scale again (it has no box to tick): the phone keeps neither.
+    laptop.edit(id, [releaseMigrateShape(house(6, { width: 33 })), releaseMigrateShape(fence()), releaseMigrateShape(oak(57))]);
+    laptop.setPlacement(id, photo({ cx: 4, ftPerPx: 0.27 }));
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 1 });
+    expect(await sync(phone, server)).toMatchObject({ downloaded: 1, conflicts: [] });
+    expect(measuredOf(shapesOf(phone, id))).toEqual([undefined, FENCE_M, undefined]);
+    expect(photoOf(phone, id)).toEqual(photo({ cx: 4, ftPerPx: 0.27 }));
+    await still(server, phone, laptop);
+    expect([phone.names(), laptop.names()]).toEqual([['Back Yard'], ['Back Yard']]);
+  });
+
+  it("a typed shape reshaped here while the release ticked a plant bought, or moved the photo: no copy; the reshape goes up, the other sides typed kept", async () => {
+    const server = new FakeServer(), phone = newer('phone'), laptop = release('laptop');
+    const id = phone.addWithPhoto('Back Yard', [house(0, { measured: M }), fence(undefined, { measured: FENCE_M })], photo());
+    await sync(phone, server); await sync(laptop, server);
+    laptop.setPart(id, 'bought', { 'pl:1': { n: 1, at: 5 } });
+    laptop.setPlacement(id, photo({ cx: 2 }));
+    phone.edit(id, [house(0, { width: 34 }), fence(undefined, { measured: FENCE_M })].map(migrateShape)); // (its typed width forgotten)
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 1 });
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 1, conflicts: [] });
+    expect(onServer(server, id)).toMatchObject({ shapes: [house(0, { width: 34 }), fence(undefined, { measured: FENCE_M })], photo: photo({ cx: 2 }), bought: { 'pl:1': { n: 1, at: 5 } } });
+    expect(measuredOf(onServer(server, id).shapes)).toEqual([undefined, FENCE_M]);
+    expect(await sync(laptop, server)).toMatchObject({ downloaded: 1 });
+    await still(server, phone, laptop);
+    expect(phone.names()).toEqual(['Back Yard']);
+  });
+
+  it("the photo's scale set again here, roughly, while the release moved the house: no copy; the plan from there, the photo from here, both fields kept", async () => {
+    const server = new FakeServer(), phone = newer('phone'), laptop = release('laptop');
+    const id = phone.addWithPhoto('Back Yard', [house(0, { measured: M })], photo({ roughScale: true }));
+    await sync(phone, server); await sync(laptop, server);
+    laptop.edit(id, [releaseMigrateShape(house(8))]);
+    phone.setPlacement(id, photo({ ftPerPx: 0.2, roughScale: true }));
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 1 });
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 1, conflicts: [] });
+    expect(shapesOf(phone, id)).toEqual([migrateShape(house(8, { measured: M }))]);
+    expect(onServer(server, id)).toMatchObject({ shapes: [house(8, { measured: M })], photo: photo({ ftPerPx: 0.2, roughScale: true }) });
+    expect(await sync(laptop, server)).toMatchObject({ downloaded: 1 });
+    expect(photoOf(laptop, id)).toEqual(photo({ ftPerPx: 0.2 }));
+    await still(server, phone, laptop);
+    expect(phone.names()).toEqual(['Back Yard']);
   });
 });

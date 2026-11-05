@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, autoDialogs, canvasBox, closeSheet, openFresh, shapeCount, tapFromCenter, zoomPct } from './helpers';
+import { addKind, autoDialogs, canvasBox, closeSheet, openFresh, planFeet, planPoint, shapeCount, tapFromCenter, zoomPct } from './helpers';
 
 // Getting the yard in (Jason's UI review, approved Nov 2): from a photo of the yard to the house, driveway, trees, lot
 // line and beds traced over it.
@@ -131,20 +131,82 @@ test('the scale box sits clear of A and B, the plan moved if they were under it,
     expect(overlap(pt, b), `point ${p.toUpperCase()} clear of the box`).toBe(false);
     expect(pt.y).toBeGreaterThan(b.y + b.height); // (below it: a phone's keyboard comes up from the bottom)
   }
-  await expect(page.getByTestId('scale-hints')).toContainText('Your house’s front: its length may be in the listing');
-  await expect(page.getByTestId('scale-hints')).toContainText('a one-car driveway is about 10–12 ft');
-  await expect(page.getByTestId('scale-hints')).toContainText('on the county’s GIS map, or the plat');
+  // (Lengths you may know, in short: the strip said them while A and B were tapped.)
+  await expect(page.getByTestId('scale-hints')).toHaveText('Lengths you may know: the house’s front, a one-car driveway’s width (10–12 ft), the lot’s sides.');
   await expect(page.getByTestId('scale-distance')).toBeFocused();
 });
 
-test('a photo not to scale is marked rough in Layers until its scale is set (item 4)', async ({ page }) => {
+test('lengths you may know are on the strip while A and B are tapped: a few lines on a 360 px phone, above the photo, not over it (Jason, Nov 4)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await page.addInitScript(() => localStorage.setItem('lp-zoom-buttons', 'off')); // (as a phone starts)
+  autoDialogs(page);
+  await openFresh(page);
+  await page.getByTestId('start-photo').click();
+  await page.locator('.sheet input[type=file]').setInputFiles('public/icon-512.png');
+  await expect(page.locator('.mode-banner')).toContainText('first known point');
+  const hints = page.getByTestId('cal-hints');
+  await expect(hints).toHaveText('Lengths you may know: your house’s front (its listing) · a one-car driveway, 10–12 ft wide · your lot’s sides (county GIS map, plat)');
+  // Compact: three lines at most, the whole strip a fifth of the screen at most.
+  const line = await hints.evaluate((e) => parseFloat(getComputedStyle(e).lineHeight));
+  expect((await hints.boundingBox())!.height).toBeLessThanOrEqual(line * 3 + 1);
+  const s = (await strip(page).boundingBox())!;
+  expect(s.height).toBeLessThanOrEqual(640 / 5);
+  // In the strip, above the plan: the photo, whole, below it.
+  const plan = await canvasBox(page);
+  expect(s.y + s.height).toBeLessThanOrEqual(plan.y + 0.5);
+  const img = (await page.locator('#canvas-svg image').boundingBox())!;
+  expect(img.y).toBeGreaterThanOrEqual(plan.y - 0.5);
+  // A tapped near the photo's top: still in view, the strip the same height, the lengths still there.
+  await page.mouse.click(img.x + img.width * 0.25, img.y + img.height * 0.08);
+  await expect(page.locator('.mode-banner')).toContainText('second known point');
+  await expect(hints).toBeVisible();
+  expect((await strip(page).boundingBox())!.height).toBe(s.height);
+  const a = (await page.locator('#canvas-svg [data-role=scale-point-a]').boundingBox())!;
+  expect(a.y).toBeGreaterThanOrEqual(plan.y);
+  await page.mouse.click(img.x + img.width * 0.75, img.y + img.height * 0.08);
+  await expect(page.getByTestId('scale-box')).toBeVisible();
+  await expect(page.getByTestId('scale-hints')).toContainText('Lengths you may know:');
+});
+
+test('setting the scale of a photo that fills the plan, what was in view at its top isn\'t left under the strip that comes (Jason, Nov 4)', async ({ page }) => {
+  autoDialogs(page);
+  await openFresh(page);
+  await page.getByTestId('start-photo').click();
+  await page.locator('.sheet input[type=file]').setInputFiles('public/icon-512.png');
+  await page.locator('.mode-banner button').click(); // (its scale not set, for now)
+  // Zoomed in: the photo fills the plan.
+  const plan = await canvasBox(page), img = page.locator('#canvas-svg image');
+  for (let i = 0; i < 8 && (await img.boundingBox())!.y >= plan.y; i++) await page.getByRole('button', { name: 'Zoom in' }).click();
+  await page.waitForTimeout(300); // (the zoom's badge and redraw settled)
+  const shown = (await img.boundingBox())!;
+  expect(shown.y).toBeLessThan(plan.y);
+  expect(shown.y + shown.height).toBeGreaterThan(plan.y + plan.height);
+  const top = await planFeet(page, { x: plan.x + plan.width / 2, y: plan.y + 2 });
+  const bottom = await planFeet(page, { x: plan.x + plan.width / 2, y: plan.y + plan.height - 2 });
+  // Its scale set from Layers: the strip comes above the plan, and the plan moves (zoomed out a little) so what was
+  // at its top and bottom is still in view.
+  await page.locator('button[title=Layers]').click();
+  await page.getByTestId('layers-bg-set-scale').click();
+  await expect(page.locator('.mode-banner')).toContainText('first known point');
+  await expect(page.getByTestId('cal-hints')).toBeVisible();
+  const now = await canvasBox(page);
+  expect(now.y).toBeGreaterThan(plan.y); // (the strip took the plan's top)
+  const t = await planPoint(page, top.x, top.y), b = await planPoint(page, bottom.x, bottom.y);
+  expect(t.y).toBeGreaterThanOrEqual(now.y - 0.5);
+  expect(b.y).toBeLessThanOrEqual(now.y + now.height + 0.5);
+});
+
+test('a photo not to scale is marked so in Layers, and by a dot on the Layers button, until its scale is set (item 4; Jason\'s note on #209, Nov 4)', async ({ page }) => {
   autoDialogs(page);
   await openFresh(page);
   await page.getByTestId('start-photo').click();
   await page.locator('.sheet input[type=file]').setInputFiles('public/icon-512.png');
   await page.locator('.mode-banner button').click(); // (its scale not set)
+  // ("Not to scale yet", as the background sheet says it: not "Rough scale". A dot on Layers, named for screen readers.)
+  await expect(page.getByTestId('layers-scale-dot')).toBeVisible();
+  await expect(page.getByTestId('layers-btn')).toHaveAttribute('aria-label', 'Layers: the photo isn’t to scale yet');
   await page.locator('button[title=Layers]').click();
-  await expect(page.getByTestId('layers-bg-rough')).toHaveText('Rough scale');
+  await expect(page.getByTestId('layers-bg-not-to-scale')).toHaveText('Not to scale yet');
   await expect(page.getByTestId('layers-bg')).toContainText('Its size on the plan is a guess until its scale is set');
   await page.getByTestId('layers-bg-set-scale').click();
   await expect(page.locator('.mode-banner')).toContainText('Calibrating');
@@ -154,9 +216,11 @@ test('a photo not to scale is marked rough in Layers until its scale is set (ite
   await page.getByTestId('scale-distance').fill('40');
   await page.getByTestId('scale-set').click();
   await closeSheet(page);
+  await expect(page.getByTestId('layers-scale-dot')).toHaveCount(0);
+  await expect(page.getByTestId('layers-btn')).toHaveAttribute('aria-label', 'Layers');
   await page.locator('button[title=Layers]').click();
   await expect(page.getByTestId('layers-bg')).toBeVisible();
-  await expect(page.getByTestId('layers-bg-rough')).toHaveCount(0);
+  await expect(page.getByTestId('layers-bg-not-to-scale')).toHaveCount(0);
 });
 
 test('once the photo is to scale, "Now trace" lists what to trace, each starting its tool; put away, it stays away (item 2)', async ({ page }) => {
@@ -197,7 +261,9 @@ test('once the photo is to scale, "Now trace" lists what to trace, each starting
   await page.mouse.click(plan.x + plan.width / 2 + 60, plan.y + plan.height / 2 + 60);
   await page.getByTestId('scale-distance').fill('60');
   await page.getByTestId('scale-set').click();
-  await closeSheet(page);
+  // (The house over the photo would move: asked first whether the plan was drawn over it, src/ui/rescale-card.ts.)
+  await page.getByTestId('rescale-leave').click();
+  await expect(page.getByTestId('rescale-card')).toHaveCount(0);
   await expect(page.getByTestId('trace-card')).toHaveCount(0);
 });
 
@@ -230,9 +296,9 @@ test('the tour: one × with a sheet open; leaving says where to pick it up; the 
   await page.locator('.kind-chip[data-kind=building]').first().click();
   await expect(drawBanner(page)).toContainText('Building');
   await expect(tourCard(page)).toHaveCount(0);
-  // Drawn low on the plan, where step 4's card goes: the plan moves it clear, above the card.
+  // Drawn low on the plan, where step 3b's card goes: the plan moves it clear, above the card.
   await tapFromCenter(page, -12, 22); await tapFromCenter(page, 12, 22); await tapFromCenter(page, 12, 34);
-  await expect(page.getByTestId('intro-step')).toHaveText('Step 4 of 8');
+  await expect(page.getByTestId('intro-step')).toHaveText('Step 3b of 8'); // (Lock the house: about the house too)
   const house = (await page.locator('#canvas-svg [data-shape-id]').first().boundingBox())!;
   const card = (await tourCard(page).boundingBox())!;
   expect(overlap(house, card)).toBe(false);
@@ -240,7 +306,7 @@ test('the tour: one × with a sheet open; leaving says where to pick it up; the 
   // Leaving the tour says where it waits.
   await page.getByTestId('intro-exit').click();
   await expect(tourCard(page)).toHaveCount(0);
-  await expect(page.locator('#toast')).toContainText('Tour closed. To pick it up again: ⋮ → Help → Take the tour.');
+  await expect(page.locator('#toast')).toContainText('Guided start closed. To pick it up again: ⋮ → Help → Guided start.');
 });
 
 test('setting a photo\'s scale, no notice covers the photo; a notice about a building keeps off it (item 7)', async ({ page }) => {

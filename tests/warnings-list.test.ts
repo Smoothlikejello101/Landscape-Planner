@@ -222,7 +222,9 @@ describe('dismissing warnings from the list', () => {
     // Show again: the plant's, and each copy's.
     of('fruit')[0].again!();
     expect(of('fruit').map((r) => [r.ids.join(','), r.dismissed])).toEqual([['h,h2', false]]);
-    expect(['h', 'h2'].map((id) => shape(id).fruitDismissed)).toEqual(['', '']); // (shown again on purpose: src/dismissals.ts clearForPlan)
+    // (Dismissed here and never sent: they go, as they were. Once sync has carried one, it's '', shown again on purpose:
+    // src/dismissals.ts clearForPlan, src/marks.ts mayMark.)
+    expect(['h', 'h2'].map((id) => shape(id).fruitDismissed)).toEqual([undefined, undefined]);
     // Dismissed in words that have since changed (the catalog's facts): active again.
     shape('h').fruitDismissed = line.replace('female', 'male');
     expect(of('fruit').map((r) => [r.ids.join(','), r.dismissed])).toEqual([['h,h2', false]]);
@@ -267,7 +269,7 @@ describe('dismissing warnings from the list', () => {
     yard(true, true, true);
     expect(poison()).toEqual([['may', false], ['fox1,fox2', false]]);
     // What's kept is what it said when dismissed.
-    expect(state.dismissed?.poison).toEqual({ 'wl-mayapple': 'Poisonous to people; A problem for dogs' });
+    expect(state.dismissed?.poison).toEqual({ 'wl-mayapple': 'Toxic to people; Toxic to dogs' });
     state.household = { kids: false, dogs: '', cats: false, horses: false, answered: false };
   });
 
@@ -278,7 +280,7 @@ describe('dismissing warnings from the list', () => {
     (state.shapes.find((s) => s.id === 'sunny') as Shape).label = 'Sunny strip';
     state.shapes.push(at('may', 'wl-mayapple', -80, { radius: 0.5 }));
     const [poison] = of('poison');
-    expect([poison.name, poison.said, poison.key]).toEqual(['Mayapple', 'Poisonous if eaten (high severity: leaves and roots); a problem for dogs', 'Poisonous to people; A problem for dogs']);
+    expect([poison.name, poison.said, poison.key]).toEqual(['Mayapple', 'Toxic if eaten (high severity: leaves and roots); toxic to dogs', 'Toxic to people; Toxic to dogs']);
     expect(of('sun').map((r) => [r.name, r.said])).toEqual([
       ['Wild ginger', 'Gets about 8 h of sun in Sunny strip; it prefers part shade to shade'], ['Wild ginger', 'Gets about 8 h of sun in Sunny strip; it prefers part shade to shade']]);
     expect(of('utility').map((r) => [r.name, r.said])).toEqual([['White oak', 'Grows to 54 ft, 10 ft from a power line']]);

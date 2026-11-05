@@ -2,9 +2,9 @@
   "Once a photo of the yard is set to scale, “Now trace over the photo” lists House, Driveway, Trees, Lot line and Beds, each opening its tool, and ticks each as it’s drawn. Put it away with its ✕ and it stays away for that plan.",
   "The Building tool opens zoomed out far enough for a whole house. If the plan’s only building comes out smaller than a house (under about 300 sq ft), it asks whether that’s its real size, with a way to draw it again; a shed beside the house isn’t asked about.",
   "Setting a photo’s scale, the box asking how far A is from B sits at the top of the screen, and the plan moves so A and B show below it. It suggests lengths you may know: your house’s front from its listing, a driveway’s width (a one-car driveway is about 10–12 ft), or your lot’s sides from the county’s GIS map or the plat.",
-  "A photo whose scale hasn’t been set is marked “Rough scale” in Layers until it is, with a way to set it there.",
+  "A photo whose scale hasn’t been set is marked “Not to scale yet” in Layers until it is, with a way to set it there.",
   "While drawing, placing plants or setting a photo’s scale, what to do next is on a strip above the plan instead of over it, and the buttons down the side of the plan, Fit among them, are put away, so a corner by the edge lands where you meant. The + and − zoom buttons stay, if you’ve turned them on.",
   "A rectangle drawn within 4° of level or upright is set straight when it’s finished, as a nearly square outline is squared, and says so, with Undo. Drawn along a turned house, it lines up with the house instead.",
-  "The guided tour steps aside while you draw, keeps what a step is about in view above its card, and shows one ✕ when a panel is open. Closing it says where to pick it up again: ⋮ → Help → Take the tour.",
+  "Guided start steps aside while you draw, keeps what a step is about in view above its card, and shows one ✕ when a panel is open. Closing it says where to pick it up again: ⋮ → Help → Guided start.",
   "A notice about a shape, such as “Is that the real size?”, no longer covers the shape: it moves to the foot of the plan."
 ]

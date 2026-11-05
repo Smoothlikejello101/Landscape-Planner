@@ -12,9 +12,11 @@ import { flushHistoryDebounce, pushHistory } from './history';
 import { householdFlags, plantsById, type Plant } from './plants';
 import { state } from './state';
 import { save } from './storage';
+import { mayMark } from './marks';
 import type { DismissKind, Shape } from './types';
+import { sameSaid } from './names';
 
-/** What a plant's poison warning says, for who's in the yard now ("Poisonous to people; A problem for dogs"): its key. */
+/** What a plant's poison warning says, for who's in the yard now ("Toxic to people; Toxic to dogs"): its key. */
 export const poisonSaid = (p: Plant): string => householdFlags(p).map((f) => f.text).join('; ');
 /**
  * The same warning in the words its details use, with its severity and parts: "Poisonous if eaten (high severity:
@@ -35,8 +37,10 @@ export function atRisk(said: string): Set<string> {
   const out = new Set<string>();
   for (const part of said.split('; ')) {
     if (!part) continue;
-    const pets = /^A problem for (.+)$/.exec(part);
-    if (part === 'Poisonous to people') out.add('people');
+    // (Said "Poisonous to people; A problem for dogs" till Nov 4, "Toxic to people; Toxic to dogs" since: a warning
+    // dismissed then is still covered now.)
+    const pets = /^(?:A problem for|Toxic to) (.+)$/i.exec(part);
+    if (/^(?:Poisonous|Toxic) to people$/i.test(part)) out.add('people');
     else if (pets) for (const who of pets[1].split(/, | and /)) out.add(who);
     else out.add(part);
   }
@@ -58,14 +62,14 @@ export function poisonCovered(then: string | undefined, now: string): boolean {
 export const DISMISS_FIELD = { hardy: 'hardyDismissed', poison: 'poisonDismissed', fruit: 'fruitDismissed' } as const satisfies Record<DismissKind, keyof Shape>;
 /** Whether a copy's own dismissal of this kind covers its warning saying `said` now (poison: with fewer at risk too). */
 export function copyDismissed(kind: DismissKind, s: Shape, said: string): boolean {
-  return kind === 'poison' ? poisonCovered(s.poisonDismissed, said) : s[DISMISS_FIELD[kind]] === said;
+  return kind === 'poison' ? poisonCovered(s.poisonDismissed, said) : sameSaid(s[DISMISS_FIELD[kind]], said);
 }
 
 /** Whether this kind of warning, saying `said`, is dismissed for the plant across the plan. */
 export function dismissedForPlan(kind: DismissKind, plantId: string | undefined, said: string): boolean {
   const kept = plantId ? state.dismissed?.[kind]?.[plantId] : undefined;
   if (kept === undefined) return false;
-  return kind === 'poison' ? poisonCovered(kept, said) : kept === said;
+  return kind === 'poison' ? poisonCovered(kept, said) : sameSaid(kept, said);
 }
 
 /** A plant's copies in the plan. */
@@ -101,10 +105,11 @@ export function clearForPlan(kind: DismissKind, plantId: string): boolean {
   dropPlanEntry(kind, plantId);
   const field = DISMISS_FIELD[kind];
   // (A fruit-partner one is left '', shown again on purpose, so sync doesn't fill it back from another device's copy
-  // (src/sync/engine.ts withFruitDismissals); hardiness and poison aren't filled back, and go.)
+  // (src/sync/engine.ts withFruitDismissals), where the server's copy had it as this device last synced (src/marks.ts
+  // mayMark); otherwise it goes, as it was. Hardiness and poison aren't filled back, and go.)
   if (kind === 'fruit') {
     const copies = copiesOf(plantId).filter((s) => !!s.fruitDismissed);
-    for (const s of copies) s.fruitDismissed = '';
+    for (const s of copies) { if (mayMark('fruit', s.id)) s.fruitDismissed = ''; else delete s.fruitDismissed; }
     return copies.length > 0;
   }
   const copies = copiesOf(plantId).filter((s) => s[field] !== undefined);

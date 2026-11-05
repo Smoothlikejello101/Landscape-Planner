@@ -40,6 +40,7 @@ import { closeWarningsSide, warningsSideOpen } from './ui/warnings-sheet';
 import { lastVisitAt, noteVisit, visitedBefore } from './hints';
 import { arrive, backupDue, deviceWord, startCard } from './welcome';
 import { fitWholePlan, showSavedHere, showWelcomeBack } from './ui/welcome-card';
+import { listenForInstall, offerInstall } from './ui/install-card';
 import { newsAtStart } from './whats-new';
 import { tellWhatsNew } from './ui/whats-new-panel';
 import { introActive } from './ui/intro-card';
@@ -48,6 +49,9 @@ import { pxPerFoot } from './geometry';
 import { ask, asking, dismissAsk, tell } from './ui/ask';
 import { installFocusKeeping } from './ui/focus';
 import { closeCompare, compareShown } from './ui/compare-sheet';
+import { placePicker } from './ui/picker-view';
+import { pickingBed } from './bed-plant';
+import { stopPickingBed } from './ui/plant-for';
 
 // The app's own errors, kept on this device for a support file (src/error-log.ts): from the start.
 installErrorLog();
@@ -64,10 +68,11 @@ installAppHeight();
 // IMPORTANT: window resize calls resizeCanvas ONLY, never render().
 // Android keyboard appearing fires a viewport resize; a full render()
 // destroys focused inputs.
-window.addEventListener('resize', () => { fitToWindow(); resizeCanvas(); placeFirstCard(); });
+// (The plant picker's place under the top bar, measured again: CSS only, src/ui/picker-view.ts.)
+window.addEventListener('resize', () => { fitToWindow(); resizeCanvas(); placeFirstCard(); placePicker(); });
 // Same goes for visualViewport resize (covers iOS keyboard + zoom)
 if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', () => { fitToWindow(); resizeCanvas(); placeFirstCard(); notePageZoom(); });
+  window.visualViewport.addEventListener('resize', () => { fitToWindow(); resizeCanvas(); placeFirstCard(); placePicker(); notePageZoom(); });
   // iOS pans the visual viewport (scroll, not resize) after its keyboard opens: re-measure (CSS only).
   window.visualViewport.addEventListener('scroll', () => { fitAboveKeyboard(); });
 }
@@ -109,7 +114,7 @@ const ARROWS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRigh
  */
 function onArrow(e: KeyboardEvent, [ax, ay]: [number, number]) {
   e.preventDefault();
-  const busy = state.placing || state.draw || state.editPoints || state.bgEditMode || state.bgCalibrate || state.featurePlace;
+  const busy = state.placing || state.draw || state.editPoints || state.bgEditMode || state.bgCalibrate || state.featurePlace || pickingBed();
   if (state.selectedIds.length && !busy) {
     const step = e.shiftKey ? 5 : 0.5;
     if (!nudgeSelected(ax * step, ay * step)) toast(state.selectedIds.length === 1 ? 'It’s locked: unlock it to move it.' : 'They’re all locked: unlock them to move them.');
@@ -160,6 +165,12 @@ function onKey(e: KeyboardEvent) {
   if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
   // Keys pressed while a panel has focus (a chip, a menu, Warnings beside the plan) belong to the panel, never the plan.
   if (target?.closest?.('.overlay, .menu, .warnings-side')) return;
+  // The plant picker open, its plan beside or above it there to look at (src/ui/picker-view.ts): a click on the plan
+  // leaves the focus on the page, and still no key edits the plan (Delete took the plant being swapped), starts a tool
+  // or redraws the picker. Esc closes it, as from inside it (closeOne, below); Ctrl and + zoom the page, as in a sheet.
+  if (state.panel === 'plants' && e.key !== 'Escape') return;
+  // (Picking a bed on the plan for the picker: a tap on a bed, or Esc; the arrows pan. Nothing else edits the plan.)
+  if (pickingBed() && e.key !== 'Escape' && !ARROWS[e.key]) return;
   // Ctrl or Cmd with + or − zooms the plan, not the page, whatever is going on (Jason, 2026-10-25). With a sheet's field
   // or button focused, the keys never get here: the page zooms, for reading.
   if ((e.ctrlKey || e.metaKey) && !e.altKey && ['=', '+', '-', '_'].includes(e.key)) {
@@ -245,7 +256,10 @@ function onKey(e: KeyboardEvent) {
  * What Esc does, and the phone's back button. False when nothing was open.
  */
 function closeOne(): boolean {
-  if (state.panel) { state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; }
+  // (Picking a bed on the plan for the picker, and a bed's conditions opened from it: back to the picker.)
+  if (pickingBed()) stopPickingBed();
+  else if (state.panel === 'bedConditions') state.panel = 'plants';
+  else if (state.panel) { state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; }
   else if (state.placing) finishPlacing();
   else if (state.featurePlace) finishFeaturePlace();
   else if (state.menu) state.menu = null;
@@ -406,6 +420,8 @@ setOpenBlockedListener((blocked) => {
 });
 
 async function start() {
+  // (The browser's offer to install, when it makes one: src/install.ts.)
+  listenForInstall();
   let migrationError: string | undefined;
   let keptApart: string[] | undefined;
   try {
@@ -453,6 +469,9 @@ async function start() {
   // (Said once, after the first render; not over the guided introduction's card, though its list still marks them New;
   // nor beside the start's card, which says it after an update.)
   tellWhatsNew(news, !introActive() && !card);
+  // Once, on a phone's browser where the app isn't installed, from the second visit: what installing means and how
+  // (src/install.ts has when). Not beside another start card, nor over Guided start.
+  offerInstall({ visit: arrival.visit, otherCard: !!card || news.length > 0 });
   const told = migrationError
     ? tell("Some projects from the previous version couldn't be copied (" + migrationError + "). They are still stored on this device; the app will try again next time it opens.")
     : Promise.resolve();

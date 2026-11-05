@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { drawnHeight, hiddenCovers, hiddenIds, labelRuns, paintOrder, runLabelSpot, seeThroughIds } from '../src/canvas';
+import { drawnHeight, hiddenCovers, hiddenIds, labelRuns, paintOrder, PLANT_NAMES_MIN_ZOOM, plantNamesShown, runLabelSpot, seeThroughIds } from '../src/canvas';
 import { plantsById, type Plant } from '../src/plants';
 import { setRoleForIds, setRoleView } from '../src/mutations';
 import { defaultLook, isLocked } from '../src/roles';
@@ -84,6 +84,31 @@ describe('drawing order', () => {
     expect(beside.x).toBeGreaterThan(1.75 + w / 2 / ppf);
     // (Nowhere clear: none.)
     expect(runLabelSpot(column, w, h, ppf, [{ x0: -1e4, x1: 1e4, y0: -1e4, y1: 1e4 }])).toBeNull();
+  });
+  it("keeps a run's name off the plants drawn over it, not only off names (Jason, Nov 4: it sat under them)", () => {
+    const c = (id: string, x: number) => ({ id, type: 'circle', x, y: 0, radius: 0.75, color: '#16a34a', label: 'Cardinal flower', opacity: 0.65, locked: false, role: 'plant' } as CircleShape);
+    const row = [1, 2.5, 4, 5.5, 7].map((x, i) => c('c' + i, x));
+    const ppf = 24, w = 115, h = 14;
+    expect(runLabelSpot(row, w, h, ppf, [])).toEqual({ x: 4, y: 0 });
+    // A buttonbush just below the row's middle: its name above the row, clear of it.
+    const bush = { x: 4, y: 1.8, r: 2 };
+    const at = runLabelSpot(row, w, h, ppf, [], [bush])!;
+    expect(at.x).toBe(4);
+    expect(at.y).toBeLessThan(-0.75);
+    // (Grazing its rim is fine: a tenth of it.)
+    expect(runLabelSpot(row, w, h, ppf, [], [{ x: 4, y: 2.18, r: 2 }])).toEqual({ x: 4, y: 0 });
+    // Plants all round: nowhere clear, none (its plants named one by one, as lone plants are, or not at all).
+    expect(runLabelSpot(row, w, h, ppf, [], [{ x: 4, y: 0, r: 8 }])).toBeNull();
+  });
+  it("draws no plant's name zoomed out past 20% (Jason, Nov 4: at 5% a name twice the size of the house)", () => {
+    expect(PLANT_NAMES_MIN_ZOOM).toBe(0.2);
+    state.showNames = true;
+    expect(plantNamesShown(24 * 0.2)).toBe(true);
+    expect(plantNamesShown(24 * 0.19)).toBe(false);
+    expect(plantNamesShown(24 * 0.05)).toBe(false);
+    state.showNames = false;
+    expect(plantNamesShown(24)).toBe(false);
+    state.showNames = true;
   });
   it('leaves hidden roles out', () => {
     state.shapes = [sh('a', { role: 'shade' }), sh('b', { role: 'bed' })];

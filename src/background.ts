@@ -9,8 +9,10 @@ import type { BgImage, Point } from './types';
 import { calibrationSeen, render } from './ui/render';
 import { uid } from './util';
 import { ask, tell } from './ui/ask';
-import { zoomToBounds } from './mutations';
-import { offerTrace } from './yard-in';
+import { zoomBy, zoomToBounds } from './mutations';
+import { clearOfStrip, offerTrace } from './yard-in';
+import { placementOf } from './rescale';
+import { askAfterScale, fitRescale, rescaleFrom } from './ui/rescale-card';
 
 // Background image (satellite photo or survey) to trace over.
 // Stored per project as a downscaled JPEG data URL. Position is the image
@@ -181,11 +183,32 @@ export function updateBgImageSilent(patch: Partial<BgImage>) {
 
 // ---------- Calibration flow ----------
 export function startBgCalibration() {
-  if (!state.bgImage) return;
+  const bg = state.bgImage;
+  if (!bg) return;
+  // (The photo as it's in view now, before the strip saying what to tap comes above the plan: kept in view below it.)
+  const before = planBox(), photo = before ? photoOnPage(bg, before) : null;
   state.bgCalibrate = { step: 'point1', p1: null, p2: null };
   state.panel = null;
   state.bgEditMode = false; // calibration taps must not be read as drags
   render();
+  // The strip takes the plan's top, with lengths you may know in it (Jason, Nov 4: they need them while picking the
+  // points): the part of the photo that was in view isn't left under it, where A might be tapped.
+  const after = planBox();
+  const move = before && photo && after ? clearOfStrip(photo, before, after) : null;
+  if (!move) return;
+  if (move.zoom < 1) zoomBy(move.zoom, move.x, move.y);
+  state.offsetY -= move.dy / pxPerFoot();
+  render();
+}
+/** The plan's box on the page, while it's laid out. */
+function planBox(): { left: number; top: number; right: number; bottom: number } | null {
+  const r = document.getElementById('canvas-wrap')?.getBoundingClientRect();
+  return r && r.height > 0 ? { left: r.left, top: r.top, right: r.right, bottom: r.bottom } : null;
+}
+/** The photo's bounds on the page (the plan's box at `plan`). */
+function photoOnPage(bg: BgImage, plan: { left: number; top: number }) {
+  const { w, h } = bgSizeFt(bg), b = rotatedBoxBounds(bg.cx, bg.cy, w, h, bg.rotation), ppf = pxPerFoot();
+  return { left: plan.left + (b.minX - state.offsetX) * ppf, top: plan.top + (b.minY - state.offsetY) * ppf, right: plan.left + (b.maxX - state.offsetX) * ppf, bottom: plan.top + (b.maxY - state.offsetY) * ppf };
 }
 export function cancelBgCalibration() {
   state.bgCalibrate = null;
@@ -211,20 +234,32 @@ export function calibrationScale(p1: Point, p2: Point, distanceFt: number): numb
   if (!(distanceFt > 0) || !isFinite(distanceFt)) return 'Please enter a positive distance in feet.';
   return distanceFt / dPx;
 }
-export function finishBgCalibration(distanceFt: number) {
+/**
+ * The scale from A and B `distanceFt` apart. `rough`: that length is a rough guess (the box's checkbox), kept with the
+ * photo (BgImage roughScale) so Layers reminds them to set it again; set again without it, it's gone. One step: Undo
+ * takes the flag back with the scale. With a plan over the photo that its new size would move: asked whether to move
+ * the plan with it (src/ui/rescale-card.ts), the plan shown for it; otherwise the background sheet, with the scale.
+ */
+export function finishBgCalibration(distanceFt: number, rough = false) {
   const cal = state.bgCalibrate;
   if (!state.bgImage || !cal || !cal.p1 || !cal.p2) return;
   const result = calibrationScale(cal.p1, cal.p2, distanceFt);
   if (typeof result === 'string') { void tell(result); return; }
   flushHistoryDebounce();
+  // (Where the plan was drawn over it: where it is now, or, set again before the last time was answered, where it was.)
+  const from = rescaleFrom() ?? placementOf(state.bgImage);
   state.bgImage.ftPerPx = result;
   delete state.bgImage.uncalibrated; // (to scale now)
+  if (rough) state.bgImage.roughScale = true; else delete state.bgImage.roughScale;
   pushHistory();
   save();
   offerTrace(state.currentProjectId); // (next: "Now trace" the house, driveway and the rest over it: src/ui/trace-card.ts)
   state.bgCalibrate = null;
-  state.panel = 'bg';
+  // ("Was your plan drawn over the photo?" first, a rough scale or not; "Now trace" waits for its answer.)
+  const asked = askAfterScale(from);
+  state.panel = asked ? null : 'bg';
   render();
+  if (asked) fitRescale();
 }
 
 // ---------- Rendering ----------

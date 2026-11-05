@@ -100,12 +100,12 @@ test('the table: the facts where they differ, each with how sure, "Not known" wh
   const sheet = page.getByTestId('compare-sheet');
   await expect(sheet).toBeVisible();
   await expect(sheet.locator('.sheet-header .title')).toHaveText('Compare 3 plants');
-  await expect(columns(page)).toHaveText(['Spicebush', 'Anise shrub', 'Mountain laurel']);
+  await expect(columns(page)).toHaveText(['Spicebush', 'Anise Shrub', 'Mountain Laurel']);
 
   // Rows where they differ, in the table; each cell a value and, where there's one, a quiet mark of how sure.
   const differ = page.getByTestId('compare-differ');
   const labels = await differ.locator('th[scope=row]').allInnerTexts();
-  expect(labels).toEqual(expect.arrayContaining(['Height', 'Width', 'Sun', 'Poisonous to people']));
+  expect(labels).toEqual(expect.arrayContaining(['Height', 'Width', 'Sun', 'Toxic to people']));
   const height = differ.locator('tr[data-row=height]');
   await expect(height.getByTestId('compare-cell')).toHaveCount(3);
   for (const c of await height.getByTestId('compare-cell').all()) {
@@ -163,7 +163,7 @@ test('the table: the facts where they differ, each with how sure, "Not known" wh
 
   // Remove: a column goes; with one left, back to the picker, that one still chosen.
   await page.getByRole('button', { name: 'Remove Mountain laurel from the comparison' }).click();
-  await expect(columns(page)).toHaveText(['Spicebush', 'Anise shrub']);
+  await expect(columns(page)).toHaveText(['Spicebush', 'Anise Shrub']);
   await expect(sheet.locator('.sheet-header .title')).toHaveText('Compare 2 plants');
   await expect(page.getByTestId('compare-open')).toHaveText('Compare 2'); // (the picker's bar, beneath, in step)
   await page.getByRole('button', { name: 'Remove Anise shrub from the comparison' }).click();

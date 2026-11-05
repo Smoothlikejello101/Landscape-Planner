@@ -222,7 +222,7 @@ const petsIn = (y: Yard): Pet[] => (['dogs', 'cats', 'horses'] as Pet[]).filter(
  */
 function petCell(p: Plant, pet: Pet): Cell {
   const bad = state.poisonWarnings ? { tone: 'bad' as const } : {};
-  if (p.problem_for?.includes(pet)) return cell(p, `A problem for ${pet}`, p.prov?.problem_for, bad);
+  if (p.problem_for?.includes(pet)) return cell(p, `Toxic to ${pet}`, p.prov?.problem_for, bad);
   const animal = pet.slice(0, -1) as 'dog' | 'cat' | 'horse', t = p.tox?.[animal];
   if (t) return cell(p, t === 'toxic' ? 'Toxic' : t === 'nontoxic' ? 'Not toxic' : 'Not listed', p.prov?.tox, t === 'toxic' ? bad : {});
   if (pet === 'dogs' && p.dog && p.dog !== 'Unverified') return cell(p, cap(p.dog), p.prov?.dog, oldDogWarning(p) ? bad : {});
@@ -236,8 +236,9 @@ function petCell(p: Plant, pet: Pet): Cell {
 function petsCell(p: Plant): Cell {
   const t = toxRow(p);
   if (!t || t.value.startsWith('Not rated')) return notKnown();
-  const line = cap(shortSources(t.line));
-  return { text: cap(t.value), known: true, sure: line ? { text: line, level: /^earlier list/.test(line) ? 'earlier' : 'other' } : null };
+  // (Its source as the comparison says them, without the details' "Source:".)
+  const line = cap(shortSources(t.line.replace(/^Sources?: /, '')));
+  return { text: cap(t.value), known: true, sure: line ? { text: line, level: /^Earlier list/.test(line) ? 'earlier' : 'other' } : null };
 }
 /** Butterflies' common names, with field-guide capitals, the binomial left to the details: "Monarch, Gray Hairstreak". */
 const commonNames = (names: string[]) => names.map((n) => butterflyCaps(n.replace(/\s*\([^)]*\)\s*$/, '')));
@@ -301,7 +302,7 @@ export function compareRows(plants: Plant[], y: Yard = household()): CompareRow[
     ['form', 'Form', (p) => cell(p, formsOf(p).join(', '), p.prov?.form)],
     ['winter', 'In winter', winterCell],
     ['native', gardenStateName() ? `Native to ${gardenStateName()}` : 'Native to North America', nativeCell],
-    ['poison', 'Poisonous to people', (p) => poisonCell(p, y)],
+    ['poison', 'Toxic to people', (p) => poisonCell(p, y)],
   );
   const pets = petsIn(y);
   if (pets.length) for (const pet of pets) defs.push([pet, PET_LABEL[pet], (p) => petCell(p, pet)]);

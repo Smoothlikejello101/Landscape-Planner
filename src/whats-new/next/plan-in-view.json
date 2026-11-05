@@ -1,0 +1,6 @@
+[
+  "Your plan stays in view while you choose plants. On a phone the plant list opens at half height, with the top of your plan above it. Drag its handle up, or press it, for the full list, and down again for half. While you type a search the list is full height, and it goes back to half when the keyboard goes away.",
+  "On a computer the plant list is a panel at the right, with your plan beside it.",
+  "With the list open, the plan beside or above it moves and zooms as usual, but nothing on it is selected or placed, so a stray touch on the plan never loses your search. The list closes with its ✕, the Back button or Esc.",
+  "Opened to swap a plant, or with a bed selected, the plan moves so that plant or bed is in view beside or above the list, zooming out only if it doesn’t fit."
+]

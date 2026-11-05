@@ -38,9 +38,9 @@ test('dismissing a hardiness warning on one copy dismisses it for every copy and
   await page.locator('.sel-pill .edit').click();
   await openSections(page);
   // (And Swap, filtered for plants hardy here: Jason's UI review, Nov 2.)
-  await expect(page.getByTestId('hardy-check').getByRole('button')).toHaveText(['Dismiss for this one', 'Dismiss for every Barbados aloe', 'Swap for one hardy in zone 8a…']);
+  await expect(page.getByTestId('hardy-check').getByRole('button')).toHaveText(['Dismiss for this one', 'Dismiss for every Barbados Aloe', 'Swap for one hardy in zone 8a…']);
   await page.getByTestId('hardy-dismiss').click();
-  await expect(page.getByTestId('dismiss-notice')).toContainText('Hardiness warning dismissed for both Barbados aloe in this plan, and any you add later.');
+  await expect(page.getByTestId('dismiss-notice')).toContainText('Hardiness warning dismissed for both Barbados Aloe in this plan, and any you add later.');
   await expect(page.getByTestId('dismiss-notice').getByRole('button')).toHaveText(['Just these 2', 'OK', '✕']);
   await expect(page.getByTestId('hardy-check')).toContainText('dismissed for every one in this plan');
   await expect(page.getByTestId('hardy-check').getByRole('button')).toHaveText(['Show again']);
@@ -57,8 +57,8 @@ test('dismissing a hardiness warning on one copy dismisses it for every copy and
   await expect(page.getByTestId('warnings-head')).toHaveText(/^Nothing to look at yet · 1 dismissed · \d checks? can’t run$/);
   const row = page.getByTestId('warnings-kind-hardy').getByTestId('warning-row');
   await expect(row).toHaveAttribute('data-dismissed', 'true');
-  await expect(row.getByTestId('warning-select')).toContainText(/^Barbados aloe \u00d73Too cold for zone 8a: it's rated for zones/);
-  await expect(row.getByTestId('warning-scope')).toHaveText('Dismissed for every Barbados aloe in this plan');
+  await expect(row.getByTestId('warning-select')).toContainText(/^Barbados Aloe \u00d73Too cold for zone 8a: it's rated for zones/);
+  await expect(row.getByTestId('warning-scope')).toHaveText('Dismissed for every Barbados Aloe in this plan');
   await row.getByRole('button', { name: 'Show again' }).click();
   await expect(row).toHaveAttribute('data-dismissed', 'false');
   await expect(row.getByRole('button', { name: 'Show again' })).toHaveCount(0);
@@ -126,7 +126,7 @@ test('Warnings: each kind\'s warning dismissed from its row, as the plan dismiss
   await expect(scopeOf('crowding')).toHaveText('Dismissed for this pair');
   await expect(kind(page, 'crowding').getByTestId('warning-row').last().getByTestId('warning-again')).toBeVisible();
   // Sun and utilities: that plant where it stands.
-  await expect(kind(page, 'sun').getByTestId('warning-select')).toHaveText(/^Turkey cornGets about 8 h of sun in Sunny strip; it prefers part shade ›$/);
+  await expect(kind(page, 'sun').getByTestId('warning-select')).toHaveText(/^Turkey CornGets about 8 h of sun in Sunny strip; it prefers part shade ›$/);
   await kind(page, 'sun').getByTestId('warning-dismiss').click();
   await expect(head(page, 'sun')).toHaveAttribute('aria-label', 'Sun, 1 dismissed');
   await expect(scopeOf('sun')).toHaveText('Dismissed for this one');
@@ -137,19 +137,19 @@ test('Warnings: each kind\'s warning dismissed from its row, as the plan dismiss
   await expect(badgesOf(page, 'utility')).toHaveCount(0);
   // Hardiness, poison and fruit partners: the plant across the plan, said as its pane or its notice says it.
   await kind(page, 'hardy').getByTestId('warning-dismiss').click();
-  await expect(page.getByTestId('dismiss-notice')).toContainText('Hardiness warning dismissed for Barbados aloe in this plan, and any you add later.');
+  await expect(page.getByTestId('dismiss-notice')).toContainText('Hardiness warning dismissed for Barbados Aloe in this plan, and any you add later.');
   await expect(page.getByTestId('dismiss-notice').getByRole('button')).toHaveText(['Just this one', 'OK', '✕']);
   await expect(head(page, 'hardy')).toHaveAttribute('aria-label', 'Hardiness, 1 dismissed');
-  await expect(scopeOf('hardy')).toHaveText('Dismissed for every Barbados aloe in this plan');
+  await expect(scopeOf('hardy')).toHaveText('Dismissed for every Barbados Aloe in this plan');
   await expect(badgesOf(page, 'hardy')).toHaveCount(0);
   await putAway(page);
   // (Poison as its details say it, with its severity.)
   const milkweed = kind(page, 'poison').getByTestId('warning-row').filter({ hasText: 'Butterfly milkweed' });
-  await expect(milkweed.getByTestId('warning-select')).toContainText(/A problem for dogs/);
+  await expect(milkweed.getByTestId('warning-select')).toContainText(/Toxic to dogs/);
   await milkweed.getByTestId('warning-dismiss').click();
-  await expect(page.getByTestId('dismiss-notice')).toContainText('Poison warning dismissed for Butterfly milkweed in this plan, and any you add later.');
+  await expect(page.getByTestId('dismiss-notice')).toContainText('Poison warning dismissed for Butterfly Milkweed in this plan, and any you add later.');
   await expect(head(page, 'poison')).toHaveAttribute('aria-label', 'Poison, 3 to look at, 1 dismissed');
-  await expect(scopeOf('poison')).toHaveText('Dismissed for every Butterfly milkweed in this plan');
+  await expect(scopeOf('poison')).toHaveText('Dismissed for every Butterfly Milkweed in this plan');
   await expect(badgesOf(page, 'poison')).toHaveCount(3);
   await putAway(page);
   // (Fruit partners: "Just this one" as hardiness and poison have it, since a copy keeps its own (Jason, Nov 1: it

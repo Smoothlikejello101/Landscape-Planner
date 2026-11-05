@@ -5,11 +5,13 @@ import { canvasRect, pxPerFoot, rotatedBoxBounds, shapeBBox, shapeCenter, unionB
 import { flushHistoryDebounce, pushHistory, pushHistoryDebounced, stepNamed } from './history';
 import { getSelected, singleSelected } from './selection';
 import { state } from './state';
-import { forgetCleared, getClipboard, keepCleared, migrateShape, save, saveView, setClipboard, type ClearedPlan } from './storage';
+import { forgetCleared, getClipboard, keepCleared, laterQuestionsOf, migrateShape, sanitizeBedConditions, save, saveView, setClipboard, type ClearedPlan } from './storage';
+import { canonical } from './sync/engine';
+import { mayMark } from './marks';
 import { toast } from './ui/toast';
 import { defaultLook, isLocked, roleKey } from './roles';
 import { isUtilityKind, utilityLook } from './utility-kinds';
-import type { Bounds, Clipboard, Point, Role, RoleKey, RoleView, Shape, ShapeFilter, ShapePatch, Status } from './types';
+import type { BedAnswers, Bounds, Clipboard, Point, Role, RoleKey, RoleView, Shape, ShapeFilter, ShapePatch, Status } from './types';
 import { cleanPhaseName, MAX_PHASES, shownWith, statusLabel, statusPatch, today } from './status';
 import { render } from './ui/render';
 import { warningsChangedInPlace } from './ui/warnings-sheet';
@@ -320,6 +322,45 @@ export function bringBackCleared(c: ClearedPlan) {
   toast(`Brought back ${c.shapes.length} shape${c.shapes.length === 1 ? '' : 's'}${c.bgImage ? ' and the photo' : ''}.`);
 }
 
+// ---- A bed's conditions ----
+/**
+ * A bed's conditions, as answered (Plant this bed, Nov 2; src/types.ts BedConditions): one undo step, saved. Given as
+ * this version asks them (BedAnswers), the whole set: a question left out or false is no answer. A later version's
+ * questions on the bed are kept as they are. Read as a stored plan's are (src/storage.ts sanitizeBedConditions).
+ *
+ * Nothing answered clears them: kept as {}, cleared on purpose, so sync doesn't fill them back from another device's
+ * copy (src/sync/engine.ts withBedConditions), where the server's copy had them as this device last synced (src/marks.ts
+ * mayMark); otherwise none, as they were (a {} there would take away, everywhere, answers another device has that
+ * this one never got: the review, Nov 4). A bed with none is left without. False, and no step, when it isn't a bed here
+ * or nothing changes.
+ *
+ * How they travel: Duplicate copies them with the bed; Copy and Paste carry them (pasted as a stored plan's shapes are
+ * read); Undo or Redo taking them away leaves {} by the same rule (src/history.ts conditionsCleared); a bed made
+ * something else loses them, in that step (setRoleForIds).
+ */
+export function setBedConditions(bedId: string, answers: BedAnswers): boolean {
+  const s = state.shapes.find((sh) => sh.id === bedId);
+  if (!s || s.role !== 'bed' || !answers || typeof answers !== 'object' || Array.isArray(answers)) return false;
+  const given = Object.fromEntries(Object.entries((answers ?? {}) as Record<string, unknown>).filter(([k, v]) => ASKED_HERE.has(k) && v !== false && v !== null && v !== undefined));
+  const next = sanitizeBedConditions({ ...laterQuestionsOf(s.conditions), ...given });
+  if (!next) return false;
+  const was = s.conditions === undefined ? undefined : sanitizeBedConditions(s.conditions) ?? {};
+  const cleared = !Object.keys(next).length;
+  if (was === undefined ? cleared : canonical(was) === canonical(next)) return false;
+  if (cleared && !mayMark('conditions', s.id)) {
+    flushHistoryDebounce();
+    delete s.conditions;
+  } else {
+    flushHistoryDebounce();
+    s.conditions = next;
+  }
+  pushHistory(`set the conditions of ${stepNamed([s])}`);
+  save();
+  return true;
+}
+/** The questions setBedConditions takes (src/types.ts BedAnswers). */
+const ASKED_HERE = new Set(['sun', 'soil', 'moisture', 'drip']);
+
 // ---- Roles ----
 /**
  * Give shapes a role. A shape still wearing its old role's default look gets
@@ -334,8 +375,14 @@ export function setRoleForIds(ids: string[], role: Role | undefined) {
     const lookOf = (sh: Shape) => (sh.role === 'utility' && isUtilityKind(sh.utility) ? utilityLook(sh.utility) : defaultLook(roleKey(sh), sh.type));
     const before = lookOf(s);
     const wasDefault = s.color.toLowerCase() === before.color && Math.abs(s.opacity - before.opacity) < 0.001;
+    const wasBed = s.role === 'bed';
     if (role) s.role = role; else delete s.role;
     delete s.kind; // (what it was added as: no longer what it is)
+    // A bed's conditions are a bed's only (src/storage.ts migrateShape): one made something else loses them, in this step
+    // (Undo brings them back). One made a bed starts with {}, none on purpose, so sync doesn't fill in conditions another
+    // device still has from when it was a bed before (src/sync/engine.ts withBedConditions).
+    if (wasBed && role !== 'bed') delete s.conditions;
+    else if (!wasBed && role === 'bed') s.conditions = {};
     // A utility is one kind or another (src/utilities.ts): a line a power line, to start with, an area a septic field;
     // its properties change it. Made something else, it keeps which it was (only a utility's counts): turned back,
     // it's that again, and sync can tell it from a copy an older version sent, which has neither (src/sync/engine.ts).

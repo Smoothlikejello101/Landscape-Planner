@@ -109,7 +109,7 @@ describe('leaf-out in the app', () => {
     const box = plantDetails({ id: 'redbud', common: 'Eastern redbud' } as Plant, undefined);
     const r = box.querySelector('[data-testid=leaf-out-row]')!;
     expect(r.querySelector('.details-part')!.textContent).toBe('Around Mar 28 (most Mar 16 to Apr 4)');
-    expect(r.querySelector('.details-src')!.textContent).toBe('233 plant-years in Arkansas and neighboring states · USA National Phenology Network. 2026.');
+    expect(r.querySelector('.details-src')!.textContent).toBe('Source: 233 plant-years in Arkansas and neighboring states · USA National Phenology Network. 2026.');
     expect(plantDetails({ id: 'other', common: 'Other' } as Plant, undefined).querySelector('[data-testid=leaf-out-row]')).toBeNull();
   });
 });

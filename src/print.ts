@@ -10,6 +10,7 @@ import type { BgImage, Bounds, PaperSize, PrintSettings, RoleKey, Shape, ShapeFi
 import { NO_FILTER } from './status';
 import { fullRingRadius } from './my-plants';
 import { bedNames } from './print-area';
+import { labelShown } from './names';
 
 // The printable plan: a to-scale drawing on a standard sheet, with a title
 // block, scale bar, north arrow, legend and a plant list grouped by bed.
@@ -134,7 +135,7 @@ export function plantSchedule(shapes: Shape[], plantsById: Record<string, Plant 
     const bed = bedOf(p, all);
     const g = bed ? bedName.get(bed.id)! : NONE;
     if (!groups.has(g)) groups.set(g, new Map());
-    const label = p.label.trim() || 'Unlabeled plant';
+    const label = labelShown(p).trim() || 'Unlabeled plant';
     const rows = groups.get(g)!;
     const row = rows.get(label) ?? { label, botanical: (p.plantId && plantsById[p.plantId]?.botanical) || '', count: 0, key: 0 };
     row.count++;
@@ -160,7 +161,7 @@ export function plantKeys(plants: Shape[], order: Shape[] = plants): Map<string,
   const at = new Map(order.map((s, i) => [s.id, i]));
   const first = new Map<string, number>();
   for (const p of plants.filter(isPlant)) {
-    const name = p.label.trim() || 'Unlabeled plant', i = at.get(p.id) ?? Infinity;
+    const name = labelShown(p).trim() || 'Unlabeled plant', i = at.get(p.id) ?? Infinity;
     if (!first.has(name) || i < first.get(name)!) first.set(name, i);
   }
   const names = [...first.keys()].sort((a, b) => first.get(a)! - first.get(b)! || a.localeCompare(b, undefined, { numeric: true }));
@@ -172,8 +173,9 @@ export function plantKeys(plants: Shape[], order: Shape[] = plants): Map<string,
 export interface LegendEntry { key: RoleKey; label: string; color: string; outline: boolean; solid?: boolean }
 /** One entry per role on the plan, in the usual role order, colored like most of its shapes. */
 export function legendEntries(shapes: Shape[], sizeMode: SizeMode = 'typical', rings = false): LegendEntry[] {
-  const plantLabel = sizeMode === 'full' ? 'Plants (circles show full spread)'
-    : rings ? 'Plants (circles: typical spread; dashed: full spread)' : 'Plants (circles show typical spread)';
+  // (Their width when grown, in plain words: Kayla, Nov 4, "What is mature spread?")
+  const plantLabel = sizeMode === 'full' ? 'Plants (circles show the widest they grow)'
+    : rings ? 'Plants (circles: typical width when grown; dashed: the widest)' : 'Plants (circles show typical width when grown)';
   const out: LegendEntry[] = [];
   const keys: RoleKey[] = [...ROLES.map((r) => r.key), 'unassigned'];
   for (const k of keys) {
@@ -246,7 +248,7 @@ export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage |
   const thin = seeThroughIds(shapes, NO_FILTER);
   const { out: body, names: areas } = gatherAreaNames(() => withNames(names, () => withSeeThrough(thin, () => shapes.map((s) => ring(s) + (() => {
     if (!keys || !isPlant(s)) return shapeToSvgString(s, win.minX, win.minY, pxPerFt, k);
-    const key = keys.get(s.label.trim() || 'Unlabeled plant');
+    const key = keys.get(labelShown(s).trim() || 'Unlabeled plant');
     let out = shapeToSvgString({ ...s, label: '' }, win.minX, win.minY, pxPerFt, k);
     if (!numbered(s)) return out;
     const b = shapeBBox(s);
@@ -259,7 +261,7 @@ export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage |
   // of six daffodils were white dots the list and legend didn't explain; their numbers were under the catmint).
   const hidden = hiddenIds(shapes, NO_FILTER, thin);
   const pins = hiddenRimsSvg(shapes, hidden, win.minX, win.minY, pxPerFt, k) + (keys ? shapes.filter((s) => hidden.has(s.id) && isPlant(s) && numbered(s)).map((s) => {
-    const key = keys.get(s.label.trim() || 'Unlabeled plant');
+    const key = keys.get(labelShown(s).trim() || 'Unlabeled plant');
     const cx = (s.x - win.minX) * pxPerFt + 6 * k, cy = (s.y - win.minY) * pxPerFt;
     return `<text x="${cx}" y="${cy}" dominant-baseline="central" font-size="${9 * k}" font-weight="700" fill="#0f172a" font-family="sans-serif" stroke="#ffffff" stroke-width="${2.5 * k}" paint-order="stroke" stroke-linejoin="round">${key}</text>`;
   }).join('') : '');

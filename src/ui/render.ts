@@ -12,7 +12,7 @@ import { copySelected, planBounds, setViewFilter, updateSelectedSilent, zoomBy, 
 import { deleteSelectedAsking } from './delete-selected';
 import { clearSelection, getSelected, singleSelected } from '../selection';
 import { state } from '../state';
-import { fmtFeet, screenToFeet } from '../geometry';
+import { fmtFeet, screenToFeet, shapeCenter } from '../geometry';
 import { measuredFeet, openAtHouseScale, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, drawPathWidth, editedShape, finishDraw, finishEditPoints, finishTypedRect, finishesItself, lastSnap, setDrawHover, setDrawKind, setDrawPathWidth, setTypedLength, shapeName, typedApplies, typedKind, typedLabel, startEditPoints, startKind, undoDrawPoint, unsnapLast, unsnapVertex, vertexSnap } from '../draw';
 import type { SubFeatureKind, TapSnap } from '../types';
 import { redrawCanvas, redrawHandles } from '../canvas';
@@ -22,13 +22,13 @@ import { methodIcon, renderAddSheet, renderShortcutsPanel, withKey } from './add
 import { finishPlacing, hasPlaceHover, placingPlant, selectionJustPlaced, setPlaceHover, undoPlace } from '../place';
 import { partnersClosed, plantColor } from '../plants';
 import { currentProject, storageIsDurable } from '../storage';
-import { keepScaleBoxClear, renderBgDistanceModal, renderBgPanel } from './background-panel';
+import { keepScaleBoxClear, lengthsYouMayKnow, renderBgDistanceModal, renderBgPanel } from './background-panel';
 import { renderLayersPanel } from './layers-panel';
 import { renderSettingsPanel } from './settings-panel';
 import { refreshWarnings, renderWarningsSheet, renderWarningsSide, walkChip, warningsButton, warningsSheetShown, warningsSideShown } from './warnings-sheet';
 import { renderWhatsNewPanel } from './whats-new-panel';
 import { snapOn } from '../tidy';
-import { dismissToastAction, hideOldToast, placeNotice, planChanged, planRoomAcross, toastAction } from './toast';
+import { dismissToastAction, hideOldToast, noticeUp, placeNotice, planChanged, planRoomAcross, toastAction } from './toast';
 import { renderMoreMenu, toggleSelectMode } from './menu';
 import { foldDetailGroups } from './plant-details';
 import { renderFeedbackSheet } from './feedback-sheet';
@@ -57,12 +57,18 @@ import { drawFeatureKinds, kindsFor, kindsPhrase, SUB_FEATURES, swings } from '.
 import { flipButtons } from './feature-section';
 import { roomyText } from '../text-size';
 import { isLocked } from '../roles';
-import { declineIntro, introActive, introAfterRender, introOffered, showMeAround } from './intro-card';
+import { declineIntro, guidedStartSmall, introActive, introAfterRender, introOffered, showMeAround } from './intro-card';
 import { focusAfterRender, focusBeforeRender } from './focus';
 import { startBgCalibration } from '../background';
 import { placeTraceCard, traceCard, traceChips, traceShown } from './trace-card';
+import { rescaleCard, rescaleShown } from './rescale-card';
 import { setTraceState } from '../yard-in';
 import { panelOpened } from '../tap-guard';
+import { pickerViewClosed, placePicker, planLookOnly, showChosen } from './picker-view';
+import { bedName, inBed, pickingBed, plantingFor, plantingSettled } from '../bed-plant';
+import { PICK_SAID, stopPickingBed } from './plant-for';
+import { renderBedConditionsPanel } from './bed-conditions';
+import { inSentence, labelShown } from '../names';
 
 // MAIN RENDER
 // ============================================================
@@ -78,6 +84,15 @@ export function updateStatusReadout() {
   noteCounts();
   if (roomyText()) { flashZoom(); return; }
   const node = document.querySelector('.project-btn .pcount');
+  if (node) node.textContent = statusText();
+}
+/**
+ * The count and zoom said afresh, quietly: the view moved behind the plant picker (src/ui/picker-view.ts), by a pan
+ * that needs no word of the zoom; a pinch or a zoom button has shown it already.
+ */
+export function noteView() {
+  noteCounts();
+  const node = roomyText() ? null : document.querySelector('.project-btn .pcount');
   if (node) node.textContent = statusText();
 }
 /** The shape count and zoom on the plan's element too (read by the tests: the top bar may not show them). */
@@ -124,6 +139,13 @@ let shownMenu: typeof state.menu = null;
 let shownTool: object | null = null;
 /** The plan the app last drew (undefined before it first drew). */
 let shownPlan: string | null | undefined;
+/**
+ * The view changed by a button (zoom in or out): the whole app drawn again, or, behind the plant picker, only the plan,
+ * the picker as it is (src/ui/picker-view.ts).
+ */
+function viewChanged() {
+  if (planLookOnly()) { redrawCanvas(); noteView(); } else render();
+}
 export function render() {
   const root = document.getElementById('root')!;
   refreshWarnings(); // (the plan's warnings, worked out once for this drawing: src/ui/warnings-sheet.ts)
@@ -143,7 +165,10 @@ export function render() {
   // (Checked on every redraw, so a selection changed and changed back by hand isn't "just placed" again.)
   const justPlaced = selectionJustPlaced();
 
-  const app = el('div', { className: 'app' });
+  // (The plant picker open: the plan stays in view beside or above it, to look at: src/ui/picker-view.ts.)
+  const pickerUp = state.panel === 'plants';
+  const pickerOpening = pickerUp && shownPanel !== 'plants';
+  const app = el('div', { className: 'app' + (pickerUp ? ' picker-open' : '') });
   if (!storageIsDurable()) {
     app.appendChild(el('div', { className: 'storage-warning', role: 'alert' },
       "This browser isn't saving your work. Use Projects → Back up to keep it."));
@@ -202,8 +227,14 @@ export function render() {
     floatRedo.addEventListener('click', () => { dismissToastAction(); redo(); render(); });
   }
 
-  // Layers
-  const layersBtn = el('button', { className: 'iconbtn', html: I.layers, title: 'Layers' });
+  // Layers. While the plan's photo isn't to scale yet, a dot on it, said to screen readers too (Jason, his note on #209,
+  // Nov 4: "Can we add a little notification badge if the image is uncalibrated?"): Layers marks it and sets its scale.
+  // The same dot for a photo whose scale was set from a rough guess (its box's checkbox: BgImage.roughScale).
+  const unscaled = !!state.bgImage?.uncalibrated && !state.bgCalibrate;
+  const roughScale = !!state.bgImage?.roughScale && !state.bgImage.uncalibrated && !state.bgCalibrate;
+  const layersBtn = el('button', { className: 'iconbtn', html: I.layers, title: 'Layers', 'data-testid': 'layers-btn',
+    'aria-label': unscaled ? 'Layers: the photo isn\u2019t to scale yet' : roughScale ? 'Layers: the photo\u2019s scale is a rough guess' : 'Layers' });
+  if (unscaled || roughScale) layersBtn.appendChild(el('span', { className: 'scale-dot', 'data-testid': 'layers-scale-dot', 'aria-hidden': 'true' }));
   layersBtn.addEventListener('click', () => { state.panel = 'layers'; render(); });
   topbar.appendChild(layersBtn);
 
@@ -255,7 +286,7 @@ export function render() {
   svg.addEventListener('click', () => { /* the plan takes its taps */ });
   // With a mouse, the shape being drawn follows the pointer to the next click.
   svg.addEventListener('pointermove', (e) => {
-    if (e.pointerType !== 'mouse') return;
+    if (e.pointerType !== 'mouse' || planLookOnly()) return; // (behind the picker, nothing follows the pointer)
     // (A drag pans the plan: the plant that followed the pointer is put away till it moves again, not left behind
     // where the plan took it. Tom, Oct 30.)
     if (e.buttons) { if (state.placing && hasPlaceHover()) { setPlaceHover(null); redrawHandles(); } return; }
@@ -321,6 +352,8 @@ export function render() {
     });
     banner.appendChild(cancelBtn);
     strip.appendChild(banner);
+    // (Lengths you may know, to pick A and B by: under the words, the whole time, so the strip keeps its height.)
+    strip.appendChild(lengthsYouMayKnow());
   }
 
   // Drawing / point-editing banner
@@ -350,7 +383,7 @@ export function render() {
   if (state.featurePlace) {
     const host = featureHost()!;
     const where = host.role === 'boundary' ? 'the line' : host.role === 'building' ? 'a wall' : 'an edge';
-    const say = (k: SubFeatureKind, n: string) => tapSaid(`Tap ${where} where the ${SUB_FEATURES[k].label.toLowerCase()} goes · ${n} added`);
+    const say = (k: SubFeatureKind, n: string) => tapSaid(`Tap ${where} where the ${inSentence(SUB_FEATURES[k].label)} goes · ${n} added`);
     const banner = el('div', { className: 'mode-banner draw-banner', 'data-testid': 'feature-banner', html: I.draw });
     banner.appendChild(words(say(state.featurePlace.kind, String(state.featurePlace.added.length)), kindsFor(host).map((k) => say(k, '00'))));
     strip.appendChild(banner);
@@ -362,9 +395,27 @@ export function render() {
   if (placing && state.placing) {
     // (This plant's, not every plant placed since Place was tapped: a switch starts the count over.)
     const n = state.placing.placed.filter((x) => state.shapes.find((s) => s.id === x.id)?.plantId === placing.id).length;
-    const say = (k: string) => `${tapSaid('Tap')} to place ${placing.common} · ${k} placed`;
-    const banner = el('div', { className: 'mode-banner draw-banner', 'data-testid': 'place-banner', html: I.leaf });
-    banner.appendChild(words(say(String(n)), [say('000')]));
+    // (For a bed (Plant this bed): in it; one just placed outside it, said, with Undo, and ringed red on the plan. Placed
+    // all the same: Jason, Nov 2, answer C/8.)
+    const bed = plantingFor();
+    const last = state.placing.placed.at(-1), lastShape = last ? state.shapes.find((s) => s.id === last.id) : undefined;
+    const outside = !!bed && !!lastShape && !inBed(bed, shapeCenter(lastShape));
+    const say = (k: string) => `${tapSaid('Tap')} to place ${placing.common}${bed ? ` in ${bedName(bed)}` : ''} · ${k} placed`;
+    const out = (k: string) => `Placed outside ${bed ? bedName(bed) : ''} · ${k} placed`;
+    const banner = el('div', { className: 'mode-banner draw-banner' + (outside ? ' outside-bed' : ''), 'data-testid': 'place-banner', html: I.leaf });
+    banner.appendChild(words(outside ? out(String(n)) : say(String(n)), bed ? [say('000'), out('000') + '  Undo'] : [say('000')]));
+    if (outside) {
+      const undoOut = el('button', { className: 'banner-undo', 'data-testid': 'place-outside-undo' }, 'Undo');
+      undoOut.addEventListener('click', () => { undoPlace(); render(); });
+      banner.appendChild(undoOut);
+    }
+    strip.appendChild(banner);
+  }
+
+  // Picking a bed for the picker on the plan (Plant this bed's Pick on the plan): one tap on a bed, then back.
+  if (pickingBed()) {
+    const banner = el('div', { className: 'mode-banner draw-banner', 'data-testid': 'pick-bed-banner', html: I.target });
+    banner.appendChild(words(tapSaid(PICK_SAID)));
     strip.appendChild(banner);
   }
 
@@ -383,16 +434,18 @@ export function render() {
   // Zoom buttons
   const zoomBtns = el('div', { className: 'zoombtns' });
   const zIn = el('button', { className: 'zoombtn', html: I.zoomIn, 'aria-label': 'Zoom in', title: 'Zoom in' });
-  zIn.addEventListener('click', () => { zoomBy(1.25); render(); flashZoom(); });
+  zIn.addEventListener('click', () => { zoomBy(1.25); viewChanged(); flashZoom(); });
   const zOut = el('button', { className: 'zoombtn', html: I.zoomOut, 'aria-label': 'Zoom out', title: 'Zoom out' });
-  zOut.addEventListener('click', () => { zoomBy(0.8); render(); flashZoom(); });
+  zOut.addEventListener('click', () => { zoomBy(0.8); viewChanged(); flashZoom(); });
   // (Off on a phone unless turned on in Settings: src/view-settings.ts. Kept while drawing, for whoever zooms with one
   // finger: they asked for them.)
   if (state.zoomButtons) { zoomBtns.appendChild(zIn); zoomBtns.appendChild(zOut); }
   // The rest, not while drawing, placing, adding doors, editing points or setting a photo's scale: they're for looking,
   // and a corner tapped near the plan's right edge landed on them instead (round 3: Lena, Grace and Owen). Fit too,
   // which took a corner's tap and zoomed the plan away mid-drawing (Jason, Nov 2, from the UI review).
-  if (!state.draw && !state.placing && !state.bgCalibrate && !state.featurePlace && !state.editPoints) {
+  // (Nor while the plant picker is open: the plan beside it is there to look at, and each of these opens something in the
+  // picker's place, or fits the whole plan to the screen, under the picker.)
+  if (!state.draw && !state.placing && !state.bgCalibrate && !state.featurePlace && !state.editPoints && !pickerUp) {
     // Everything in view (not on an empty plan with no photo: nothing to fit).
     if (planBounds()) {
       const zFit = el('button', { className: 'zoombtn', html: I.fit, 'aria-label': 'Fit the plan in view', title: 'Fit the plan in view (Shift+1)', 'data-testid': 'zoom-fit' });
@@ -419,7 +472,8 @@ export function render() {
   // gives hardiness, frost dates and the state's plant laws was in ⋮; a backup from another device had no way in).
   // (The first screen with its photo to scale holds "Now trace" itself; else it's a card of its own, below.)
   let tracing = false;
-  if (state.shapes.length === 0 && !state.draw && !state.placing && !state.bgCalibrate && !state.bgEditMode && !introActive()) {
+  // (Not under the plant picker: it's choosing plants already, and the card's buttons would close it.)
+  if (state.shapes.length === 0 && !state.draw && !state.placing && !state.bgCalibrate && !state.bgEditMode && !introActive() && !pickerUp) {
     // Cleared with Clear all: what it took, offered back until something new is drawn, across reloads (Jason, Oct 30).
     if (state.currentProjectId) void loadCleared(state.currentProjectId, render);
     const was = clearedNow();
@@ -464,14 +518,21 @@ export function render() {
         else if (onlyPlan) card.append(el('div', { className: 'first-line', 'data-testid': 'first-line' }, 'Plan your garden to scale, with plants that suit it.'));
         // Where the garden is, typed here; its zone once it's known. (Not under a sheet: the ZIP sheet has its own field.)
         if (!state.panel) card.append(state.location ? firstZone(state.location) : firstZip());
-        // New here: the guided introduction, offered once (it stays in ⋮ → Help as "Take the tour"). Not under a photo: whoever
-        // added one is past the beginning, and the card stays short, clear of the photo.
+        // New here: the guided introduction, Guided start (Jason, Nov 4: its name everywhere), offered at the top of the
+        // card till it's begun or declined; after that, small, in its place, whenever it isn't under way on this plan
+        // (Jason, Nov 4: "we should add 'take the tour' to the canvas of a blank plan"; it went for good with "I'll
+        // explore"). It's in ⋮ → Help too. Not under a photo: whoever added one is past the beginning, and the card stays
+        // short, clear of the photo.
         if (introOffered() && !docked) {
-          const go = el('button', { className: 'btn primary empty-intro-btn', 'data-testid': 'intro-start' }, 'New here? Show me around');
+          const go = el('button', { className: 'btn primary empty-intro-btn', 'data-testid': 'intro-start' }, 'New here? Guided start');
           go.addEventListener('click', () => { showMeAround(); render(); });
           const no = el('button', { className: 'btn ghost empty-intro-no', 'data-testid': 'intro-decline' }, "I'll explore");
           no.addEventListener('click', () => { declineIntro(); render(); });
           card.append(el('div', { className: 'empty-intro' }, go, no));
+        } else if (guidedStartSmall() && !docked) {
+          const go = el('button', { className: 'first-guided', 'data-testid': 'guided-start', html: `${I.help}<span>Guided start</span>` });
+          go.addEventListener('click', () => { showMeAround(); render(); });
+          card.append(go);
         }
         // The easiest start is tracing over a photo of the yard from above, so offer it first.
         if (!state.bgImage) {
@@ -496,6 +557,8 @@ export function render() {
 
   // "Now trace" over the photo set to scale: House, Driveway, Trees, Lot line, Beds (src/ui/trace-card.ts).
   if (!tracing && !walking && traceShown()) canvasWrap.appendChild(traceCard());
+  // Its scale set again, with a plan over it: "Was your plan drawn over the photo?" (src/ui/rescale-card.ts).
+  if (rescaleShown()) canvasWrap.appendChild(rescaleCard());
 
   // Multi-select action bar (floating, only when 2+ selected and no panel open)
   const drawing = !!state.draw || !!state.editPoints || !!state.placing || !!state.featurePlace;
@@ -549,13 +612,13 @@ export function render() {
   }
 
   // Single-select pill (only when exactly 1 selected, no panel open, no multi-bar)
-  if (state.selectedIds.length === 1 && !state.panel && !drawing && !walking) {
+  if (state.selectedIds.length === 1 && !state.panel && !drawing && !walking && !pickingBed()) {
     const s = singleSelected();
     if (s) {
       const pill = el('div', { className: 'sel-pill' });
       pill.appendChild(el('div', { className: 'sw', style: { background: shapeDot(s) } }));
       // (Unnamed: what it is, "Path", not how it was drawn. Jason, Oct 30.)
-      pill.appendChild(el('div', { className: 'name' }, s.label || sheetTitle(s)));
+      pill.appendChild(el('div', { className: 'name' }, labelShown(s) || sheetTitle(s)));
       const editBtn = el('button', { className: 'edit' });
       editBtn.innerHTML = I.edit + '<span>Edit</span>';
       editBtn.addEventListener('click', () => { state.panel = 'props'; render(); });
@@ -567,8 +630,15 @@ export function render() {
         pts.addEventListener('click', () => { startEditPoints(s.id); render(); });
         pill.appendChild(pts);
       }
-      // Another of the same: a plant placed, a tree or anything else drawn.
-      const more = moreOfSame([s], true);
+      // Another of the same: a plant placed, a tree or anything else drawn. A bed: Plant this bed, in its place (Jason,
+      // Nov 2, answer 1: the Bed button already starts another), the picker For it (src/bed-plant.ts).
+      const more = s.role === 'bed' ? null : moreOfSame([s], true);
+      if (s.role === 'bed') {
+        const b = el('button', { className: 'pill-more pill-plant-bed', 'data-testid': 'pill-plant-bed', title: 'Plant this bed: plants that fit its conditions' });
+        b.innerHTML = I.leaf + '<span>Plant this bed</span>';
+        b.addEventListener('click', () => { startKind('plant'); render(); }); // (For the bed selected: src/draw.ts)
+        pill.appendChild(b);
+      }
       if (more) {
         const b = el('button', { className: 'pill-more', 'data-testid': 'pill-place-more', title: more.title, 'aria-label': more.title });
         b.innerHTML = I.plus + '<span></span>'; b.querySelector('span')!.textContent = more.short;
@@ -583,6 +653,9 @@ export function render() {
     }
   }
 
+  // (Behind the plant picker, what sits over the plan (a filter's banner, "Now trace") waits: only the plan pans and
+  // zooms, and the zoom buttons. src/ui/picker-view.ts.)
+  if (pickerUp) for (const c of canvasWrap.children) if (c !== svg && c !== zoomBtns) (c as HTMLElement).inert = true;
   if (strip.childElementCount) app.appendChild(strip);
   // (On a computer, Warnings stays open beside the plan, and the plan makes room: src/ui/warnings-sheet.ts.)
   app.appendChild(el('div', { className: 'plan-row' }, canvasWrap, renderWarningsSide()));
@@ -605,7 +678,7 @@ export function render() {
   addBtn.addEventListener('click', () => { state.panel = 'add'; render(); });
   bottomBar.appendChild(addBtn);
   // (Through the year, the month's controls take the bar's place: src/ui/year-bar.ts.)
-  app.appendChild(state.placing ? renderPlaceBar() : state.featurePlace ? renderFeatureBar() : drawing ? renderDrawBar() : state.month != null ? renderYearBar() : bottomBar);
+  app.appendChild(pickingBed() ? renderPickBedBar() : state.placing ? renderPlaceBar() : state.featurePlace ? renderFeatureBar() : drawing ? renderDrawBar() : state.month != null ? renderYearBar() : bottomBar);
 
   root.appendChild(app);
   placeTraceCard(root); // (above a selected shape's chip, now it's laid out)
@@ -638,6 +711,7 @@ export function render() {
   else if (state.panel === 'warnings') panelNode = renderWarningsSheet();
   else if (state.panel === 'plantList') panelNode = renderPlantListPanel();
   else if (state.panel === 'help') panelNode = renderHelpSheet();
+  else if (state.panel === 'bedConditions') panelNode = renderBedConditionsPanel();
   warningsSideShown(root); // (the panel beside the plan, where it was scrolled to)
   if (panelNode) {
     root.appendChild(panelNode);
@@ -669,10 +743,12 @@ export function render() {
   }
   // (The picker closed: its plants' detail groups fold again, Jason, 2026-10-29.)
   // (And "Anyone you need to protect?", answered in it, goes under Poison & pets for next time: src/ui/plants-panel.ts.)
-  if (shownPanel === 'plants' && state.panel !== 'plants') { foldDetailGroups(); partnersClosed(); pickerClosed(); }
+  if (shownPanel === 'plants' && state.panel !== 'plants') { foldDetailGroups(); partnersClosed(); pickerClosed(); pickerViewClosed(); }
+  // (For a bed no longer, once nothing plants for it: src/bed-plant.ts.)
+  plantingSettled();
   // (The plants chosen to compare, and the comparison, go once the picker is left: kept only through the sheets it opens
   // that come back to it, Add or Copy as my plant, Compare and switch, the garden's ZIP. src/ui/compare-sheet.ts.)
-  if (!state.panel || !['plants', 'plantForm', 'switchPlant', 'location'].includes(state.panel)) compareClosed();
+  if (!state.panel || !['plants', 'plantForm', 'switchPlant', 'location', 'bedConditions'].includes(state.panel)) compareClosed();
   if (state.panel !== 'projects' && state.panel !== 'rename') projectsClosed();
   if ((state.panel && state.panel !== shownPanel) || (state.menu && state.menu !== shownMenu)) {
     panelOpened(); // (a tap on it a moment from now is the end of a double tap, not one meant for it: src/tap-guard.ts)
@@ -700,10 +776,25 @@ export function render() {
   calibrationNotice();
   // Now that the SVG is in the DOM, size it and draw grid/shapes
   resizeCanvas();
+  // The plant picker: placed under the top bar, and, just opened with something selected (a plant to swap, a bed), the
+  // plan moved to show it beside or above the picker (src/ui/picker-view.ts).
+  if (pickerUp) {
+    placePicker();
+    if (pickerOpening && showChosen()) { redrawCanvas(); noteView(); }
+  }
   // (The Building tool just opened: where a house fits, the plan sized for drawing now. src/draw.ts.)
   if (openAtHouseScale()) { redrawCanvas(); updateStatusReadout(); }
   placeNotice(); // (a notice with buttons stays clear of an open sheet, and of the shape it's about, drawn now)
   maybeExplainFullSize();
+}
+
+/** Bottom bar while picking a bed for the picker: back to it as it was. */
+function renderPickBedBar(): HTMLElement {
+  const bar = el('div', { className: 'bottom-toolbar draw-bar', 'data-testid': 'pick-bed-bar' });
+  const back = el('button', { className: 'draw-btn', 'data-testid': 'pick-bed-cancel' }, 'Cancel');
+  back.addEventListener('click', () => { stopPickingBed(); render(); });
+  bar.append(back);
+  return bar;
 }
 
 /** Bottom bar while placing plants: the plant in hand (tap to switch), Undo, Done. */
@@ -924,7 +1015,7 @@ function firstZip(): HTMLElement {
   const { input, go, problem } = zipEntry('first');
   // What happens to the ZIP, a press away, for anyone wary of giving it (Jason, Nov 1): the ZIP sheet says.
   const privacy = el('button', { className: 'link-btn first-privacy', 'data-testid': 'zip-privacy' }, 'Privacy');
-  privacy.addEventListener('click', () => openLocation());
+  privacy.addEventListener('click', () => openLocation(null, { privacy: true })); // (how it's used, open)
   return el('div', { className: 'first-zip', 'data-testid': 'first-zip-box' },
     el('div', { className: 'first-zip-row' }, input, go),
     // (Under the field that says ZIP code: short, so the card fits a small phone at large text.)
@@ -949,10 +1040,19 @@ function restoreLine(): HTMLElement {
  * once, as the plan is first shown this session, with Calibrate. Not again that session, nor while calibrating.
  */
 const calibrationSaid = new Set<string>();
+/** When each plan's notice came due this session (ms): first shown with its photo. */
+const calibrationDue = new Map<string, number>();
+/** The start's cards and What's new: about the same thing, the app opening on the plan, and said first (src/main.ts). */
+const START_NOTICES = ['welcome-back', 'saved-here', 'whats-new-notice'];
 function calibrationNotice() {
   const id = state.currentProjectId;
   if (!id || calibrationSaid.has(id) || !state.bgImage) return;
-  if (state.bgCalibrate || state.panel || introActive() || document.getElementById('toast-action')) return;
+  if (!calibrationDue.has(id)) calibrationDue.set(id, Date.now());
+  if (state.bgCalibrate || state.panel || introActive()) return;
+  // (A notice up: one from before the plan was shown is older, and gives way, as any older notice does to a new one
+  // (Jason, Nov 4). The start's cards wait for nothing, and one raised since is newer: this waits for them to go.)
+  const up = noticeUp();
+  if (up && (START_NOTICES.includes(up.testid ?? '') || up.at >= calibrationDue.get(id)!)) return;
   calibrationSaid.add(id);
   if (!state.bgImage.uncalibrated) return;
   toastAction('The photo isn\u2019t to scale yet: its size on the plan is a guess.', [{ label: 'Calibrate', run: () => startBgCalibration() }], 12000, 'calibrate-notice', { tone: 'amber' });

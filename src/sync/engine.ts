@@ -26,6 +26,8 @@
 //   known by a fingerprint of its bytes). A project whose photo can't be
 //   fetched yet arrives without it and gets it at a later pass.
 
+import { MEASURED_TOL } from '../measured';
+
 export interface ProjectContent { [key: string]: unknown }
 /**
  * A project as sync read it. `token` marks the moment: sync changes or
@@ -55,6 +57,13 @@ export interface SyncRecord {
    * so what the server has of them isn't known here (an upload settles with the server first).
    */
   parts?: ProjectContent;
+  /**
+   * The shapes, by id, that had a bed's conditions or a fruit-partner dismissal in the server's copy this record
+   * describes (Nov 4): where a mark of something taken away ({} or '') may go on this device, since another device can
+   * have that field (src/marks.ts mayMark). Absent: none had either (and in every record from before it: release 3
+   * never had the fields, and Next doesn't sync).
+   */
+  marks?: { conditions?: string[]; fruit?: string[] };
 }
 export interface ServerProject { id: string; name: string; revision: number; updated_by: string | null; updated_at: string; deleted_at: string | null }
 export type PushResult =
@@ -189,13 +198,57 @@ export function planOf(c: ProjectContent): ProjectContent {
  * A plan as fingerprinted: a fruit-partner warning shown again on purpose (`fruitDismissed: ''`) reads as none. So a
  * dismissal taken back before the plan synced (Undo, Show again) isn't taken for a change, which against another
  * device's edit made a conflict copy (the second review, Nov 1); dismissed words to '' still differ, as words to none
- * do, so a Show again still goes up. A plan without '' is fingerprinted exactly as before (the same object).
+ * do, so a Show again still goes up. Likewise a bed's conditions cleared on purpose (`conditions: {}`, Nov 2): set to
+ * {} is a change, as set to none is; none to {} isn't. A plan with neither is fingerprinted exactly as before (the
+ * same object).
  */
 function forHash(c: ProjectContent): ProjectContent {
-  const shown = (s: unknown) => !!s && typeof s === 'object' && (s as { fruitDismissed?: unknown }).fruitDismissed === '';
-  if (!Array.isArray(c.shapes) || !c.shapes.some(shown)) return c;
-  return { ...c, shapes: c.shapes.map((s) => { if (!shown(s)) return s; const { fruitDismissed: _f, ...rest } = s as Record<string, unknown>; return rest; }) };
+  if (!Array.isArray(c.shapes)) return c;
+  const cleared = withoutClearedMarks(c.shapes);
+  const shapes = withoutMeasured(cleared ?? c.shapes) ?? cleared;
+  return shapes ? { ...c, shapes } : c;
 }
+/**
+ * The shapes with their sides typed as numbers (`measured`, Nov 4: src/measured.ts) left out, for the fingerprints;
+ * null when none has them. This version changes them only with the shape's sides (typing a rectangle's Width, drawing
+ * it, reshaping it), which the fingerprint sees anyway; an older version drops them from every plan it sends. Seen,
+ * a device on the release ticking a plant bought, or moving the photo, would read on this device as a change to the
+ * plan there, and a copy of it would be made if this device had reshaped a shape since. (Withdrawn from the plan by
+ * an older version, they're kept from here: withMeasuredSides. Typed again as the same length, they go up with the
+ * next edit.)
+ */
+function withoutMeasured<T>(shapes: readonly T[]): T[] | null {
+  const has = (s: unknown) => !!s && typeof s === 'object' && 'measured' in s;
+  if (!shapes.some(has)) return null;
+  return shapes.map((s) => { if (!has(s)) return s; const { measured: _m, ...rest } = s as Record<string, unknown>; return rest as T; });
+}
+
+// ---------- Marks of something taken away on purpose ----------
+// Kept on a shape so sync can tell them from a copy an older version sent without the field (docs/storage.md): a
+// fruit-partner warning shown again (`fruitDismissed: ''`) and a bed's conditions cleared (`conditions: {}`). Where two
+// copies of a plan are compared for what they hold (the fingerprints here, a journal against its plan in
+// src/storage.ts, an imported plan against one already here in src/backup.ts), each reads as none.
+/** Whether a shape carries either mark. */
+function marked(s: unknown): boolean {
+  if (!s || typeof s !== 'object') return false;
+  const o = s as { fruitDismissed?: unknown; conditions?: unknown };
+  const k = o.conditions;
+  return o.fruitDismissed === '' || (!!k && typeof k === 'object' && !Array.isArray(k) && Object.keys(k).length === 0);
+}
+
+/** The shapes with those marks read as none; null when none has one (so a caller can keep its object as it was). */
+export function withoutClearedMarks<T>(shapes: readonly T[]): T[] | null {
+  if (!shapes.some(marked)) return null;
+  return shapes.map((s) => {
+    if (!marked(s)) return s;
+    const rest = { ...(s as Record<string, unknown>) };
+    if (rest.fruitDismissed === '') delete rest.fruitDismissed;
+    const k = rest.conditions;
+    if (!!k && typeof k === 'object' && !Array.isArray(k) && Object.keys(k).length === 0) delete rest.conditions;
+    return rest as T;
+  });
+}
+
 /** Fingerprint of the name and plan (the photo apart). Records made before photos synced hold exactly this. */
 export const planHash = (name: string, c: ProjectContent) => fingerprint(name, forHash(planOf(c)));
 /** Parts of a plan that settle on their own when two devices change them (settleParts), not a conflict. */
@@ -242,7 +295,10 @@ export function photoKey(c: ProjectContent): string | undefined {
   if (!ph) return 'none';
   if (ph.deviceOnly === true) return 'kept';
   if (typeof ph.fingerprint !== 'string') return 'none';
-  const { fingerprint: fp, ...placement } = ph as Record<string, unknown>;
+  // (A rough scale, Nov 4, left out: it's set and cleared only with the scale, which is here; the release drops it from
+  // the photo it sends with any edit of its own, which would read as the photo changed there, a copy made against a
+  // scale set again here. Kept from here meanwhile: withRoughScale. A photo without one is fingerprinted as before.)
+  const { fingerprint: fp, roughScale: _r, ...placement } = ph as Record<string, unknown>;
   return `${fp}@${fingerprint('', placement)}`;
 }
 /** The fingerprint of the photo content shows (none if it shows none, or keeps it on one device). */
@@ -256,8 +312,28 @@ const recordFor = (name: string, c: ProjectContent, revision: number): SyncRecor
   const rec: SyncRecord = { revision, hash: planHash(name, c), core: coreHash(name, c) };
   const parts = partsOf(c);
   if (Object.keys(parts).length) rec.parts = parts;
+  const marks = marksOf(c);
+  if (marks) rec.marks = marks;
   return photo === undefined ? rec : { ...rec, photo };
 };
+/**
+ * The shapes of a copy of a plan with a bed's conditions or a fruit-partner dismissal (marks included), by id: a
+ * record's `marks`. Only from the server's copy (what another device can take): a download's record describes the copy
+ * as kept here, with this device's own parts filled in, so it takes them from the server's copy itself.
+ */
+export function marksOf(c: ProjectContent): SyncRecord['marks'] {
+  if (!Array.isArray(c.shapes)) return undefined;
+  const conditions: string[] = [], fruit: string[] = [];
+  for (const s of c.shapes) {
+    if (!s || typeof s !== 'object') continue;
+    const o = s as { id?: unknown; role?: unknown; conditions?: unknown; fruitDismissed?: unknown };
+    if (typeof o.id !== 'string') continue;
+    if (o.role === 'bed' && o.conditions !== undefined) conditions.push(o.id);
+    if (o.fruitDismissed !== undefined) fruit.push(o.id);
+  }
+  if (!conditions.length && !fruit.length) return undefined;
+  return { ...(conditions.length ? { conditions } : {}), ...(fruit.length ? { fruit } : {}) };
+}
 /** Size in bytes of a data URL's contents. */
 const byteSize = (dataUrl: string) => { const b64 = dataUrl.slice(dataUrl.indexOf(',') + 1); return Math.floor((b64.length * 3) / 4) - (b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0); };
 
@@ -272,7 +348,102 @@ export function withLocalParts(server: ProjectContent, mine: ProjectContent | un
   if (!mine) return server;
   let out = server;
   for (const k of NEWER_PARTS) if (!(k in server) && k in mine) out = { ...out, [k]: mine[k] };
-  return withFruitDismissals(withChosenColors(withStructures(withVineSupports(withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine), mine), mine), mine), mine);
+  return withRoughScale(withMeasuredSides(withBedConditions(withFruitDismissals(withChosenColors(withStructures(withVineSupports(withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine), mine), mine), mine), mine), mine), mine), mine);
+}
+/**
+ * The sides of a shape typed as numbers (`measured`, Nov 4: src/measured.ts), which an older version drops from every
+ * shape it sends, side by side: the server's copy's own entries stand, and one here for a side they don't name is kept
+ * only where that side is provably the same side, and still the length typed (within MEASURED_TOL): a rectangle with
+ * that dimension the same (its Width for sides 0 and 2, its Length for 1 and 3), or an outline or a line with as many
+ * points and both ends of that side exactly where they are here. Moved or turned there, each side is the same; a point
+ * added or taken out there (the sides perhaps renumbered), none is kept, so a number never lands on another side, nor
+ * on a side another device changed (the honest rule: docs/storage.md). So a typed Length here stays beside a Width
+ * typed on another device that never had it (the review's R4: an older version had sent the plan without them).
+ * Nothing marks them taken away on purpose: this version takes a side away only when its length changes, which this
+ * tells.
+ */
+function withMeasuredSides(server: ProjectContent, mine: ProjectContent): ProjectContent {
+  if (!Array.isArray(server.shapes) || !Array.isArray(mine.shapes)) return server;
+  const kept = new Map<unknown, Sided>();
+  for (const s of mine.shapes as Sided[]) if (s && Array.isArray(s.measured) && s.measured.length) kept.set(s.id, s);
+  if (!kept.size) return server;
+  let filled = false;
+  const shapes = (server.shapes as Sided[]).map((s) => {
+    const k = s && typeof s === 'object' ? kept.get(s.id) : undefined;
+    if (!k) return s;
+    const theirs: unknown[] = Array.isArray(s.measured) ? s.measured : [];
+    const named = new Set(theirs.map((m) => (m && typeof m === 'object' ? (m as { side?: unknown }).side : undefined)));
+    const add = (k.measured as { side?: unknown; ft?: unknown }[]).filter((m) => m && !named.has(m.side) && sameSide(s, k, m));
+    if (!add.length) return s;
+    filled = true;
+    return { ...s, measured: [...JSON.parse(JSON.stringify(theirs)), ...add.map((m) => ({ side: m.side, ft: m.ft }))] };
+  });
+  return filled ? { ...server, shapes } : server;
+}
+type Sided = { id?: unknown; type?: unknown; width?: unknown; height?: unknown; points?: unknown; measured?: unknown };
+/**
+ * Whether side `m.side` of the server's copy (`there`) is provably that side here (`here`), and the length typed: see
+ * withMeasuredSides.
+ */
+function sameSide(there: Sided, here: Sided, m: { side?: unknown; ft?: unknown }): boolean {
+  const i = m.side, ft = m.ft;
+  if (typeof i !== 'number' || !Number.isInteger(i) || i < 0 || typeof ft !== 'number' || there.type !== here.type) return false;
+  const near = (len: number) => Math.abs(len - ft) <= MEASURED_TOL + 1e-9;
+  if (there.type === 'rect') {
+    const dim = i % 2 === 0 ? 'width' : 'height', len = there[dim];
+    return i < 4 && typeof len === 'number' && len === here[dim] && near(len);
+  }
+  if (there.type !== 'poly' && there.type !== 'line') return false;
+  const a = there.points, b = here.points;
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  const n = a.length, j = (i + 1) % n;
+  if (i >= (there.type === 'poly' ? n : n - 1)) return false;
+  const at = (p: unknown): [number, number] | null => (Array.isArray(p) && typeof p[0] === 'number' && typeof p[1] === 'number' ? [p[0], p[1]] : null);
+  const p = at(a[i]), q = at(a[j]), p2 = at(b[i]), q2 = at(b[j]);
+  if (!p || !q || !p2 || !q2 || p[0] !== p2[0] || p[1] !== p2[1] || q[0] !== q2[0] || q[1] !== q2[1]) return false;
+  return near(Math.hypot(q[0] - p[0], q[1] - p[1]));
+}
+/**
+ * A photo's rough scale (`roughScale`, Nov 4), which an older version drops from the photo it sends: kept from here
+ * when the server's copy is the same photo (its fingerprint) at exactly the same scale and says neither that it's rough
+ * nor that it isn't to scale yet. Only setting the scale sets or clears it, and setting it again gives another scale,
+ * so the same scale without it is an older version's copy (moved, turned, made fainter, or the plan edited). Where the
+ * server's has it, or another scale, it stands.
+ */
+function withRoughScale(server: ProjectContent, mine: ProjectContent): ProjectContent {
+  type Placed = { fingerprint?: unknown; ftPerPx?: unknown; uncalibrated?: unknown; roughScale?: unknown };
+  const there = server.photo as Placed | null | undefined, here = mine.photo as Placed | null | undefined;
+  if (!isObject(there) || !isObject(here) || here.roughScale !== true || 'roughScale' in there || 'uncalibrated' in there) return server;
+  if (typeof there.fingerprint !== 'string' || there.fingerprint !== here.fingerprint || typeof there.ftPerPx !== 'number' || there.ftPerPx !== here.ftPerPx) return server;
+  return { ...server, photo: { ...there, roughScale: true } };
+}
+/**
+ * A bed's conditions (Nov 2: its soil, moisture, drip, and sun where no sun area covers it), which an older version
+ * drops from a shape it sends: kept from here when the server's copy of that shape, still a bed (its id and role), has
+ * none at all. Without it, a device on an older version with an edit of its own sends the plan over newer conditions,
+ * its merge not seeing them, and every device then loses them. The server's copy goes without them until a device that
+ * has them sends the plan again. {} (cleared on purpose) is kept the same way, so a device that cleared them says so
+ * again as it next sends the plan; where the server has some, {} or answers, they stand.
+ *
+ * What's left (as for fruitDismissed, docs/storage.md): a device offline through another device's change to a bed's
+ * conditions (set, changed or cleared), with a device on an older version sending the plan between, still has its own,
+ * which the server's copy no longer contradicts: it keeps them, and they go to everyone if it sends the plan before the
+ * device that made the change does. Only while one of the account's devices is on database version 3 or before
+ * (docs/storage.md has the other windows).
+ */
+function withBedConditions(server: ProjectContent, mine: ProjectContent): ProjectContent {
+  if (!Array.isArray(server.shapes) || !Array.isArray(mine.shapes)) return server;
+  type Bed = { id?: unknown; role?: unknown; conditions?: unknown };
+  const kept = new Map<unknown, unknown>();
+  for (const s of mine.shapes as Bed[]) if (s && s.role === 'bed' && isObject(s.conditions)) kept.set(s.id, s.conditions);
+  if (!kept.size) return server;
+  let filled = false;
+  const shapes = (server.shapes as Bed[]).map((s) => {
+    if (!s || typeof s !== 'object' || s.role !== 'bed' || 'conditions' in s || !kept.has(s.id)) return s;
+    filled = true;
+    return { ...s, conditions: JSON.parse(JSON.stringify(kept.get(s.id))) };
+  });
+  return filled ? { ...server, shapes } : server;
 }
 /**
  * A shape's sub-features (doors, windows, gates: src/features.ts), which an older version leaves out of a shape it
@@ -806,7 +977,11 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
           if (!ok) return;
           filled.add(id);
           const n = local.normalize(g.name, content);
-          await local.setRecord(id, recordAfter(n.name, local.normalize(g.name, whole).content, g.revision, rec, rec?.photo));
+          // (Its marks from the server's copy, not this device's own parts filled in: src/marks.ts.)
+          const r = recordAfter(n.name, local.normalize(g.name, whole).content, g.revision, rec, rec?.photo);
+          const marks = marksOf(g.content);
+          if (marks) r.marks = marks; else delete r.marks;
+          await local.setRecord(id, r);
           report.downloaded++;
           if (undeleted.has(id)) report.undeleted.push(n.name);
         });

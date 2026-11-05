@@ -10,6 +10,8 @@ import { state } from '../state';
 import { render } from './render';
 import { snapRot } from '../util';
 import { ask } from './ask';
+import { placementOf } from '../rescale';
+import { askAfterPhotoMoved } from './rescale-card';
 
 export function renderBgPanel() {
   const bg = state.bgImage;
@@ -72,8 +74,10 @@ export function renderBgPanel() {
   body.appendChild(bg.uncalibrated
     ? el('div', { className: 'banner', 'data-testid': 'bg-uncalibrated' },
       tapSaid('Not to scale yet: its size on the plan is a guess. Calibrate it: tap two points on the photo you know the distance between.'))
-    : el('div', { style: { fontSize: ts(12), color: '#57534e' } },
+    : el('div', { style: { fontSize: ts(12), color: '#57534e' }, 'data-testid': 'bg-scale' },
       'Current scale: ' + (1 / bg.ftPerPx).toFixed(1) + ' pixels per foot',
+      // (Set from a length said to be a rough guess: said so, as Layers says it, until it's set again without.)
+      ...(bg.roughScale ? [' ', el('span', { className: 'scale-flag', 'data-testid': 'bg-rough' }, 'Rough scale'), el('br'), 'Set from a rough guess at a length: set it again once you’ve measured.'] : []),
       el('br'),
       'Image covers ~' + wFt.toFixed(1) + ' × ' + hFt.toFixed(1) + ' ft'
     ));
@@ -118,6 +122,17 @@ export function renderBgPanel() {
     el('div', { className: 'hint' }, 'Lower opacity makes the grid and plants easier to see.')
   ));
 
+  // (The photo turned or moved here, with a plan over it: asked whether to move the plan too, as when it's dragged on
+  // the plan, the notice alone put up, so a field keeps its keyboard: src/ui/rescale-card.ts. A field asks once it's
+  // changed, from where the photo was when it was last asked.)
+  const placed = () => (state.bgImage ? placementOf(state.bgImage) : null);
+  const asksAfter = (change: () => void) => { const before = placed(); change(); if (before) askAfterPhotoMoved(before); };
+  const asksOnChange = (input: HTMLInputElement) => {
+    let from = placed();
+    input.addEventListener('focus', () => { from = placed(); });
+    input.addEventListener('change', () => { if (from) askAfterPhotoMoved(from); from = placed(); });
+  };
+
   // Rotation input + quick buttons (mirrors shape rotation UI)
   const rotVal = bg.rotation || 0;
   const rotInput = el('input', { type: 'number', step: '5', value: rotVal });
@@ -127,10 +142,11 @@ export function renderBgPanel() {
     updateBgImageSilent({ rotation: v });
     rotPct.textContent = v.toFixed(1) + '°';
   });
+  asksOnChange(rotInput);
   const quickRow = el('div', { className: 'rot-quick' });
   [-90, -15, -5, 5, 15, 90].forEach(delta => {
     const b = el('button', {}, (delta > 0 ? '+' : '') + delta + '°');
-    b.addEventListener('click', () => {
+    b.addEventListener('click', () => asksAfter(() => {
       const cur = state.bgImage?.rotation || 0;
       let newRot = snapRot(cur + delta);
       if (newRot >= 180) newRot -= 360;
@@ -138,15 +154,15 @@ export function renderBgPanel() {
       rotInput.value = String(newRot);
       rotPct.textContent = newRot.toFixed(1) + '°';
       updateBgImageSilent({ rotation: newRot });
-    });
+    }));
     quickRow.appendChild(b);
   });
   const resetRotBtn = el('button', {}, 'Reset to 0°');
-  resetRotBtn.addEventListener('click', () => {
+  resetRotBtn.addEventListener('click', () => asksAfter(() => {
     rotInput.value = '0';
     rotPct.textContent = '0.0°';
     updateBgImageSilent({ rotation: 0 });
-  });
+  }));
   body.appendChild(el('div', { className: 'field' },
     el('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: '4px' } },
       el('label', {}, 'Rotation (around image center)'), rotPct),
@@ -158,8 +174,10 @@ export function renderBgPanel() {
   // Position (X, Y of image center in world feet)
   const xInput = el('input', { type: 'number', step: '0.5', value: bg.cx.toFixed(1) });
   xInput.addEventListener('input', e => updateBgImageSilent({ cx: parseFloat((e.target as HTMLInputElement).value) || 0 }));
+  asksOnChange(xInput);
   const yInput = el('input', { type: 'number', step: '0.5', value: bg.cy.toFixed(1) });
   yInput.addEventListener('input', e => updateBgImageSilent({ cy: parseFloat((e.target as HTMLInputElement).value) || 0 }));
+  asksOnChange(yInput);
   body.appendChild(el('div', { className: 'row-2' },
     el('div', { className: 'field' }, el('label', {}, 'Center X (ft)'), xInput),
     el('div', { className: 'field' }, el('label', {}, 'Center Y (ft)'), yInput)
@@ -195,6 +213,19 @@ export function renderBgPanel() {
 }
 
 /**
+ * Lengths most people can find, to tap the ends of (Jason liked the idea, Nov 2): on the strip above the plan while A
+ * and B are tapped (Jason, Nov 4: "the 'lengths you might know' hint comes too late. They need it while they're
+ * picking points"), in a line or two, and `short` in the box asking how far apart they are.
+ */
+export function lengthsYouMayKnow(short = false): HTMLElement {
+  return short
+    ? el('div', { className: 'scale-hints', 'data-testid': 'scale-hints' }, el('b', {}, 'Lengths you may know: '),
+      'the house\u2019s front, a one-car driveway\u2019s width (10\u201312 ft), the lot\u2019s sides.')
+    : el('div', { className: 'cal-hints', 'data-testid': 'cal-hints' }, el('b', {}, 'Lengths you may know: '),
+      'your house\u2019s front (its listing) \u00b7 a one-car driveway, 10\u201312 ft wide \u00b7 your lot\u2019s sides (county GIS map, plat)');
+}
+
+/**
  * How far apart A and B are: the box asking, at the top of the screen, the plan moved so the two points show below it
  * (keepScaleBoxClear), where a phone's keyboard leaves them be; it sat over them, in the middle (Jason, Nov 2, from the
  * UI review). With lengths people often know, to measure between.
@@ -202,9 +233,18 @@ export function renderBgPanel() {
 export function renderBgDistanceModal() {
   const input = el('input', { type: 'number', step: 'any', min: '0.1', inputMode: 'decimal', placeholder: 'e.g. 32', 'data-testid': 'scale-distance' });
   setTimeout(() => { input.focus(); input.select(); }, 60);
+  // A length guessed, not measured (Jason on #209, Nov 4: the "rough" checkbox, "so they get a reminder about it
+  // later"): unticked to start, every time; kept with the photo, Layers says "Rough scale" until it's set again without.
+  // (Kept on the calibration as it's ticked, so a redraw of the box keeps it; ticking redraws nothing.)
+  const rough = el('input', { type: 'checkbox', 'data-testid': 'scale-rough' }) as HTMLInputElement;
+  rough.checked = !!state.bgCalibrate?.rough;
+  rough.addEventListener('change', () => { if (state.bgCalibrate) state.bgCalibrate.rough = rough.checked; });
+  const roughRow = el('div', { className: 'scale-rough' },
+    el('label', { className: 'check-row' }, rough, el('span', {}, 'This length is a rough guess')),
+    el('div', { className: 'hint' }, 'Layers will remind you to set the scale again once you’ve measured.'));
   const doIt = () => {
     const v = parseFloat(input.value);
-    finishBgCalibration(v);
+    finishBgCalibration(v, rough.checked);
   };
   const okBtn = el('button', { className: 'btn primary', 'data-testid': 'scale-set' }, 'Set scale');
   okBtn.addEventListener('click', doIt);
@@ -215,13 +255,8 @@ export function renderBgDistanceModal() {
     state.panel = 'bg';
     render();
   });
-  // Lengths most people can find, to tap the ends of (Jason liked the idea, Nov 2).
-  const hints = el('div', { className: 'scale-hints', 'data-testid': 'scale-hints' },
-    el('div', { className: 'scale-hints-head' }, 'Lengths you may know:'),
-    el('ul', {},
-      el('li', {}, el('b', {}, 'Your house\u2019s front'), ': its length may be in the listing'),
-      el('li', {}, el('b', {}, 'A driveway\u2019s width'), ': a one-car driveway is about 10\u201312 ft'),
-      el('li', {}, el('b', {}, 'Your lot\u2019s sides'), ': on the county\u2019s GIS map, or the plat')));
+  // (Lengths you may know, in short: the strip above the plan has said them while A and B were tapped.)
+  const hints = lengthsYouMayKnow(true);
   const modal = el('div', { className: 'modal scale-box', 'data-testid': 'scale-box' },
     el('div', { className: 'sheet-header' },
       el('div', { className: 'title' }, 'How far is A from B?'),
@@ -231,6 +266,7 @@ export function renderBgDistanceModal() {
       el('div', { className: 'scale-row' },
         el('div', { className: 'field' }, el('label', {}, 'Distance (ft)'), input),
         el('div', { className: 'scale-buttons' }, cancelBtn, okBtn)),
+      roughRow,
       hints
     )
   );

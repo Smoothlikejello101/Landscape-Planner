@@ -4,11 +4,13 @@ import { addKind, closeSheet, openFresh, openSections, tapFromCenter } from './h
 // One word per idea: sheets named after the thing, buttons that say what they start, "Existing" for what isn't
 // a plant, and view switches that stay as they were left.
 
-test('a bed is called a bed: its sheet, its More button, its status in Layers', async ({ page }) => {
+test('a bed is called a bed: its sheet, its chip\'s Plant this bed, its status in Layers', async ({ page }) => {
   await openFresh(page);
   await addKind(page, 'bed', 'rect');
   for (const [x, y] of [[-3, -2], [3, -2], [0, 2]]) await tapFromCenter(page, x, y);
-  await expect(page.getByTestId('pill-place-more')).toHaveText('Another bed');
+  // (Plant this bed in place of "Another bed": Jason, Nov 2, answer 1. The Bed button starts another.)
+  await expect(page.getByTestId('pill-plant-bed')).toHaveText('Plant this bed');
+  await expect(page.getByTestId('pill-place-more')).toHaveCount(0);
   await page.locator('.sel-pill .edit').click();
   await openSections(page);
   await expect(page.locator('.sheet-header .title')).toHaveText('Bed');

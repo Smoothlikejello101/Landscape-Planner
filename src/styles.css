@@ -42,6 +42,9 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 /* (What Undo and Redo would do, as the pointer's tooltip: over the whole button. src/ui/render.ts) */
 .iconbtn .step-tip { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
 .iconbtn .dot { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; background: #dc2626; border-radius: 50%; }
+/* Layers, while the plan's photo isn't to scale yet: a small amber dot, as its flag in Layers is amber (Jason, his note on
+   #209, Nov 4). Ringed in the bar's white, so it reads over the icon. */
+.iconbtn .scale-dot { position: absolute; top: 7px; right: 7px; width: 9px; height: 9px; background: #d97706; border: 2px solid #fff; border-radius: 50%; box-sizing: content-box; pointer-events: none; }
 /* Canvas */
 .canvas-wrap { flex: 1; position: relative; overflow: hidden; touch-action: none; min-height: 0; }
 .canvas-wrap > svg { position: absolute; inset: 0; touch-action: none; display: block; }
@@ -124,10 +127,37 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 /* (On a wide screen a sheet keeps to a readable width, so what's at its right edge, Place or a readout, stays near
    what's at its left.) */
 .overlay:not(.center) > .sheet { max-width: 640px; }
-/* The plant picker stays its full height as its list changes, so nothing in it moves under the pointer. */
-.sheet.picker-sheet { height: 85vh; height: calc(85dvh - var(--kb, 0px)); }
+/* The plant picker keeps its height as its list changes, so nothing in it moves under the pointer. On a phone, half
+   height, the plan in view above it; full height by its handle, or while its search's keyboard is up (below, and
+   src/ui/picker-view.ts). */
+.sheet.picker-sheet { height: 50%; position: relative; z-index: 1; }
+.sheet.picker-sheet.full { height: 85vh; height: calc(85dvh - var(--kb, 0px)); }
 .sheet { background: #fff; width: 100%; max-height: 85vh; max-height: calc(85dvh - var(--kb, 0px)); border-radius: 16px 16px 0 0; overflow-y: auto; box-shadow: 0 -4px 16px rgba(0,0,0,0.1); }
 .modal { background: #fff; border-radius: 8px; max-width: 400px; width: 100%; box-shadow: 0 4px 16px rgba(0,0,0,0.2); max-height: 90vh; max-height: calc(90dvh - var(--kb, 0px)); display: flex; flex-direction: column; overflow: hidden; }
+/* The plan in view while choosing plants (src/ui/picker-view.ts; Jason, Nov 2, from the bed review: "Half-height picker
+   on a phone, a side panel on a computer"). The picker is over the plan without dimming it or taking its touches: the
+   plan pans and zooms, and a tap on it picks nothing (src/gestures.ts). What's above the plan (the top bar, a mode's
+   strip) waits while it's open, lightly dimmed, and takes no tap: the picker closes with its ✕, Back or Esc. */
+.overlay.picker-overlay { background: none; pointer-events: none; }
+.picker-overlay > .sheet, .picker-overlay > .compare-overlay { pointer-events: auto; }
+.picker-overlay::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: var(--plan-top, 0px); background: rgba(0,0,0,0.3); pointer-events: auto; }
+/* Its handle, on a phone: pressed, full height or half; dragged, where it's let go. The header drags it too. */
+.picker-handle { display: flex; align-items: center; justify-content: center; width: 100%; height: 24px; touch-action: none; cursor: grab; border-radius: 16px 16px 0 0; }
+.picker-handle:focus-visible { outline: 2px solid #059669; outline-offset: -2px; }
+.picker-grip { width: 40px; height: 5px; border-radius: 3px; background: #a8a29e; }
+.picker-sheet .picker-handle + .sheet-header { padding-top: 0; touch-action: none; }
+/* On a computer (900 px and wider, where Warnings goes beside the plan), a panel at the right, the plan's height from
+   under the top bar, about 420 to 480 px wide; the plan beside it, the bar at its foot waiting as the top bar does. */
+:root { --picker-w: clamp(420px, 34vw, 480px); }
+@media (min-width: 900px) {
+  .overlay.picker-overlay { align-items: stretch; justify-content: flex-end; padding-top: var(--plan-top, 0px); }
+  .overlay.picker-overlay > .sheet.picker-sheet { width: var(--picker-w); max-width: none; height: auto; max-height: none; border-radius: 0; border-left: 1px solid #e7e5e4; box-shadow: -4px 0 16px rgba(0,0,0,0.08); }
+  .picker-overlay::after { content: ''; position: absolute; left: 0; right: var(--picker-w); bottom: 0; height: var(--plan-foot, 0px); background: rgba(0,0,0,0.3); pointer-events: auto; }
+  .picker-handle { display: none; }
+  .picker-sheet .picker-handle + .sheet-header { padding-top: 12px; touch-action: auto; }
+  /* (The zoom buttons beside the panel, not under it.) */
+  .app.picker-open .zoombtns { right: calc(var(--picker-w) + 8px); }
+}
 /* In-app questions (src/ui/ask.ts): over everything, the tour's card included, centered, above the phone's keyboard. */
 .ask-overlay { position: fixed; inset: 0 0 var(--kb, 0px) 0; overflow: hidden; overflow: clip; background: rgba(0,0,0,0.4); z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; }
 .modal.ask .sheet-body { padding: 16px; }
@@ -701,7 +731,15 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .account-section .trash-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: calc(13px * var(--ts)); }
 .account-section .trash-row .link-btn { min-height: 36px; padding: 4px; }
 /* Garden location */
-.location-sources { font-size: calc(12px * var(--ts)); color: #44403c; line-height: 1.5; border-top: 1px solid #e7e5e4; padding-top: 8px; }
+.location-sources { font-size: calc(12px * var(--ts)); color: #57534e; line-height: 1.5; }
+/* The ZIP sheet's folds, under the lookup: how the ZIP is used, and the sources, each a quiet line that opens. */
+.location-folds { border-top: 1px solid #e7e5e4; padding-top: 4px; display: grid; }
+.sheet-fold-head { display: flex; align-items: center; gap: 6px; width: 100%; min-height: var(--tap); padding: 0; background: none; border: 0; text-align: left; font: inherit; font-size: calc(13px * var(--ts)); color: #57534e; cursor: pointer; }
+.sheet-fold-head .fold-chev { display: flex; width: 16px; height: 16px; flex: none; transition: transform 0.15s; }
+.sheet-fold-head .fold-chev svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
+.sheet-fold-head[aria-expanded=true] .fold-chev { transform: rotate(90deg); }
+.sheet-fold-head:focus-visible { outline: 2px solid #0f766e; outline-offset: 1px; border-radius: 4px; }
+.sheet-fold-body { padding: 0 0 8px 22px; }
 .location-card { border: 1px solid #d6d3d1; border-radius: 8px; padding: 10px 12px; display: grid; gap: 6px; font-size: calc(14px * var(--ts)); line-height: 1.45; background: #fafaf9; }
 .location-zone { font-size: calc(20px * var(--ts)); }
 .sheet-body .status.warn { font-size: calc(13px * var(--ts)); color: #92400e; line-height: 1.45; }
@@ -727,7 +765,11 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
   .proj-row.banned-row > .iconbtn { grid-column: 2; justify-self: center; align-self: start; }
 }
 .plant-details { padding: 4px 16px 14px 40px; font-size: calc(12px * var(--ts)); color: #44403c; background: #fafaf9; }
-.plant-details .details-bot { font-style: italic; color: #57534e; margin-bottom: 6px; }
+.plant-details .details-bot { color: #57534e; margin-bottom: 6px; }
+.plant-details .details-bot-name { font-style: italic; margin-right: 10px; }
+/* "See photos": a plain link to a web image search, in a new tab (src/ui/plant-details.ts photoSearchUrl). */
+.details-photos { display: inline-block; color: #0f766e; font-weight: 500; text-underline-offset: 3px; padding: 4px 0; white-space: nowrap; }
+.details-photos-arrow { text-decoration: none; display: inline-block; }
 .plant-details .details-flag { background: #fef9c3; border: 1px solid #fde047; border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; color: #422006; }
 /* One column (Jason, 2026-10-25): the fact on its label's line ("Height 1–2 ft", the label lighter), its source on
    a smaller line of its own below. A fact in parts gives each its own line under the label. */
@@ -735,7 +777,14 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .details-list dt { display: inline; color: #78716c; margin-right: 0.35em; }
 .details-list dd { display: inline; margin: 0; overflow-wrap: anywhere; }
 .details-list dd::after { content: ''; display: block; margin-bottom: 8px; }
+/* The fact first (Jason, Nov 4: "the facts still don't stand out enough to my eye"): its value darker and a little
+   heavier; its source after it, quieter, "Source: NC State", in the lightest gray that still reads (4.5 to 1). */
+/* (No more specific than a class, so a law's red, an introduced plant's orange and "Not known" keep theirs.) */
+.details-list :where(dd) { color: #1c1917; font-weight: 500; }
+.details-list dd :is(.details-src, .details-alt, .details-form, .details-where, .details-law-native) { font-weight: 400; }
+.details-list :where(dd.details-unknown) { font-weight: 400; }
 .details-src, .details-alt { display: block; font-size: calc(11px * var(--ts)); color: #6b6560; }
+.details-src { font-size: calc(10.5px * var(--ts)); color: #78716c; margin-top: 1px; }
 .details-form { display: block; font-size: calc(12px * var(--ts)); color: #57534e; margin-top: 1px; } /* (what its flowers or leaves look like, under their colors) */
 /* A citation longer than a line: one line, "…", opened with a tap (src/ui/plant-details.ts clipCitations). */
 .details-src.one-line, .details-src.clipped[aria-expanded="false"] { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -822,6 +871,63 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .search-row .search-wrap { flex: 1; min-width: 0; }
 .plan-toggle { flex: none; min-height: 40px; padding: 6px 12px; border-radius: 999px; border: 1px solid #d6d3d1; background: #fff; font-size: calc(13px * var(--ts)); color: #44403c; white-space: nowrap; cursor: pointer; }
 .plan-toggle[aria-pressed=true] { background: #ecfdf5; border-color: #059669; color: #065f46; font-weight: 600; }
+/* Plant this bed (Jason, Nov 2): For, a row of its own over the search, in view while the list scrolls; its chips
+   scroll sideways with many beds. Then the bed's box at the list's top (src/ui/plant-for.ts). */
+.for-row { display: flex; align-items: center; gap: 8px; padding: 6px 0 6px 16px; border-bottom: 1px solid #e7e5e4; background: #fff; min-width: 0; }
+.for-label { flex: none; font-size: calc(13px * var(--ts)); font-weight: 600; color: #57534e; }
+.for-none { font-size: calc(13px * var(--ts)); color: #57534e; padding-right: 16px; }
+.sheet-body > .for-row { padding: 0 0 8px; border: 0; }
+.sheet-body > .for-row[hidden] { display: none; }
+@media (max-height: 760px) {
+  html[data-text="large"] .sheet-body > .for-row.no-beds, html[data-text="xlarge"] .sheet-body > .for-row.no-beds { display: none; }
+}
+.for-chips { display: flex; gap: 6px; overflow-x: auto; flex: 1; min-width: 0; padding: 2px 16px 2px 0; scrollbar-width: thin; }
+.for-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 4px 12px; border-radius: 999px; border: 1px solid #d6d3d1; background: #fff; font-size: calc(13px * var(--ts)); color: #292524; white-space: nowrap; cursor: pointer; }
+.for-chip.on { background: #ecfdf5; border-color: #059669; color: #065f46; font-weight: 600; }
+.for-chip:focus-visible { outline: 2px solid #059669; outline-offset: 1px; }
+.for-chip .sw-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, 0.25); flex: none; }
+.for-pick { color: #0f766e; border-style: dashed; }
+.for-pick-icon { display: flex; }
+.for-pick-icon .icon { width: 16px; height: 16px; }
+.for-top:empty { display: none; }
+.for-hint { margin: 0 0 8px; }
+.bed-box { border: 1px solid #99f6e4; border-radius: 10px; background: #f0fdfa; padding: 8px 10px 8px; margin: 0 0 10px; }
+.bed-box-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.bed-box-title { font-size: calc(14px * var(--ts)); font-weight: 600; color: #134e4a; }
+.bed-box-head .link-btn { flex: none; font-size: calc(13px * var(--ts)); min-height: 32px; padding: 4px; }
+.bed-box-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; }
+.bed-chip { display: inline-flex; align-items: center; gap: 2px; min-height: 36px; padding: 2px 4px 2px 12px; border-radius: 999px; border: 1px solid #5eead4; background: #fff; color: #115e59; font-size: calc(13px * var(--ts)); cursor: pointer; }
+.bed-chip .chip-x { display: flex; width: calc(22px * var(--ts)); height: calc(22px * var(--ts)); align-items: center; justify-content: center; }
+.bed-chip .chip-x .icon { width: calc(14px * var(--ts)); height: calc(14px * var(--ts)); }
+.bed-chip.off { padding: 2px 12px 2px 6px; border-style: dashed; border-color: #a8a29e; color: #57534e; background: transparent; text-decoration: line-through; }
+.bed-chip:focus-visible { outline: 2px solid #059669; outline-offset: 1px; }
+.bed-box-note { font-size: calc(12px * var(--ts)); color: #44403c; line-height: 1.4; }
+/* A filter the bed planted for sets: its control greyed, "Set by Front bed" beside it. */
+.filter-check .set-by { margin-left: 2px; font-size: calc(11px * var(--ts)); color: #0f766e; }
+.set-by-note { margin: 6px 0 0; color: #0f766e; }
+.set-by-note[hidden] { display: none; }
+.filter-check.bed-set:has(input:disabled) { color: #57534e; cursor: default; }
+select:disabled { color: #0f766e; background: #f0fdfa; opacity: 1; }
+/* A bed's conditions (src/ui/bed-conditions.ts): sun worked out, or asked; soil and moisture asked; what it lists. */
+.bed-conditions { display: flex; flex-direction: column; gap: 6px; }
+.cond-label { font-size: calc(13px * var(--ts)); font-weight: 600; color: #44403c; margin-top: 8px; }
+.cond-label:first-child { margin-top: 0; }
+.cond-sub { font-size: calc(12px * var(--ts)); color: #57534e; }
+.cond-seg { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); border: 1px solid #d6d3d1; border-radius: 8px; overflow: hidden; }
+.cond-seg button { min-height: 44px; padding: 4px 6px; background: #fff; color: #292524; font-size: calc(14px * var(--ts)); border-left: 1px solid #d6d3d1; }
+.cond-seg button:first-child { border-left: 0; }
+.cond-seg button.on { background: #1c1917; color: #fff; font-weight: 600; }
+.cond-seg button:focus-visible { outline: 2px solid #059669; outline-offset: -2px; }
+.cond-unsure { align-self: flex-start; min-height: 40px; padding: 4px 14px; border: 1px solid #d6d3d1; border-radius: 999px; background: #fff; color: #292524; font-size: calc(13px * var(--ts)); }
+.cond-unsure.on { background: #1c1917; color: #fff; border-color: #1c1917; font-weight: 600; }
+.cond-sun { border: 1px solid #d6d3d1; border-radius: 10px; background: #fafaf9; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; font-size: calc(13px * var(--ts)); color: #292524; }
+.cond-sun-hours { font-size: calc(15px * var(--ts)); font-weight: 600; }
+.sun-bar { position: relative; height: 10px; border-radius: 999px; margin-top: 6px; background: linear-gradient(90deg, #d6d3d1, #e7e5e4 40%, #fef3c7); }
+.sun-bar-on { position: absolute; top: 0; bottom: 0; border-radius: 999px; background: #0f766e; }
+.sun-bar-marks { display: flex; justify-content: space-between; font-size: calc(11px * var(--ts)); color: #78716c; }
+.cond-drip { margin-top: 2px; min-height: 40px; }
+.cond-sum { margin-top: 8px; border: 1px solid #99f6e4; border-radius: 10px; background: #f0fdfa; padding: 8px 10px; font-size: calc(13px * var(--ts)); color: #134e4a; line-height: 1.4; }
+.cond-plant { margin-top: 10px; display: inline-flex; align-items: center; gap: 6px; }
 /* The picker's filters (decided with Jason, 2026-10-25). */
 .checking-note { padding: 2px 0; }
 .checking-note .link-btn.inline { font-size: calc(12px * var(--ts)); min-height: 0; padding: 0; }
@@ -879,6 +985,7 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .flag-question { display: block; margin-top: 8px; font-size: calc(13px * var(--ts)); }
 /* (With the pinned search, a field scrolled into view isn't hidden behind it.) */
 .sheet:has(.sheet-top) { scroll-padding-top: 130px; }
+.sheet:has(.sheet-top .for-row) { scroll-padding-top: 180px; }
 .role-row.bg-opacity .name { flex: none; }
 .role-row.bg-opacity input[type="range"] { flex: 1; min-width: 0; }
 
@@ -965,9 +1072,17 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .intro-note { margin-bottom: 8px; font-size: calc(12px * var(--ts)); color: #78716c; }
 .empty-intro { pointer-events: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-bottom: 12px; }
 .empty-intro .btn { padding: 10px 18px; }
+/* Guided start, small, once it's no longer offered at the top of a blank plan's card (Jason, Nov 4). */
+.first-guided { pointer-events: auto; display: inline-flex; align-items: center; gap: 6px; min-height: var(--tap); margin-bottom: 8px; padding: 0 14px; border-radius: 999px; border: 1px solid #99f6e4; background: #f0fdfa; color: #0f766e; font-size: calc(13px * var(--ts)); font-weight: 600; }
+.first-guided .icon { width: 16px; height: 16px; stroke: currentColor; }
+@media (max-width: 599px) and (max-height: 700px) { .first-card .first-guided { margin-bottom: 4px; } }
 .intro-pulse { animation: intro-pulse 1.6s ease-in-out infinite; }
 @keyframes intro-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(4, 120, 87, 0.6); } 50% { box-shadow: 0 0 0 7px rgba(4, 120, 87, 0); } }
 @media (prefers-reduced-motion: reduce) { .intro-pulse { animation: none; outline: 3px solid #047857; outline-offset: 2px; } }
+/* A shape on the plan the guided start points to (src/canvas.ts pulseShape): its edge, in the pulse's green. */
+#canvas-svg .shape-pulse > [data-shape-id]:not([data-role]) { stroke: #047857; stroke-width: 3px; animation: shape-pulse 1.6s ease-in-out infinite; }
+@keyframes shape-pulse { 0%, 100% { stroke-opacity: 1; } 50% { stroke-opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { #canvas-svg .shape-pulse > [data-shape-id]:not([data-role]) { animation: none; } }
 /* (While the card sits at the top, a sheet leaves room for it: --intro-h is the card's foot, set by the card.) */
 .intro-top .overlay:not(.center) > .sheet { max-height: min(calc(85dvh - var(--kb, 0px)), calc(100% - var(--intro-h, 0px))); }
 .intro-top .overlay.center { padding-top: var(--intro-h, 12px); }
@@ -1139,13 +1254,17 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .mode-strip { flex-shrink: 0; display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; background: #f5f5f4; border-bottom: 1px solid #e7e5e4; }
 .mode-strip .mode-banner { position: static; max-width: none; box-shadow: none; border-radius: 12px; min-height: 32px; box-sizing: border-box; }
 .mode-strip .mode-banner > svg { flex-shrink: 0; }
+/* Placing For a bed (Plant this bed): one just placed outside it, said in red, with Undo (ringed red on the plan). */
+.mode-strip .mode-banner.outside-bed { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+.mode-banner .banner-undo { pointer-events: auto; flex: none; margin: -6px -8px -6px auto; min-height: 36px; padding: 2px 14px; border-radius: 999px; border: 1px solid #fca5a5; background: #fff; color: #991b1b; font-weight: 600; font-size: calc(13px * var(--ts)); }
 .strip-words { display: grid; flex: 1; min-width: 0; line-height: 1.35; }
 .strip-words > span, .strip-words::after { grid-area: 1 / 1; overflow-wrap: break-word; }
 .strip-words::after { content: attr(data-room); visibility: hidden; }
-/* A photo not to scale yet, in Layers: "Rough scale", and the way to set it. */
-.rough-flag { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 999px; background: #fef3c7; border: 1px solid #f59e0b; color: #92400e; font-size: calc(11px * var(--ts)); font-weight: 700; white-space: nowrap; vertical-align: 1px; }
-.rough-line { padding: 0 16px 6px; color: #78350f; }
-.rough-line .link-btn { font-size: inherit; min-height: 44px; padding: 0 2px; }
+/* A photo not to scale yet, in Layers: "Not to scale yet", and the way to set it; "Rough scale", its scale set from a
+   rough guess (Nov 4), and the way to set it again. */
+.scale-flag { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 999px; background: #fef3c7; border: 1px solid #f59e0b; color: #92400e; font-size: calc(11px * var(--ts)); font-weight: 700; white-space: nowrap; vertical-align: 1px; }
+.scale-line { padding: 0 16px 6px; color: #78350f; }
+.scale-line .link-btn { font-size: inherit; min-height: 44px; padding: 0 2px; }
 /* The scale box (src/ui/background-panel.ts): at the top, the plan only lightly dimmed, A and B shown below it. */
 .overlay.scale-overlay { align-items: flex-start; padding: 8px; background: rgba(0,0,0,0.12); }
 .intro-top .overlay.scale-overlay { padding-top: var(--intro-h, 8px); }
@@ -1153,10 +1272,15 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .scale-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; }
 .scale-row .field { flex: 1 1 8em; margin-bottom: 0; }
 .scale-buttons { display: flex; gap: 8px; margin-left: auto; }
-.scale-hints { margin-top: 12px; padding-top: 8px; border-top: 1px solid #e7e5e4; font-size: calc(12px * var(--ts)); color: #57534e; line-height: 1.4; }
-.scale-hints-head { font-weight: 600; color: #44403c; }
-.scale-hints ul { margin: 4px 0 0; padding-left: 18px; }
-.scale-hints b { color: #292524; font-weight: 600; }
+/* "This length is a rough guess" (Nov 4): a row of its own under the length, its hint under it. */
+.scale-rough { margin-top: 8px; }
+.scale-rough .check-row { min-height: 40px; }
+.scale-rough .check-row input { width: 20px; height: 20px; margin: 0; flex: none; }
+.scale-rough .hint { margin: 0 0 0 28px; }
+.scale-hints { margin-top: 10px; padding-top: 8px; border-top: 1px solid #e7e5e4; font-size: calc(12px * var(--ts)); color: #57534e; line-height: 1.4; }
+.scale-hints b, .cal-hints b { color: #292524; font-weight: 600; }
+/* The same, on the strip above the plan while A and B are tapped: a line or two, under the banner's words. */
+.cal-hints { padding: 0 6px; font-size: calc(12px * var(--ts)); color: #57534e; line-height: 1.35; }
 /* "Now trace" (src/ui/trace-card.ts): what to trace over the photo once it's to scale, each a press from its tool. On
    its own at the foot of the plan, or as the first screen's line in the card docked under the photo. */
 .trace-card { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 6; max-width: 36em; margin: 0 auto; box-sizing: border-box; padding: 10px 12px 12px; border-radius: 16px; background: rgba(255, 255, 255, 0.97); box-shadow: 0 4px 18px rgba(28, 25, 23, 0.18); color: #292524; }
@@ -1168,6 +1292,27 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .trace-tick { color: #047857; font-weight: 700; }
 .trace-hide { position: absolute; top: 4px; right: 4px; width: var(--tap); height: var(--tap); display: flex; align-items: center; justify-content: center; border-radius: 999px; color: #78716c; }
 .empty-hint.docked .first-card .trace-line { margin-bottom: 6px; }
+/* "Was your plan drawn over the photo?" (src/ui/rescale-card.ts): at the foot of the plan, as "Now trace" is, the plan
+   above it drawn as Move would leave it. Moved or As it was, the two buttons, then the things already there, folded. */
+.rescale-card .trace-head { margin-bottom: 4px; }
+.rescale-text { font-size: calc(13px * var(--ts)); color: #44403c; line-height: 1.4; }
+.rescale-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 8px 0; }
+.rescale-segs { display: inline-flex; border: 1px solid #a8a29e; border-radius: 999px; overflow: hidden; flex: none; }
+.rescale-seg { min-height: calc(var(--tap) - 8px); padding: 4px 12px; font-size: calc(13px * var(--ts)); color: #44403c; background: #fff; }
+.rescale-seg + .rescale-seg { border-left: 1px solid #a8a29e; }
+.rescale-seg[aria-pressed=true] { background: #292524; color: #fff; font-weight: 600; }
+.rescale-view { flex: 1 1 12em; font-size: calc(12px * var(--ts)); color: #57534e; line-height: 1.35; }
+.rescale-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rescale-ticks { margin-top: 8px; border-top: 1px solid #e7e5e4; }
+.rescale-fold { display: flex; align-items: center; gap: 6px; width: 100%; min-height: var(--tap); padding: 0; text-align: left; font-size: calc(13px * var(--ts)); color: #44403c; }
+.rescale-chev { display: inline-flex; width: 16px; height: 16px; transform: rotate(-90deg); transition: transform 0.15s; flex: none; }
+.rescale-chev svg { width: 16px; height: 16px; }
+.rescale-fold[aria-expanded=true] .rescale-chev { transform: none; }
+.rescale-list { max-height: 30vh; overflow-y: auto; padding-bottom: 2px; }
+.rescale-list .hint { margin-bottom: 4px; }
+.rescale-tick-row { min-height: calc(var(--tap) - 8px); font-size: calc(14px * var(--ts)); }
+.rescale-typed { color: #78716c; font-size: calc(12px * var(--ts)); }
+.rescale-tick-row input { width: 20px; height: 20px; margin: 0; flex: none; }
 /* Help (⋮ → Help: src/ui/help-sheet.ts): Take the tour, then "How do I…", each question a fold opening to its answer
    and a button that goes there, then Send feedback. */
 .help-tour { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #e7e5e4; }

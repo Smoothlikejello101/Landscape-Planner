@@ -59,6 +59,10 @@ export function hideToastSaying(re: RegExp) {
 export function placeToast(node: HTMLElement) {
   node.style.top = '';
   node.style.bottom = '';
+  node.style.left = '';
+  // (Beside the plant picker's panel, on a computer: over the plan left of it, not across the panel.)
+  const side = besidePanel();
+  if (side) { const w = document.getElementById('canvas-wrap')?.getBoundingClientRect(); if (w) node.style.left = `${Math.round((w.left + side.left) / 2)}px`; }
   if (document.querySelector('.sheet')) {
     // (Under the guided introduction's card, which sits at the top while a sheet is open.)
     const card = document.querySelector('.intro-card.at-top')?.getBoundingClientRect();
@@ -77,7 +81,8 @@ export function placeToast(node: HTMLElement) {
 /**
  * A notice with buttons ("Squared the corners. Undo"), kept up long enough to reach: tapping a button runs it
  * and closes the notice (unless it's `keep`: turning a setting off leaves the Undo there). A new notice
- * replaces it. With `detail`, the message is one short line that opens to say more (Jason, 2026-10-27: a notice
+ * replaces it: one for something new always does, and only notices about the same placement or action keep an order
+ * of their own (noticeAbout). With `detail`, the message is one short line that opens to say more (Jason, 2026-10-27: a notice
  * mustn't get in the way); opened, it stays up while it's read. `tone` marks it amber or red. `sub`: a second, quieter
  * line under the message. `untilAction`: no time limit; it goes at the first thing done anywhere else (a press, a key,
  * the wheel), so it never covers what the person came to do (the start's cards: src/ui/welcome-card.ts). A question
@@ -89,6 +94,7 @@ export function toastAction(message: string, actions: { label: string; run: () =
   document.getElementById('toast-action')?.remove();
   const node = document.createElement('div');
   node.id = 'toast-action';
+  raisedAt.set(node, Date.now());
   if (testid) node.dataset.testid = testid;
   if (opts.tone) node.classList.add(`tone-${opts.tone}`);
   node.setAttribute('role', 'status');
@@ -159,6 +165,23 @@ export function toastAction(message: string, actions: { label: string; run: () =
   const tick = () => { if (!node.isConnected) return; const left = closeAt - Date.now(); if (left <= 0) node.remove(); else setTimeout(tick, left); };
   setTimeout(tick, ms);
 }
+/** When each notice with buttons went up (ms). */
+const raisedAt = new WeakMap<Element, number>();
+/**
+ * The notice with buttons that's up, if any: its kind (testid), the shape it's about (`about`, set by the notices about a
+ * plant or a building), and when it went up (ms).
+ */
+export function noticeUp(): { testid?: string; about?: string; at: number } | null {
+  const n = document.getElementById('toast-action');
+  return n ? { testid: n.dataset.testid, about: n.dataset.about, at: raisedAt.get(n) ?? 0 } : null;
+}
+/**
+ * Whether a notice that's up is about this shape: the same placement, whose notice said first keeps its place (a
+ * plant placed too close: its crowding notice before its hardiness one). A notice about anything else is older, and a
+ * new one replaces it (Jason, Nov 4: a crowding notice didn't show while "Nudged… Undo" for the last plant was up, and
+ * the hardiness and fruit-partner notices skipped whenever any notice was up).
+ */
+export const noticeAbout = (id: string): boolean => noticeUp()?.about === id;
 /** Keys that move around the page or hold others, not an action: Tab reaches the notice's own buttons. */
 const NOT_ACTIONS = ['Tab', 'Shift', 'Control', 'Alt', 'Meta', 'CapsLock'];
 /**
@@ -189,6 +212,13 @@ function goesAtFirstAction(node: HTMLElement) {
  * 1: a placed plant's notice covered the Warnings button and its count on a phone; on a computer, a dismissal's covered
  * the button and Warnings' own header). Null with no plan, or too little room to be worth it.
  */
+/**
+ * The plant picker's panel beside the plan, on a computer (src/ui/picker-view.ts marks its layer), where it is: the plan
+ * is in view beside it, so a notice goes where it would with no sheet open, in the plan's room left of it.
+ */
+function besidePanel(): DOMRect | null {
+  return document.querySelector('.picker-overlay.beside > .picker-sheet')?.getBoundingClientRect() ?? null;
+}
 export function planRoomAcross(): { x0: number; x1: number } | null {
   const wrap = document.getElementById('canvas-wrap')?.getBoundingClientRect();
   if (!wrap || !wrap.width) return null;
@@ -209,7 +239,15 @@ export function placeNotice() {
   node.style.top = '';
   node.style.left = '';
   node.style.maxWidth = '';
-  const sheet = document.querySelector('.sheet');
+  // (Beside the plant picker's panel, on a computer, the plan's in view: as with no sheet open, left of the panel.)
+  const side = besidePanel();
+  const sheet = side ? null : document.querySelector('.sheet');
+  const across = () => {
+    const r = planRoomAcross();
+    if (!r || !side) return r;
+    const x1 = Math.min(r.x1, side.left - 8);
+    return x1 - r.x0 >= 200 ? { x0: r.x0, x1 } : null;
+  };
   // (Placing: just above the place bar, by the thumb, its buttons in one row. At the top it covered the new plant and
   // the hint, a third of a small phone at large text. Jason, Oct 31, from round 3: Bea.)
   const bar = !sheet && state.placing ? document.querySelector<HTMLElement>('[data-testid=place-bar]') : null;
@@ -217,10 +255,12 @@ export function placeNotice() {
   if (bar) {
     const h = node.getBoundingClientRect().height;
     node.style.top = `${Math.max(8, Math.round(bar.getBoundingClientRect().top - h - 8))}px`;
+    const room = side ? across() : null;
+    if (room) { node.style.left = `${Math.round((room.x0 + room.x1) / 2)}px`; node.style.maxWidth = `${Math.round(room.x1 - room.x0)}px`; }
     return;
   }
   // At the top of the plan, in its room across: clear of the side buttons and of Warnings beside the plan.
-  const room = !sheet ? planRoomAcross() : null;
+  const room = !sheet ? across() : null;
   if (room) {
     node.style.left = `${Math.round((room.x0 + room.x1) / 2)}px`;
     node.style.maxWidth = `${Math.round(room.x1 - room.x0)}px`;
@@ -228,6 +268,10 @@ export function placeNotice() {
   // (An update's banner under the top bar, src/pwa.ts: the notice just below it, not over its Update.)
   const update = !sheet ? document.getElementById('update-banner') : null;
   if (update?.closest('.app')) node.style.top = `${Math.round(update.getBoundingClientRect().bottom + 8)}px`;
+  // (Moving the photo: just below the strip saying how, its words and its ✕ left in sight. "Move the plan with the
+  // photo?" comes up after each drag there: src/ui/rescale-card.ts.)
+  const strip = !sheet && state.bgEditMode ? document.querySelector('[data-testid=mode-strip]')?.getBoundingClientRect() : null;
+  if (strip?.height) node.style.top = `${Math.round(strip.bottom + 8)}px`;
   if (!sheet) { keepOffItsShape(node); return; }
   const sheetTop = sheet.getBoundingClientRect().top;
   const h = node.getBoundingClientRect().height;

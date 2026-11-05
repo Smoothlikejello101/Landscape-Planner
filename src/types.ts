@@ -30,6 +30,20 @@ interface ShapeBase {
   role?: Role;
   /** Beds: plants inside move with the bed (default true). */
   carryPlants?: boolean;
+  /**
+   * Beds (role 'bed') only: its conditions, as answered, for Plant this bed (Nov 2). Only the answers: the sun worked
+   * out from the sun areas over a bed is never stored. Not answered is unset; 'unsure' is an answer (asked: Not sure).
+   * `{}` is cleared on purpose (every answer taken away, or taken by Undo), so sync can tell it from a copy an older
+   * version sent without the field, and doesn't fill it back. A word or a question a later version adds is kept as it
+   * came, unchecked: a reader passes over one it doesn't know. Read and written as src/storage.ts
+   * sanitizeBedConditions has it.
+   *
+   * Plans before Nov 2 have none. A version without it (database version 3 and before) drops it from every plan it
+   * saves or syncs; on this device the database version keeps such a page from saving at all (src/db.ts), and through
+   * sync each device that has it keeps its own when the server's copy of that bed has none (src/sync/engine.ts
+   * withBedConditions). The bed stops being one (its role changed): the field goes with it, in the same step.
+   */
+  conditions?: BedConditions;
   /** Shade areas: observed direct sun. */
   sun?: SunInfo;
   /**
@@ -76,6 +90,45 @@ interface ShapeBase {
   goneOn?: string;
   /** A phase of the project this belongs to, e.g. "Fall 2026" (one of the project's phases). */
   phase?: string;
+}
+/** A bed's sun, answered where no sun area covers it: full sun (6 h and up), part shade (3 to 6 h), shade (under 3). */
+export type SunAnswer = 'Full' | 'Part' | 'Shade';
+/**
+ * A word a later version may have stored where this one asks for one of its own (a bed's conditions): code reading
+ * them meets it, and passes over one it doesn't know.
+ */
+export type LaterWord = string & { readonly laterWord?: never };
+/**
+ * A bed's conditions, as answered (ShapeBase `conditions`; docs/storage.md). Each question unset until answered.
+ * - sun: asked only where no sun area covers the bed: from most to least (the same for a bed that doesn't vary), or
+ *   Not sure;
+ * - soil: Clay, Loam, Sandy, or Not sure (Jason, Nov 2: all four asked);
+ * - moisture: Dry, Average, Wet, or Not sure;
+ * - drip: drip irrigated (it lifts only the limits that keep out thirstier plants: Jason, Nov 2); unset when it isn't.
+ * A question a later version asks is kept as it came, its answer a word or true (src/storage.ts sanitizeBedConditions):
+ * dropped here, it would be lost for everyone the next time this device sends the plan.
+ */
+export interface BedConditions {
+  sun?: { most: SunAnswer | LaterWord; least: SunAnswer | LaterWord } | 'unsure' | LaterWord;
+  soil?: 'clay' | 'loam' | 'sand' | 'unsure' | LaterWord;
+  moisture?: 'dry' | 'average' | 'wet' | 'unsure' | LaterWord;
+  drip?: true;
+  /**
+   * A question a later version asks. A rule for those versions: its answer must be a word or true, or its question
+   * needs a sync guard of its own like withBedConditions; anything else, this version drops, and with its next upload
+   * every device loses it. The same goes for a new form of an answer this version asks (a sun with hours, say).
+   */
+  [later: string]: { most: string; least: string } | string | true | undefined;
+}
+/**
+ * A bed's conditions as this version sets them (setBedConditions): the questions it asks, and only those, so a typo
+ * doesn't pass for a later version's question. Drip false is no answer, as unset is.
+ */
+export interface BedAnswers {
+  sun?: { most: SunAnswer; least: SunAnswer } | 'unsure';
+  soil?: 'clay' | 'loam' | 'sand' | 'unsure';
+  moisture?: 'dry' | 'average' | 'wet' | 'unsure';
+  drip?: boolean;
 }
 /** Planned = not in the ground yet; gone = removed or died (kept as a record, hidden by default). */
 /**
@@ -175,7 +228,23 @@ export interface SubFeature {
  * doesn't know them and leaves them out, can be told apart: src/sync/engine.ts).
  */
 interface Featured { features?: SubFeature[] }
-export interface BoxShape<T extends 'rect' | 'oval' = 'rect' | 'oval'> extends ShapeBase, Featured {
+/**
+ * A side whose length was typed as a number (Nov 4: so Rescale, a later change, can keep it as measured): which side,
+ * and the feet typed. An outline's or a line's side `side` runs from point `side` to the next (an outline's last, to
+ * its first); a rectangle's are 0 top, 1 right, 2 bottom, 3 left, as it is before it's turned (both of a pair: its
+ * Width is 0 and 2), the order its outline has once it's made one.
+ */
+export interface MeasuredSide { side: number; ft: number }
+/**
+ * Sides typed as numbers, from Nov 4 on (nothing is worked out for older shapes): rectangles, outlines and lines only.
+ * Each counts only while that side is still the length typed, within 0.05 ft (src/measured.ts measuredSides, the rule
+ * in docs/storage.md): a step that changes its length forgets it; adding or taking out a point renumbers the sides
+ * after it, and forgets the one split or the two joined. Moving or turning the whole shape keeps them. Absent: none.
+ * Read and written as src/storage.ts sanitizeMeasured has it; versions before it (database version 4 and earlier)
+ * drop it, and nothing else.
+ */
+interface Measured { measured?: MeasuredSide[] }
+export interface BoxShape<T extends 'rect' | 'oval' = 'rect' | 'oval'> extends ShapeBase, Featured, Measured {
   type: T;
   width: number;
   height: number;
@@ -196,7 +265,7 @@ export interface TriangleShape extends ShapeBase, Featured {
  * turns the points around that box's center, like the other shapes; editing
  * points first bakes the rotation into them.
  */
-export interface PathShape<T extends 'poly' | 'line' = 'poly' | 'line'> extends ShapeBase, Featured {
+export interface PathShape<T extends 'poly' | 'line' = 'poly' | 'line'> extends ShapeBase, Featured, Measured {
   type: T;
   points: [number, number][];
   rotation: number;
@@ -251,13 +320,23 @@ export interface BgImage {
    * from before Oct 30, which may well have been.
    */
   uncalibrated?: true;
+  /**
+   * Its scale was set from a length said to be a rough guess (Nov 4, Jason on #209: "We should still build the 'rough'
+   * checkbox during calibration so they get a reminder about it later"): Layers marks it "Rough scale" until the scale
+   * is set again without it. Set and cleared only by setting the scale, so it goes with that scale (Undo takes it back
+   * with it). Never with `uncalibrated`: a scale not set yet isn't rough, it's not set (that one wins, if both came).
+   * Photos before Nov 4 have none. Versions before it (database version 4 and earlier) drop it, and nothing else; sync
+   * keeps this device's when the server's copy of the same photo, at the same scale, has none (src/sync/engine.ts
+   * withRoughScale).
+   */
+  roughScale?: true;
 }
 /**
  * A project's background photo as sync carries it: the photo's fingerprint and
  * how it sits on the plan, or a note that it's kept on one device only.
  */
 export type PhotoRef =
-  | { fingerprint: string; naturalWidth: number; naturalHeight: number; ftPerPx: number; cx: number; cy: number; rotation: number; opacity: number; visible: boolean; uncalibrated?: true }
+  | { fingerprint: string; naturalWidth: number; naturalHeight: number; ftPerPx: number; cx: number; cy: number; rotation: number; opacity: number; visible: boolean; uncalibrated?: true; roughScale?: true }
   | { deviceOnly: true };
 
 export interface ProjectMeta {
@@ -389,7 +468,9 @@ export interface Bounds { minX: number; maxX: number; minY: number; maxY: number
 
 export type PanelName =
   | 'props' | 'arrange' | 'layers' | 'projects' | 'rename' | 'export'
-  | 'preview' | 'reset' | 'plants' | 'bg' | 'bgDistance' | 'print' | 'plantForm' | 'bloom' | 'add' | 'shortcuts' | 'location' | 'switchPlant' | 'feedback' | 'settings' | 'whatsNew' | 'warnings' | 'plantList' | 'help';
+  | 'preview' | 'reset' | 'plants' | 'bg' | 'bgDistance' | 'print' | 'plantForm' | 'bloom' | 'add' | 'shortcuts' | 'location' | 'switchPlant' | 'feedback' | 'settings' | 'whatsNew' | 'warnings' | 'plantList' | 'help'
+  /** A bed's conditions, from the picker's bed box (Plant this bed: src/ui/bed-conditions.ts). */
+  | 'bedConditions';
 /** What the plant form is doing: a new plant (maybe from a search or a copy), or editing one of yours. */
 /**
  * `name`, `botanical`: typed already (kept when starting from a plant). `back`: the panel to go back to when the form is
@@ -415,13 +496,16 @@ export interface Calibration {
   /** Image-pixel coordinates of the tapped points. */
   p1: Point | null;
   p2: Point | null;
+  /** The length about to be typed is a rough guess (its box's checkbox, kept here so a redraw keeps it). Never stored. */
+  rough?: boolean;
 }
 
 export interface Marquee { x1: number; y1: number; x2: number; y2: number }
 
 export type Gesture =
   | { type: 'pinch'; startDist: number; startZoom: number; centerScreen: Point; centerFeetAtStart: Point }
-  | { type: 'pan'; startX: number; startY: number; startOffset: Point; moved: boolean; tapShapeId?: string; overShape?: boolean }
+  // (`look`: the plan behind the plant picker, which only pans: a tap there does nothing. src/ui/picker-view.ts.)
+  | { type: 'pan'; startX: number; startY: number; startOffset: Point; moved: boolean; tapShapeId?: string; overShape?: boolean; look?: boolean }
   // (`add`: Shift, Ctrl or Cmd held: a tap toggles one shape and a box adds what it touches; the rest stays selected.)
   | { type: 'marquee'; startX: number; startY: number; startFeet: Point; currentFeet: Point; moved: boolean; tapShapeId?: string; add?: boolean }
   | {
@@ -432,7 +516,8 @@ export type Gesture =
   | { type: 'bg-drag'; startX: number; startY: number; grabOffset: Point; startCenter: Point; moved: boolean }
   | { type: 'bg-rot'; startAngle: number; startRotation: number; angleAt: (x: number, y: number) => number }
   | { type: 'bg-calibrate-tap'; startX: number; startY: number; startOffset: Point; moved: boolean }
-  | { type: 'drag-vertex'; id: string; index: number; startX: number; startY: number; moved: boolean; inserted: boolean }
+  /** `atX`, `atY`: where the pointer is now (client px), for the numbers kept clear of a finger (src/draw.ts). */
+  | { type: 'drag-vertex'; id: string; index: number; startX: number; startY: number; atX: number; atY: number; moved: boolean; inserted: boolean }
   // A sub-feature dragged along its shape's edges (src/features.ts): `start`, the shape's sub-features as it began.
   // A sub-feature dragged along its shape's edges: `grab`, where on it it was pressed (feet from its middle);
   // `historyAt`, the undo step it began on (an Undo mid-drag ends it).
@@ -465,6 +550,11 @@ export interface DrawState {
   typed?: number;
   /** Each tap: true where it went down at a typed length (squaring leaves it where it is). */
   exact?: boolean[];
+  /**
+   * The sides typed so far: from tap `from` to the next (the first, for an outline closed by its typed side), and the
+   * feet typed. Kept with the shape once it's made (its `measured`, src/measured.ts markTypedSides).
+   */
+  typedSides?: { from: number; ft: number }[];
 }
 /**
  * A tap or a dragged point that landed on another shape: which shape, its corner or edge there (`seg`, lit while
@@ -473,7 +563,11 @@ export interface DrawState {
  */
 export interface TapSnap { to: 'corner' | 'edge'; shapeId: string; seg: [Point, Point]; angles: number[]; alt: Point }
 /** Editing the points of one outline/line; `vertex` is the selected point; `snap`, a point dragged onto another shape. */
-export interface EditPoints { id: string; vertex: number | null; snap?: TapSnap & { index: number; at: Point } }
+export interface EditPoints {
+  id: string; vertex: number | null; snap?: TapSnap & { index: number; at: Point };
+  /** A dragged corner stuck square (src/tidy.ts squareStick): which, and which of its walls. While dragging only. */
+  square?: { index: number; walls: ('before' | 'after')[] };
+}
 
 export interface AppState {
   projects: ProjectMeta[];

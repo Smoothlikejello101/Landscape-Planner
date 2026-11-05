@@ -1,4 +1,4 @@
-// Help (⋮ → Help, in place of "Show me around": Jason, Nov 2, from the UI review). Top to bottom: Take the tour; "How
+// Help (⋮ → Help, in place of "Show me around": Jason, Nov 2, from the UI review). Top to bottom: Guided start; "How
 // do I…", each question folded to its line, opened to two or three lines of answer (src/help.ts) and a button that
 // goes there, named as the place itself is (so it's known again in ⋮); Send feedback; the privacy policy and terms.
 // Each button closes Help as it opens its place. The folds opened are kept while the app runs, not stored.
@@ -8,7 +8,7 @@ import { signInAllowed } from '../channel';
 import { el, hasKeyboard, ts } from '../dom';
 import { startKind } from '../draw';
 import { PRIVACY_URL, TERMS_URL } from '../feedback';
-import { helpAnswers, TOUR_LINE, type HelpDevice, type HelpId } from '../help';
+import { GUIDED_START_LINE, helpAnswers, type HelpDevice, type HelpId } from '../help';
 import { I } from '../icons';
 import { state } from '../state';
 import { deviceName } from '../sync/sync';
@@ -21,6 +21,7 @@ import { openOwnPlantForm } from './plants-panel';
 import { openPrint } from './print-panel';
 import { render } from './render';
 import { openWarnings } from './warnings-sheet';
+import { installOffered, promptInstall, runningInstalled } from './install-card';
 
 /** The questions opened. */
 const opened = new Set<HelpId>();
@@ -40,6 +41,7 @@ export function helpDevice(): HelpDevice {
     shareWords: canShareWords() && !keyboard,
     shareFiles: canShareFiles(),
     signIn: signInAllowed(),
+    installed: runningInstalled(),
   };
 }
 
@@ -92,6 +94,9 @@ function buttonsFor(id: HelpId): HTMLElement[] {
         ...(state.shapes.some((s) => s.role === 'plant')
           ? [go(I.warn, 'Warnings', 'help-go-warnings', () => { state.panel = null; openWarnings('poison'); })] : []),
       ];
+    case 'install':
+      // (Where the browser offers it (Chrome on Android): its install, from here.)
+      return installOffered() ? [go(I.download, 'Install', 'help-go-install', () => { state.panel = null; render(); void promptInstall(); })] : [];
   }
 }
 
@@ -119,9 +124,10 @@ export function renderHelpSheet(): HTMLElement {
   x.addEventListener('click', close);
   const header = el('div', { className: 'sheet-header' }, el('div', { className: 'title' }, 'Help'), x);
 
-  const tour = el('button', { className: 'btn primary', 'data-testid': 'help-tour', html: `${I.help}<span>Take the tour</span>` });
+  // (Guided start, as it's called everywhere: Jason, Nov 4. It was "Take the tour".)
+  const tour = el('button', { className: 'btn primary', 'data-testid': 'help-tour', html: `${I.help}<span>Guided start</span>` });
   tour.addEventListener('click', () => { state.panel = null; showMeAround(); render(); });
-  const tourRow = el('div', { className: 'help-tour' }, tour, el('p', {}, TOUR_LINE));
+  const tourRow = el('div', { className: 'help-tour' }, tour, el('p', {}, GUIDED_START_LINE));
 
   const list = el('section', { className: 'help-list', 'aria-labelledby': 'help-how', 'data-testid': 'help-how' },
     el('h3', { className: 'section-label help-how', id: 'help-how' }, 'How do I…'),

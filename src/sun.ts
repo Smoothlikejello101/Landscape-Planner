@@ -2,6 +2,7 @@ import { drawnOutline, pointInShape, shapeArea, shapeCenter } from './geometry';
 import type { Plant } from './plants';
 import type { Shape, SunInfo } from './types';
 import { alreadyThere } from './status';
+import { sameSaid } from './names';
 
 // Observed sun on shade areas, and the check of plants against it.
 // Thresholds follow common nursery usage: full sun = 6+ hours of direct
@@ -115,7 +116,8 @@ export function checkPlantSun(plantShape: Shape, plant: Plant | undefined, shape
  * where it now says "part shade"), so a warning dismissed then stays dismissed.
  */
 export function sunDismissedFor(check: SunCheck, s: Shape): boolean {
-  return !!s.sunDismissed && (s.sunDismissed === check.message || s.sunDismissed === check.message.replace(/part shade/g, 'part sun'));
+  // (Whatever the case of the plant's name in it: names show in Title Case since Nov 4, src/names.ts.)
+  return !!s.sunDismissed && (sameSaid(s.sunDismissed, check.message) || sameSaid(s.sunDismissed, check.message.replace(/part shade/g, 'part sun')));
 }
 /** A warning to show: not ok, not dismissed in its current wording, and warnings switched on. */
 export function sunWarningShown(check: SunCheck | null, s: Shape, warningsOn: boolean): boolean {

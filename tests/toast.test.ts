@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { placeToast } from '../src/ui/toast';
+import { noticeAbout, noticeUp, placeToast, toastAction } from '../src/ui/toast';
 
 /** An element on screen at a given height (jsdom lays nothing out). */
 function at(className: string, top: number, height = 48) {
@@ -38,5 +38,24 @@ describe('where a notice goes', () => {
     placeToast(n);
     expect(n.style.top).toContain('60px');
     expect(n.style.bottom).toBe('auto');
+  });
+});
+
+// Jason, Nov 4: a notice for something new replaces an older one; only one about the same placement keeps its order.
+describe('which notice is up, and what it is about', () => {
+  afterEach(() => { document.body.innerHTML = ''; });
+  it('says its kind, the shape it is about and when it went up; a new one takes its place', () => {
+    expect(noticeUp()).toBeNull();
+    const t0 = Date.now();
+    toastAction('Nudged Snowberry 2.5 ft away from Aster.', [{ label: 'Undo', run: () => {} }], 8000, 'nudge-notice');
+    document.getElementById('toast-action')!.dataset.about = 'b';
+    expect(noticeUp()).toMatchObject({ testid: 'nudge-notice', about: 'b' });
+    expect(noticeUp()!.at).toBeGreaterThanOrEqual(t0);
+    expect(noticeAbout('b')).toBe(true);
+    expect(noticeAbout('c')).toBe(false); // (a plant placed since: its notice goes over this one)
+    toastAction('Crowding Snowberry', [{ label: 'Nudge apart', run: () => {} }], 10000, 'crowd-notice');
+    expect(document.querySelectorAll('#toast-action')).toHaveLength(1);
+    expect(noticeUp()).toMatchObject({ testid: 'crowd-notice' });
+    expect(noticeUp()!.about).toBeUndefined();
   });
 });

@@ -106,7 +106,7 @@ describe('kinds', () => {
     expect(kindDef('bed').methods[0]).toBe('poly');
     expect(kindDef('building').methods[0]).toBe('rect');
     expect(kindDef('path').methods[0]).toBe('path');
-    expect(kindDef('sun').label).toBe('Sun exposure');
+    expect(kindDef('sun').label).toBe('Sun Exposure');
     expect(isKindKey('bed')).toBe(true); expect(isKindKey('house')).toBe(false);
   });
   it('have distinct one-letter shortcuts', () => {

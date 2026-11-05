@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test';
-import { openFresh, tapFromCenter, zoomPct } from './helpers';
+import { test, expect, type Page } from '@playwright/test';
+import { openFresh, shapeCount, tapFromCenter, zoomPct } from './helpers';
 
 // Plants drawn as pictures (src/looks.ts; Jason, Oct 27–29: R5c, every plant in bloom), or as plain circles from
 // Layers, on this device.
@@ -69,14 +69,14 @@ test('a plant under a shorter, solid one: a pin and its name over it, outlined w
   await expect(page.locator('#canvas-svg [data-see-through=true]')).toHaveCount(0);
   const over = page.locator('#canvas-svg g[data-role=hidden-over]');
   await expect(over.locator('[data-role=hidden-rim][data-mark=pin]')).toHaveCount(1);
-  await expect(over.locator('text')).toContainText('Creeping phlox');
+  await expect(over.locator('text')).toContainText('Creeping Phlox');
   await page.waitForTimeout(450); // (not a double tap)
   await tapFromCenter(page, 0, 0);
-  await expect(page.locator('.sel-pill .name')).toHaveText('Creeping phlox');
+  await expect(page.locator('.sel-pill .name')).toHaveText('Creeping Phlox');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(450);
   await tapFromCenter(page, 1.5, 0);
-  await expect(page.locator('.sel-pill .name')).toHaveText('Mountain mint');
+  await expect(page.locator('.sel-pill .name')).toHaveText('Mountain Mint');
   // (The mint selected: the phlox under it outlined, to see how far it reaches.)
   await expect(over.locator('[data-role=hidden-rim][data-mark=outline]')).toHaveCount(1);
 });
@@ -146,7 +146,7 @@ test('the tallest plant is drawn on top, see-through as a canopy over a plant gr
   await page.keyboard.press('Escape');
   await page.waitForTimeout(450); // (not a double tap)
   await tapFromCenter(page, 0, 0);
-  await expect(page.locator('.sel-pill .name')).toHaveText('Creeping phlox');
+  await expect(page.locator('.sel-pill .name')).toHaveText('Creeping Phlox');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(450);
   await tapFromCenter(page, 3, 0);
@@ -163,5 +163,60 @@ test('a run of the same small plant is named once, at its middle (Jason, Oct 30:
   await page.keyboard.press('Escape');
   const labels = page.locator('#canvas-svg [data-role=plant-label]');
   await expect(labels.filter({ hasText: 'Creeping phlox' })).toHaveCount(1);
-  await expect(labels.filter({ hasText: 'Creeping phlox' })).toHaveText('Creeping phlox ×6');
+  await expect(labels.filter({ hasText: 'Creeping Phlox' })).toHaveText('Creeping Phlox ×6');
+});
+
+// A plan put in place before the app opens: its shapes, at a zoom and view (as e2e/badges.spec.ts does).
+const base = { color: '#16a34a', opacity: 0.65, locked: false };
+const plant = (id: string, plantId: string, label: string, x: number, y: number, radius: number) => ({ ...base, id, type: 'circle', role: 'plant', plantId, label, x, y, radius });
+async function openPlan(page: Page, shapes: object[], view: { zoom: number; offsetX: number; offsetY: number }) {
+  await page.addInitScript(([shapes, view]) => {
+    if (sessionStorage.getItem('seeded')) return;
+    sessionStorage.setItem('seeded', '1');
+    localStorage.setItem('landscape-planner-v1', JSON.stringify({ shapes, ...view }));
+  }, [shapes, view] as const);
+  await page.goto('./');
+  await expect.poll(() => shapeCount(page)).toBe(shapes.length);
+  // (The catalog in, and the plan drawn again with it: as e2e/badges.spec.ts waits.)
+  await expect(page.getByTestId('warnings-btn')).not.toHaveAttribute('data-state', 'checking');
+}
+const ROW = [1, 2.5, 4, 5.5, 7].map((x, i) => plant(`c${i + 1}`, 'lobelia-cardinalis', 'Cardinal flower', x, 0, 0.75));
+
+test("a run's name is never under the plants beside it: drawn over every plant, and kept off a taller one (Jason, Nov 4)", async ({ page }) => {
+  // (A buttonbush, taller, just below the row and right of its middle: drawn after the cardinal flowers, it covered
+  // their name.)
+  await openPlan(page, [...ROW, plant('bb', 'cephalanthus-occidentalis', 'Buttonbush', 6.5, 1.6, 2)], { zoom: 1, offsetX: -4, offsetY: -6 });
+  const name = page.locator('#canvas-svg [data-role=plant-label]', { hasText: 'Cardinal flower ×5' });
+  await expect(name).toHaveCount(1);
+  // Over every plant: in the names' group after them all.
+  await expect(page.locator('#canvas-svg g[data-role=plant-names] [data-role=plant-label]', { hasText: 'Cardinal flower ×5' })).toHaveCount(1);
+  // Off the buttonbush (all but its rim), on the row nearer its other end. (Measured once both are there: the plan is
+  // drawn again as the catalog comes in.)
+  await expect.poll(async () => {
+    const label = await name.boundingBox(), bush = await page.locator('#canvas-svg [data-shape-id=bb]').boundingBox();
+    if (!label || !bush) return -1;
+    const c = { x: bush.x + bush.width / 2, y: bush.y + bush.height / 2 }, r = bush.width / 2;
+    const nx = Math.max(label.x, Math.min(label.x + label.width, c.x)), ny = Math.max(label.y, Math.min(label.y + label.height, c.y));
+    return Math.hypot(nx - c.x, ny - c.y) / r; // (its share of the bush's radius from its middle)
+  }).toBeGreaterThanOrEqual(0.85);
+});
+
+test("zoomed out past 20%, plants' names and runs' names aren't drawn, but a selected plant's is; a bed keeps its name (Jason, Nov 4)", async ({ page }) => {
+  const bed = { ...base, id: 'bed', type: 'rect', role: 'bed', label: 'Front bed', x: -10, y: -10, width: 40, height: 20, rotation: 0, color: '#a16207' };
+  const oak = plant('oak', 'quercus-alba', 'White oak', 60, 0, 30);
+  await openPlan(page, [bed, ...ROW, plant('bb', 'cephalanthus-occidentalis', 'Buttonbush', 12, 0, 4), oak], { zoom: 0.15, offsetX: -40, offsetY: -60 });
+  const names = page.locator('#canvas-svg [data-role=plant-label]');
+  await expect(page.locator('#canvas-svg text', { hasText: 'Front bed' })).toHaveCount(1);
+  await expect(names).toHaveCount(0); // (the oak's would fit inside it; none, all the same)
+  // A plant tapped: its name shows.
+  const bush = (await page.locator('#canvas-svg [data-shape-id=bb]').boundingBox())!;
+  await page.mouse.click(bush.x + bush.width / 2, bush.y + bush.height / 2);
+  await expect(page.locator('.sel-pill .name')).toHaveText('Buttonbush');
+  await expect(page.locator('#canvas-svg text', { hasText: 'Buttonbush' })).toHaveCount(1);
+  await expect(names.filter({ hasText: 'Cardinal flower' })).toHaveCount(0);
+  // Zoomed in to 20% and past: back.
+  await page.keyboard.press('Escape');
+  for (let i = 0; i < 3 && (await zoomPct(page)) < 20; i++) await page.getByRole('button', { name: 'Zoom in' }).click();
+  expect(await zoomPct(page)).toBeGreaterThanOrEqual(20);
+  await expect(page.locator('#canvas-svg text', { hasText: 'White oak' })).toHaveCount(1);
 });
