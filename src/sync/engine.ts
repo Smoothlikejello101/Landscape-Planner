@@ -387,6 +387,15 @@ function asRecordedButUnder(rec: SyncRecord, name: string, server: ProjectConten
   return [rest, { ...rest, under: 'screen' }].some((print) => coreAsRecorded(rec, name, { ...server, print }, mine));
 }
 /**
+ * Whether `here` has a print choice for the plants under taller ones that `there`'s print settings say nothing of at
+ * all. The fingerprints read Show through picked as none picked, but a server's copy without it isn't one that has it:
+ * a device still holding As on screen, from before an older version dropped it, would fill its own back in
+ * (withPrintUnder) and send it with its next edit, over the pick (the review's R1, Nov 4).
+ */
+function pickNotThere(here: ProjectContent, there: ProjectContent): boolean {
+  return isObject(here.print) && 'under' in here.print && isObject(there.print) && !('under' in there.print);
+}
+/**
  * The sides of a shape typed as numbers (`measured`, Nov 4: src/measured.ts), which an older version drops from every
  * shape it sends, side by side: the server's copy's own entries stand, and one here for a side they don't name is kept
  * only where that side is provably the same side, and still the length typed (within MEASURED_TOL): a rectangle with
@@ -881,8 +890,12 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
       await local.remove(copy.id, copy.token);
       return;
     }
-    const n = local.normalize(serverName, asOnServer);
-    // What the server has (anything else here goes up next time), still holding this device's photo if the original kept it.
+    // What the server has (anything else here goes up next time), still holding this device's photo if the original kept
+    // it. But the print choice for the plants under taller ones, where the server's copy says nothing of it, as the
+    // original has it, filled in from here (withPrintUnder), as a download records it: recorded without it, that fill
+    // was a change made here at the next pass, and another edit there first made a second copy (the review's R2, Nov 4;
+    // a bed's conditions still do: docs/storage.md).
+    const n = local.normalize(serverName, withPrintUnder(asOnServer, serverContent));
     await local.setRecord(p.id, recordAfter(n.name, n.content, serverRev, records[p.id], photoKey(serverContent)));
     report.conflicts.push({ name: serverName, copyName: copyLabel, otherDevice: by });
     const copied: LocalProject = { id: copy.id, name: copyLabel, content: p.content, token: copy.token };
@@ -936,7 +949,8 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     }
     // Whether the server already has the result: judged by what it sent, not with this device's parts filled in.
     const raw = local.normalize(serverName, sent);
-    const samePlan = merged.name === raw.name && planHash(merged.name, merged.content) === planHash(raw.name, raw.content);
+    const samePlan = merged.name === raw.name && planHash(merged.name, merged.content) === planHash(raw.name, raw.content)
+      && !pickNotThere(merged.content, raw.content);
     const mergedPhoto = photoKey(merged.content) ?? 'none', rawPhoto = photoKey(raw.content) ?? 'none';
     if (samePlan && (mergedPhoto === rawPhoto || (rawPhoto === 'kept' && rec?.held && mergedPhoto === rec.photo))) {
       await local.setRecord(p.id, recordAfter(raw.name, raw.content, serverRev, rec, mergedPhoto)); // the server has it (or the held photo stands)

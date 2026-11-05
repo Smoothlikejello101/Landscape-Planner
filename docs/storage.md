@@ -342,7 +342,10 @@ through.
   edit would put the server's copy over it.
 - **A journal against its plan, an imported plan against one already here** (src/storage.ts `contentKey`,
   src/backup.ts `planContent`) compare it as this device prints it (src/view-settings.ts `underOf`): Show through
-  picked and none picked are the same, except on a device that had As on screen before, where they aren't.
+  picked and none picked are the same, except on a device that had As on screen before, where they aren't. The sync
+  fingerprints don't read the device's earlier choice. That's safe while `lp-print-under` is only on Next, which never
+  signs in. **#228 and this change must go out to testers in the same release.** If #228 reached them alone, a synced
+  device that had As on screen could hold back a Show through picked there, as none picked, until its next real edit.
 - **A download** that changes what's stored for it, picked or not, is a change to the plan (its "last modified":
   src/storage.ts replaceProjectContent), as for sides typed.
 
@@ -368,6 +371,18 @@ signs in):
   (tested: without it, a copy). Found on the way, and not changed here: a bed's conditions (`withBedConditions`) have
   that flaw still. A bed's conditions changed here with any other edit of the plan, while a device on the release ticks
   a plant, makes a conflict copy (both kept, nothing lost).
+- **A Show through pick goes up, over a copy without one** (the review's R1). Merging, this device takes the server's
+  copy as already having its result only if that copy has the choice too, where this device's has one
+  (`pickNotThere`); the fingerprints alone read Show through picked as none. So a pick made here over a copy the release
+  sent without it is sent, with the release's edit settled in, rather than left for a device still holding As on screen
+  to send that back over it. (No copy: the release's edit isn't a change to the plan there, above.)
+- **No second copy after a real one** (the review's R2). After a conflict, the original takes the server's copy with
+  this device's choice filled in where that copy says nothing of it, and its record says so, as a download's does
+  (`conflict`). Recorded as the server sent it, the fill read as a change made here at the next pass, and another edit
+  there first made a second copy, with no device on the release needed. That fill can be this device's own pick from the
+  conflicting edit, which then shows in the original here too, and goes up with this device's next edit of it. (The copy
+  beside it has this device's version whole.) Found with it, and not changed here: a bed's conditions filled in after a
+  conflict make that second copy still (both kept, nothing lost).
 
 The windows left, both only while one of the account's devices is on the release and syncs:
 - A device offline through another device's pick, with the release sending the plan in between, still has its own,

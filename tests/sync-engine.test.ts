@@ -1940,6 +1940,69 @@ describe('the print choice for the plants under taller ones (print.under, Nov 4)
     }
   });
 
+  it("the review's R1: Show through picked here over a copy the release sent without it, not yet taken here, goes up and stands: a device that still had As on screen takes it, and nothing sends As on screen back; no copy anywhere", async () => {
+    const server = new FakeServer(), phone = new Dev('phone', false), tablet = new Dev('tablet', false), laptop = new Dev('laptop', true);
+    const id = addPlan(phone, P('screen'));
+    await syncDev(phone, server); await syncDev(tablet, server); await syncDev(laptop, server);
+    // The release ticks a plant: the server's copy has no choice now.
+    laptop.edit(id, (c) => ({ ...c, bought: { 'pl:1': { n: 1, at: 5 } } }));
+    expect(await syncDev(laptop, server)).toMatchObject({ uploaded: 1 });
+    // The phone, before taking that, picks Show through (its only change), and syncs: the pick goes up, with the tick.
+    pickOn(phone, id, 'windows');
+    expect(await syncDev(phone, server)).toMatchObject({ uploaded: 1, conflicts: [] });
+    expect(onServer(server, id)).toMatchObject({ print: P('windows'), bought: { 'pl:1': { n: 1, at: 5 } } });
+    // The tablet takes it, and its next edit sends it, not its As on screen.
+    expect(await syncDev(tablet, server)).toMatchObject({ downloaded: 1, conflicts: [] });
+    expect(picked(tablet, id)).toBe('windows');
+    moveOak(tablet, id, 44);
+    expect(await syncDev(tablet, server)).toMatchObject({ uploaded: 1 });
+    expect(await syncDev(phone, server)).toMatchObject({ downloaded: 1, conflicts: [] });
+    expect([picked(phone, id), oakX(phone, id)]).toEqual(['windows', 44]);
+    await syncDev(laptop, server);
+    await settled(server, phone, tablet, laptop);
+    expect([phone.projectsById.size, tablet.projectsById.size, laptop.projectsById.size]).toEqual([1, 1, 1]);
+  });
+
+  it("the review's R2: after a real conflict (both moved something), another edit there before this device's next pass makes no second copy: this device's choice, kept in the original, isn't a change of its own", async () => {
+    // Between two devices of this version: the phone picks As on screen and moves the house; the tablet, never picked,
+    // moves the oak.
+    {
+      const server = new FakeServer(), phone = new Dev('phone', false), tablet = new Dev('tablet', false);
+      const id = addPlan(phone, P());
+      await syncDev(phone, server); await syncDev(tablet, server);
+      phone.edit(id, (c) => ({ ...c, print: P('screen'), shapes: [house(5), (c.shapes as Shape[])[1]] }));
+      moveOak(tablet, id, 44);
+      await syncDev(tablet, server);
+      expect((await syncDev(phone, server)).conflicts).toHaveLength(1);
+      await syncDev(tablet, server);
+      moveOak(tablet, id, 40);
+      await syncDev(tablet, server);
+      expect(await syncDev(phone, server)).toMatchObject({ conflicts: [] });
+      expect([phone.projectsById.size, oakX(phone, id)]).toEqual([2, 40]);
+      const copy = [...phone.projectsById.values()].find((x) => x.id !== id)!;
+      expect(copy.content).toMatchObject({ print: P('screen') });
+      expect((copy.content.shapes as Shape[])[0].x).toBe(5); // (the phone's own version, whole, beside)
+      await settled(server, phone, tablet);
+      expect(tablet.projectsById.size).toBe(2);
+    }
+    // Through the release: whatever the phone had (and kept), the laptop moves the oak twice.
+    for (const under of [undefined, 'screen', 'windows'] as const) {
+      const server = new FakeServer(), phone = new Dev('phone', false), laptop = new Dev('laptop', true);
+      const id = addPlan(phone, P(under));
+      await syncDev(phone, server); await syncDev(laptop, server);
+      moveOak(laptop, id, 44);
+      phone.edit(id, (c) => ({ ...c, shapes: [house(5), (c.shapes as Shape[])[1]] }));
+      await syncDev(laptop, server);
+      expect((await syncDev(phone, server)).conflicts, under).toHaveLength(1);
+      await syncDev(laptop, server);
+      moveOak(laptop, id, 40);
+      await syncDev(laptop, server);
+      expect(await syncDev(phone, server), under).toMatchObject({ conflicts: [] });
+      expect([phone.projectsById.size, oakX(phone, id), picked(phone, id)], under).toEqual([2, 40, under]);
+      await settled(server, phone, laptop);
+    }
+  });
+
   it('a device of this version that took the plan only after the release sent it without it prints Show through until one that has it sends it again; picked on it meanwhile, that goes up and stands', async () => {
     const server = new FakeServer(), phone = new Dev('phone', false), tablet = new Dev('tablet', false), laptop = new Dev('laptop', true);
     const id = addPlan(phone, P('windows', { paper: 'a4' }));
