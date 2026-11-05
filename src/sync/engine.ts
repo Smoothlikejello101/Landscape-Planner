@@ -451,7 +451,8 @@ function pickNotThere(here: ProjectContent, there: ProjectContent): boolean {
  * either as none, but a server's copy without the field isn't one that has the mark: a device still holding the answers
  * or the dismissal, from before an older version dropped them, would fill its own back in (withBedConditions,
  * withFruitDismissals) and send it with its next edit, over the mark, everywhere (found Nov 5, as pickNotThere: the
- * review's R1).
+ * review's R1). `there` is the server's copy as it sent it, not as read here: a field there in a form this version
+ * can't read (and drops, reading it) is still something there, never sent over for a mark.
  */
 function markNotThere(here: ProjectContent, there: ProjectContent): boolean {
   if (!Array.isArray(here.shapes) || !Array.isArray(there.shapes)) return false;
@@ -1024,7 +1025,7 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     // Whether the server already has the result: judged by what it sent, not with this device's parts filled in.
     const raw = local.normalize(serverName, sent);
     const samePlan = merged.name === raw.name && planHash(merged.name, merged.content) === planHash(raw.name, raw.content)
-      && !pickNotThere(merged.content, raw.content) && !markNotThere(merged.content, raw.content);
+      && !pickNotThere(merged.content, raw.content) && !markNotThere(merged.content, sent);
     const mergedPhoto = photoKey(merged.content) ?? 'none', rawPhoto = photoKey(raw.content) ?? 'none';
     if (samePlan && (mergedPhoto === rawPhoto || (rawPhoto === 'kept' && rec?.held && mergedPhoto === rec.photo))) {
       await local.setRecord(p.id, recordAfter(raw.name, raw.content, serverRev, rec, mergedPhoto)); // the server has it (or the held photo stands)

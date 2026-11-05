@@ -2236,6 +2236,36 @@ describe("a bed's conditions changed here while the release edits the plan: no n
     expect([phone.projectsById.size, tablet.projectsById.size, laptop.projectsById.size]).toEqual([1, 1, 1]);
   });
 
+  it("the other side (docs/storage.md): a clear made offline, while another device of this version set new answers and the release sent the plan between, goes up at the next pass and replaces them, as answers set offline do", async () => {
+    for (const offline of [{}, LOAM]) {
+      const tablet = new Dev('tablet', false);
+      const { server, phone, laptop, id } = await start(ALL, { c2: null }, tablet);
+      setPlan(phone, id, plan(offline, { c2: null })); // (offline)
+      setPlan(tablet, id, plan(SAND, { c2: null }));
+      await syncDev(tablet, server);
+      await syncDev(laptop, server);
+      releaseEdits(laptop, id);
+      await syncDev(laptop, server);
+      expect(await syncDev(phone, server), JSON.stringify(offline)).toMatchObject({ uploaded: 1, conflicts: [] });
+      await syncDev(tablet, server); await syncDev(laptop, server);
+      await settled(server, phone, tablet, laptop);
+      expect([conditions(contentOf(phone, id))[0], conditions(contentOf(tablet, id))[0]], JSON.stringify(offline)).toEqual([offline, offline]);
+    }
+  });
+
+  it("a clear here isn't sent by the merge over a bed whose conditions the server's copy has in a form this version can't read (a later version's): judged by the copy as sent, not as read here", async () => {
+    const { server, phone, id } = await start(ALL, { c2: null });
+    // A later version's edit: soil as a list (this version drops it whole, reading it), and a tick.
+    const LATER = { soil: ['clay', 'loam'] };
+    const row = server.rows.get(id)!;
+    row.content = { ...row.content, shapes: plan(LATER, { c2: null }), bought: TICK };
+    row.revision++; row.updated_by = 'tablet';
+    setPlan(phone, id, plan({}, { c2: null }));
+    expect(await syncDev(phone, server)).toMatchObject({ uploaded: 0, downloaded: 1, conflicts: [] });
+    expect(conditions(onServer(server, id))).toEqual([LATER, undefined]);
+    expect(conditions(contentOf(phone, id))).toEqual([{}, undefined]); // (its own, as any edit of its own is: docs/storage.md)
+  });
+
   it("likewise a fruit-partner warning shown again here (''), alone, over a copy the release sent without it: it goes up, and a device that still had the dismissal takes it (found Nov 5)", async () => {
     const oak = (x = 50) => ({ id: 'o1', type: 'circle', x, y: 10, radius: 8, color: '#166534', label: 'Old oak', opacity: 0.5, locked: false });
     const shapes = (dismissed: string, oakX = 50) => [{ ...aster(2), fruitDismissed: dismissed }, oak(oakX)];

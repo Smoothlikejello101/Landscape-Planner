@@ -129,7 +129,8 @@ to `''` still is, and goes up. Since Nov 4, `''` goes only where the server's co
 this device last sent or took the plan (src/marks.ts `mayMark`, the same rule as a bed's `{}`, below). Dismissed here
 and taken away before it was ever sent, it goes, as it was. Since Nov 5, a `''` made here goes up over a copy the
 release sent without the field, even with nothing else changed here (src/sync/engine.ts `markNotThere`); before, the
-merge took that copy as already having it, and a device still holding the words sent them back with its next edit.
+merge took that copy as already having it, and a device still holding the words sent them back with its next edit. (Its
+other side, for a Show again made offline: below, with a bed's `{}`.)
 
 The window left: a device offline through another device's Show again, with a device on the release sending the plan
 in between, still has the words, and the server's copy no longer says otherwise. It keeps them; if it sends the plan
@@ -204,7 +205,17 @@ takes the server's copy as already having its result only if that copy says some
 cleared (`{}`): the fingerprints read `{}` as none, so a clear made here, meeting a copy an older version sent without
 them, wasn't sent, and a device that still had the answers filled them back in and sent them with its next edit, over
 the clear, everywhere (`markNotThere`). Now the clear goes up with the older version's edit settled in, and that
-device takes it. A fruit-partner warning shown again (`''`) had the same flaw and goes up the same way (above).
+device takes it. A fruit-partner warning shown again (`''`) had the same flaw and goes up the same way (above). It's
+judged by the server's copy as sent, not as read here: answers there in a form this version can't read (and drops) are
+still something there, and a clear isn't sent over them by this.
+
+The other side of it, plainly: a clear made here while offline now goes up at this device's next pass even with nothing
+else changed here. So in the first window below, if another device of this version set new answers on that bed
+meanwhile and a device on an older version then sent the plan, the offline clear replaces the newer answers for
+everyone; before, the newer answers came back with that device's next edit. It's the mirror of the case this fixes, and
+rarer (a clear made offline, new answers set elsewhere meanwhile, and an older version sending the plan between), and
+it's how answers set offline already behave: they go up at the pass that finds the copy without them. A Show again
+(`''`) made offline does the same over a warning dismissed again elsewhere.
 
 The windows left, as for `fruitDismissed` and wider, all only while one of the account's devices is on database version
 3 or before and syncs: Next never signs in, so in practice a device still on release 3 (database version 1), until it
