@@ -136,6 +136,12 @@ export function gridSteps(ppf: number): { minorEvery: number; majorEvery: number
 }
 
 let lookClips = 0;
+/**
+ * Whether what's drawn on the plan lets taps fall through to the canvas: placing plants or features, drawing, editing
+ * points, the background's tools. Shapes, and the pins and names of the plants hidden under them (liftHidden): a name
+ * lifted beside its pin took a tap meant to place a plant there (Nov 4, with tall plants solid: CI, e2e/my-plants.spec.ts).
+ */
+const shapesInert = (): boolean => state.bgEditMode || !!state.bgCalibrate || !!state.draw || !!state.editPoints || !!state.placing || !!state.featurePlace;
 /** A shape the guided start points to (src/ui/intro-card.ts): its edge pulses, through every redraw, till it's cleared. */
 let pulsing: string | null = null;
 export function pulseShape(id: string | null) { pulsing = id; }
@@ -144,7 +150,7 @@ export function shapeGroup(s: Shape): SVGGElement {
   const ppf = pxPerFoot();
   const sel = isSelected(s.id);
   // Taps fall through to the background tools / drawing / point editing.
-  const inert = state.bgEditMode || !!state.bgCalibrate || !!state.draw || !!state.editPoints || !!state.placing || !!state.featurePlace;
+  const inert = shapesInert();
   // Boundaries and open lines: a stroke, no fill.
   const outline = s.type === 'line' || (s.role ? !!roleDef(s.role).outline : false);
   // (And a buried line: under the ground, as a plan shows it.)
@@ -1262,9 +1268,9 @@ function drawShapes(ids: string[]) {
 function liftHidden(shapes: Element) {
   let top = shapes.querySelector(':scope > g[data-role=hidden-over]');
   if (!top) top = shapes.appendChild(svgEl('g', { 'data-role': 'hidden-over', 'pointer-events': 'none' }));
-  for (const r of top.querySelectorAll(':scope > [data-role=hidden-rim]')) r.remove();
+  for (const r of top.querySelectorAll(':scope > [data-role=hidden-rim], :scope > [data-role=pin-hit]')) r.remove();
   for (const t of top.querySelectorAll(':scope > [data-label-of]')) if (!hidden.has((t as SVGElement).dataset.labelOf!)) t.remove();
-  const ppf = pxPerFoot();
+  const ppf = pxPerFoot(), inert = shapesInert();
   const rims: SVGElement[] = [];
   for (const id of hidden) {
     const s = state.shapes.find((x) => x.id === id);
@@ -1282,7 +1288,7 @@ function liftHidden(shapes: Element) {
     // (Its pin, a finger wide, and its lifted name pick it: round 3, Hank couldn't pick a daffodil under a catmint.
     // A tap there finds it in the stack too, for "tap again": src/gestures.ts shapesAt. No pin, no target: zoomed in,
     // it's back.)
-    if (pin) {
+    if (pin && !inert) {
       const pinHit = svgEl('circle', { 'data-pin-of': id, 'data-role': 'pin-hit', cx, cy, r: 12, fill: 'transparent', 'pointer-events': 'all' });
       pinHit.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
       rims.push(pinHit);
@@ -1292,11 +1298,12 @@ function liftHidden(shapes: Element) {
     if (label && hiddenUnnamed.has(id) && !state.selectedIds.includes(id)) label.remove();
     else if (label) {
       (label as SVGElement).dataset.labelOf = id;
+      // (Its name picks it too, as its pin does; not while taps fall through to the canvas, placing say.)
       if (!label.hasAttribute('data-tap')) {
         label.setAttribute('data-tap', '');
-        label.setAttribute('pointer-events', 'all');
         label.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
       }
+      label.setAttribute('pointer-events', inert ? 'none' : 'all');
       const by = hiddenShift.get(id);
       if (by) label.setAttribute('transform', `translate(${by.dx} ${by.dy})`);
       top.appendChild(label);

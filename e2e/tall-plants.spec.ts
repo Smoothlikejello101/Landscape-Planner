@@ -73,6 +73,29 @@ test('a tall plant is solid like any other; a plant under it is pinned, and sele
   await expect(look(page, 'bb')).toHaveAttribute('data-see-through', 'true');
 });
 
+test("placing a plant on a hidden plant's pin or name places it: they let taps through while placing, as the plants do (CI, Nov 4)", async ({ page }) => {
+  // (A name lifted beside its pin took the tap: e2e/my-plants.spec.ts, a peony placed by a coneflower under a cypress.)
+  await openPlan(page);
+  const pin = await middle(page, '#canvas-svg [data-pin-of="ph"]');
+  const name = page.locator('#canvas-svg g[data-role=hidden-over] [data-label-of="ph"]');
+  await expect(name).toHaveCount(1);
+  const named = await middle(page, '#canvas-svg g[data-role=hidden-over] [data-label-of="ph"]');
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Wild ginger');
+  await page.locator('.sheet .proj-row', { hasText: 'Wild ginger' }).first().locator('[data-testid=plant-place]').click();
+  await expect(page.getByTestId('place-bar')).toBeVisible();
+  await expect(page.locator('#canvas-svg [data-pin-of]')).toHaveCount(0);
+  await expect(name).toHaveAttribute('pointer-events', 'none');
+  await page.mouse.click(pin.x, pin.y);
+  await expect.poll(() => shapeCount(page)).toBe(BED.length + 1);
+  await page.mouse.click(named.x + 30, named.y);
+  await expect.poll(() => shapeCount(page)).toBe(BED.length + 2);
+  // Done: the pin takes taps again.
+  await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#canvas-svg [data-pin-of="ph"]')).toHaveCount(1);
+});
+
 test('Layers: "See through tall plants", off to start, sees through every plant from 3, 5 or 10 ft, on this device', async ({ page }) => {
   await openPlan(page);
   await page.locator('button[title=Layers]').click();
