@@ -11,6 +11,7 @@ import { NO_FILTER } from './status';
 import { fullRingRadius } from './my-plants';
 import { bedNames } from './print-area';
 import { labelShown } from './names';
+import { SUN_KEY, SUN_RAMP, sunRecorded } from './sun';
 
 // The printable plan: a to-scale drawing on a standard sheet, with a title
 // block, scale bar, north arrow, legend and a plant list grouped by bed.
@@ -199,8 +200,11 @@ export function dotKey(hidden: Shape[], plantsById: Record<string, Plant | undef
 export interface UnderShown { marks: number; dots: DotKey | null }
 
 // ---------- Legend ----------
-/** `solid`: a line drawn unbroken in the legend (a power line), not dashed as a boundary's is. */
-export interface LegendEntry { key: RoleKey; label: string; color: string; outline: boolean; solid?: boolean }
+/**
+ * `solid`: a line drawn unbroken in the legend (a power line), not dashed as a boundary's is. `sunKey`: the sun areas'
+ * key instead of a swatch (src/print-pdf.ts): their hours, warm to cool, and plain ground with no sun recorded.
+ */
+export interface LegendEntry { key: RoleKey; label: string; color: string; outline: boolean; solid?: boolean; sunKey?: boolean }
 /** One entry per role on the plan, in the usual role order, colored like most of its shapes. */
 export function legendEntries(shapes: Shape[], sizeMode: SizeMode = 'typical', rings = false): LegendEntry[] {
   // (Their width when grown, in plain words: Kayla, Nov 4, "What is mature spread?")
@@ -211,9 +215,20 @@ export function legendEntries(shapes: Shape[], sizeMode: SizeMode = 'typical', r
   for (const k of keys) {
     const of = shapes.filter((s) => roleKey(s) === k && s.type !== 'text');
     if (!of.length) continue;
-    const counts = new Map<string, number>();
-    for (const s of of) counts.set(s.color.toLowerCase(), (counts.get(s.color.toLowerCase()) ?? 0) + 1);
-    const color = [...counts].sort((a, b) => b[1] - a[1])[0][0];
+    const usual = (these: Shape[]) => {
+      const counts = new Map<string, number>();
+      for (const s of these) counts.set(s.color.toLowerCase(), (counts.get(s.color.toLowerCase()) ?? 0) + 1);
+      return [...counts].sort((a, b) => b[1] - a[1])[0][0];
+    };
+    const color = usual(of);
+    if (k === 'shade' && of.some(sunRecorded)) {
+      // Sun areas with hours recorded: the key to the ramp they're drawn in (Jason, Nov 4), in place of one swatch. Any
+      // with no hours recorded yet are drawn in their own color: a swatch of their own, after it.
+      out.push({ key: k, label: SUN_KEY.printTitle, color: SUN_RAMP.gold.color, outline: false, sunKey: true });
+      const not = of.filter((s) => !sunRecorded(s));
+      if (not.length) out.push({ key: k, label: SUN_KEY.printUnrecorded, color: usual(not), outline: false });
+      continue;
+    }
     if (k === 'utility') {
       // (Each kind its own line: a power line, a buried line dashed, a septic field.)
       for (const kind of [...new Set(of.map((s) => s.utility ?? ''))]) {

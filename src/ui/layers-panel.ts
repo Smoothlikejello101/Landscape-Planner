@@ -5,7 +5,7 @@ import { flushHistoryDebounce, pushHistory } from '../history';
 import { I } from '../icons';
 import { centerOnShape, deletePhase, setRoleView, setViewFilter } from '../mutations';
 import { passesFilter, STATUSES, statusLabelFor } from '../status';
-import { isLocked, ROLES, roleHidden, roleKey, roleLabel } from '../roles';
+import { isLocked, roleDef, ROLES, roleHidden, roleKey, roleLabel } from '../roles';
 import type { RoleKey, ShapeFilter } from '../types';
 import { isSelected, selectOnly } from '../selection';
 import { state } from '../state';
@@ -21,6 +21,10 @@ import { ask } from './ask';
 import { sheetTitle } from './props-panel';
 import { settingsLink } from './settings-panel';
 import { labelShown } from '../names';
+import { keyStops, SUN_KEY, sunRecorded, sunWash, washOver } from '../sun';
+import { BG_COLOR } from '../constants';
+import { sunHatchPattern } from '../canvas';
+import { isBed } from '../beds';
 
 const fmtFt = (v: number) => String(Math.round(v * 10) / 10);
 
@@ -62,7 +66,10 @@ export function renderLayersPanel() {
       else if (s.type === 'text') dims = 'text · ' + fmtFt(s.fontSize) + ' ft tall';
       else if (s.type === 'poly') dims = s.points.length + ' points · ' + fmtFt(boxSize(s).w) + ' × ' + fmtFt(boxSize(s).h) + ' ft';
       else dims = s.width + ' × ' + s.height + ' ft';
-      const opacity = s.opacity !== undefined ? s.opacity : 0.65;
+      // (A sun area with hours recorded: its swatch in the ramp's color for them, as it looks on the plan's ground.)
+      const wash = sunRecorded(s) ? sunWash(s.sun!) : null;
+      const swColor = wash ? washOver(wash, BG_COLOR) : s.color;
+      const opacity = wash ? 1 : s.opacity !== undefined ? s.opacity : 0.65;
       // ("Existing" for a bed or a house, with no planting date: only plants are planted.)
       const when = s.status === 'planted' && s.role === 'plant' ? s.plantedOn : s.status === 'gone' ? s.goneOn : undefined;
       const extra = (s.status ? statusLabelFor(s) + (when ? ' ' + when : '') + ' · ' : '') +
@@ -70,32 +77,32 @@ export function renderLayersPanel() {
         (s.role === 'shade' && s.sun ? sunListText(s.sun) + ' · '
         : s.role === 'bed' ? plantsInBed(s, state.shapes).filter((p) => p.status !== 'gone').length + ' plants · ' : '');
       const meta = extra + dims + ' · at (' + s.x + ', ' + s.y + ') ft' +
-        (opacity < 1 && !lookShown(s) ? ' · ' + Math.round(opacity * 100) + '% opacity' : '') + // (a plant drawn as its picture has none: round 3, Hank)
+        (opacity < 1 && !lookShown(s) ? ' · ' + Math.round(opacity * 100) + '% opacity' : '') + // (a plant drawn as its picture has none: round 3, Hank; nor a sun area by its hours)
         (s.rotation ? ' · ' + s.rotation + '°' : '');
       // Visual swatch matches shape type
       let swatch;
       if (s.type === 'circle') {
         // (A plant drawn as its picture: its flowers' color, as the picker's dot: round 3, Grace and Bea.)
-        swatch = lookShown(s) ? el('div', { className: 'layer-sw circle', style: { background: shapeDot(s) } }) : el('div', { className: 'layer-sw circle', style: { background: s.color, opacity: opacity } });
+        swatch = lookShown(s) ? el('div', { className: 'layer-sw circle', style: { background: shapeDot(s) } }) : el('div', { className: 'layer-sw circle', style: { background: swColor, opacity: opacity } });
       } else if (s.type === 'rect') {
-        swatch = el('div', { className: 'layer-sw rect', style: { background: s.color, opacity: opacity } });
+        swatch = el('div', { className: 'layer-sw rect', style: { background: swColor, opacity: opacity } });
       } else if (s.type === 'oval') {
-        swatch = el('div', { className: 'layer-sw', style: { background: s.color, opacity: opacity, borderRadius: '50%/30%' } });
+        swatch = el('div', { className: 'layer-sw', style: { background: swColor, opacity: opacity, borderRadius: '50%/30%' } });
       } else if (s.type === 'triangle') {
         // Render an inline SVG triangle as the swatch
         swatch = el('div', { className: 'layer-sw', style: { background: 'transparent', border: 'none' } },
           svgEl('svg', { width: 32, height: 32, viewBox: '0 0 32 32' },
-            svgEl('polygon', { points: '2,30 30,30 2,2', fill: s.color, 'fill-opacity': opacity, stroke: '#d6d3d1', 'stroke-width': 1 })));
+            svgEl('polygon', { points: '2,30 30,30 2,2', fill: swColor, 'fill-opacity': opacity, stroke: '#d6d3d1', 'stroke-width': 1 })));
       } else if (s.type === 'poly') {
         swatch = el('div', { className: 'layer-sw', style: { background: 'transparent', border: 'none' } },
           svgEl('svg', { width: 32, height: 32, viewBox: '0 0 32 32' },
-            svgEl('polygon', { points: '4,10 16,2 30,12 24,30 6,26', fill: s.color, 'fill-opacity': opacity, stroke: '#d6d3d1', 'stroke-width': 1 })));
+            svgEl('polygon', { points: '4,10 16,2 30,12 24,30 6,26', fill: swColor, 'fill-opacity': opacity, stroke: '#d6d3d1', 'stroke-width': 1 })));
       } else if (s.type === 'text') {
-        swatch = el('div', { className: 'layer-sw', style: { background: 'transparent', border: 'none', color: s.color, fontWeight: '700', fontSize: ts(20), display: 'flex', alignItems: 'center', justifyContent: 'center' } }, 'T');
+        swatch = el('div', { className: 'layer-sw', style: { background: 'transparent', border: 'none', color: swColor, fontWeight: '700', fontSize: ts(20), display: 'flex', alignItems: 'center', justifyContent: 'center' } }, 'T');
       } else {
         swatch = el('div', { className: 'layer-sw', style: { background: 'transparent', border: 'none' } },
           svgEl('svg', { width: 32, height: 32, viewBox: '0 0 32 32' },
-            svgEl('polyline', { points: '2,26 12,8 22,22 30,4', fill: 'none', stroke: s.color, 'stroke-width': 3, 'stroke-linejoin': 'round' })));
+            svgEl('polyline', { points: '2,26 12,8 22,22 30,4', fill: 'none', stroke: swColor, 'stroke-width': 3, 'stroke-linejoin': 'round' })));
       }
       // (A button to a keyboard and a screen reader: Enter selects it, as a tap on the row does. Alex, Oct 30: only the
       // padlocks could be reached with Tab.)
@@ -324,6 +331,30 @@ function roleSection(): HTMLElement {
     // (The eye and lock lead the row, beside the name they act on; the count follows the name: "Plant · 2".)
     wrap.appendChild(el('div', { className: 'role-row' + (v.hidden ? ' hidden' : ''), 'data-role-key': k }, eye, lock,
       el('span', { className: 'name' }, roleLabel(k), el('span', { className: 'count' }, ` · ${counts.get(k)}${shapeLocks(k, v.locked)}`))));
+    if (k === 'shade' && !v.hidden && state.shapes.some(sunRecorded)) wrap.appendChild(sunKey());
   }
   return wrap;
+}
+/**
+ * The key to the sun areas' colors (Jason, Nov 4), under the Sun Exposure row, lined up with its name: "☀ 8 h or more",
+ * the ramp as it looks on the plan's ground, "2 h or less"; plain ground; and, with a bed in the plan, the hatch, as the
+ * plan draws it. Shown while the layer is: the plan has nothing for it to explain otherwise.
+ */
+function sunKey(): HTMLElement {
+  const stops = keyStops(BG_COLOR);
+  const bar = el('span', { className: 'sun-key-bar', 'aria-hidden': 'true',
+    style: { background: `linear-gradient(to right, ${stops.map((c, i) => `${c} ${Math.round((i / (stops.length - 1)) * 100)}%`).join(', ')})` } });
+  const plain = el('span', { className: 'sun-key-sw', 'aria-hidden': 'true', style: { background: BG_COLOR } });
+  const line = (...parts: (Node | string)[]) => el('div', { className: 'sun-key-line' }, ...parts.map((p) => (typeof p === 'string' ? el('span', {}, p) : p)));
+  const lines = [line(SUN_KEY.most, bar, SUN_KEY.least), line(plain, SUN_KEY.plain)];
+  if (state.shapes.some(isBed)) {
+    // (A bed's own color under the hatch, at its usual opacity over the ground.)
+    const bed = roleDef('bed');
+    const hatch = el('span', { className: 'sun-key-sw hatch', 'aria-hidden': 'true' },
+      svgEl('svg', { width: '100%', height: '100%' }, svgEl('defs', {}, sunHatchPattern('sun-key-hatch')),
+        svgEl('rect', { width: '100%', height: '100%', fill: washOver({ color: bed.color, opacity: bed.opacity }, BG_COLOR) }),
+        svgEl('rect', { width: '100%', height: '100%', fill: 'url(#sun-key-hatch)' })));
+    lines.push(line(hatch, SUN_KEY.hatched));
+  }
+  return el('div', { className: 'sun-key', 'data-testid': 'sun-key' }, ...lines);
 }
