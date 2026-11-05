@@ -1619,7 +1619,7 @@ describe("a photo's rough scale and the sides typed as numbers, through a device
     }
   }
 
-  it("kept from here only where the server's copy says nothing of them: a shape exactly as it is here, side for side (moved or turned only); the same photo at the same scale", () => {
+  it("kept from here where the server's copy says nothing of them: a shape exactly as it is here, side for side (moved or turned only); the same photo at the same scale", () => {
     const mine = { shapes: [house(0, { measured: M }), fence(undefined, { measured: FENCE_M }), oak()], photo: photo({ roughScale: true }) };
     // An older version's copy: neither field; the house moved and turned, the photo moved and made fainter.
     const there = { shapes: [house(5, { rotation: 30 }), fence(), oak(52)], photo: photo({ cx: 3, opacity: 0.4 }) };
@@ -1631,8 +1631,9 @@ describe("a photo's rough scale and the sides typed as numbers, through a device
     const reshaped = { shapes: [house(0, { width: 31 }), fence([[0, 0], [40, 0], [40, 26]]), { ...house(0), type: 'poly', points: [[0, 0], [30, 0], [30, 20], [0, 20]] }] };
     expect(withLocalParts(reshaped, { shapes: [house(0, { measured: M }), fence(undefined, { measured: FENCE_M }), { ...house(0), id: 'x' }] })).toEqual(reshaped);
     expect(withLocalParts({ shapes: [{ ...house(0), type: 'poly', points: [[0, 0], [30, 0], [30, 20], [0, 20]] }] }, mine).shapes).toEqual([{ ...house(0), type: 'poly', points: [[0, 0], [30, 0], [30, 20], [0, 20]] }]);
-    // Some there: they stand.
-    expect((withLocalParts({ shapes: [house(0, { measured: [{ side: 1, ft: 20 }] })] }, mine).shapes as Shape[])[0]).toMatchObject({ measured: [{ side: 1, ft: 20 }] });
+    // Some there: they stand, and the sides they don't name are kept from here (the house the same size).
+    expect((withLocalParts({ shapes: [house(0, { measured: [{ side: 1, ft: 20 }] })] }, mine).shapes as Shape[])[0]).toMatchObject({ measured: [{ side: 1, ft: 20 }, ...M] });
+    expect((withLocalParts({ shapes: [house(0, { measured: [{ side: 0, ft: 30.02 }, { side: 2, ft: 30.02 }] })] }, mine).shapes as Shape[])[0]).toMatchObject({ measured: [{ side: 0, ft: 30.02 }, { side: 2, ft: 30.02 }] });
     // The photo: another scale there, "not to scale yet", rough already, another photo, kept elsewhere, none: as there.
     for (const ph of [photo({ ftPerPx: 0.3 }), photo({ uncalibrated: true }), photo({ roughScale: true, cx: 9 }), photo({ fingerprint: 'd'.repeat(64) }), { deviceOnly: true }, null]) {
       expect(withLocalParts({ shapes: [], photo: ph }, mine).photo, JSON.stringify(ph)).toEqual(ph);
@@ -1648,6 +1649,33 @@ describe("a photo's rough scale and the sides typed as numbers, through a device
     expect(mine.shapes[0]).toHaveProperty('measured'); // (only what's hashed: the plan keeps them)
     expect(photoKey({ photo: photo({ roughScale: true }) })).toBe(photoKey({ photo: photo() }));
     expect(photoKey({ photo: photo({ ftPerPx: 0.3 }) })).not.toBe(photoKey({ photo: photo() }));
+  });
+
+  it("side by side, where the server's copy has some of its own (the review's R4): its entries stand; a side it doesn't name is kept from here only where it's provably the same side, still the length typed", () => {
+    const all = [{ side: 0, ft: 30 }, { side: 1, ft: 20 }, { side: 2, ft: 30 }, { side: 3, ft: 20 }];
+    const fill = (there: object, here: object) => (withLocalParts({ shapes: [there] }, { shapes: [here] }).shapes as Shape[])[0];
+    const typed = (s: Shape) => [...((s as { measured?: { side: number; ft: number }[] }).measured ?? [])].sort((a, b) => a.side - b.side);
+    // A rectangle: its Width typed again there (32); its Length unchanged, still typed here: kept.
+    expect(typed(fill(house(0, { width: 32, measured: [{ side: 0, ft: 32 }, { side: 2, ft: 32 }] }), house(0, { measured: all }))))
+      .toEqual([{ side: 0, ft: 32 }, { side: 1, ft: 20 }, { side: 2, ft: 32 }, { side: 3, ft: 20 }]);
+    // Its Length changed there too (21): only the server's.
+    expect(typed(fill(house(0, { width: 32, height: 21, measured: [{ side: 0, ft: 32 }, { side: 2, ft: 32 }] }), house(0, { measured: all }))))
+      .toEqual([{ side: 0, ft: 32 }, { side: 2, ft: 32 }]);
+    // A typed side there with another number than here: the server's stands.
+    expect(typed(fill(house(0, { measured: [{ side: 1, ft: 20.04 }] }), house(0, { measured: all }))))
+      .toEqual([{ side: 0, ft: 30 }, { side: 1, ft: 20.04 }, { side: 2, ft: 30 }, { side: 3, ft: 20 }]);
+    // Nothing there, one dimension changed (a release device widened it): the other's sides kept, its own not.
+    expect(typed(fill(house(0, { width: 31 }), house(0, { measured: all })))).toEqual([{ side: 1, ft: 20 }, { side: 3, ft: 20 }]);
+    // A line: a point moved there that isn't an end of the typed side: that side kept (both its ends where they were);
+    // one of its ends moved, or a point added (the sides renumbered, maybe), not.
+    const l = (points: number[][], extra: object = {}) => fence(points, extra);
+    const typedFence = l([[0, 0], [40, 0], [40, 25], [10, 25]], { measured: [{ side: 0, ft: 40 }, { side: 2, ft: 30 }] });
+    expect(typed(fill(l([[0, 0], [40, 0], [40, 25], [12, 30]], { measured: [{ side: 1, ft: 25 }] }), typedFence))).toEqual([{ side: 0, ft: 40 }, { side: 1, ft: 25 }]);
+    expect(typed(fill(l([[0, 0], [40, 0], [41, 25], [10, 25]]), typedFence))).toEqual([{ side: 0, ft: 40 }]);
+    expect(typed(fill(l([[0, 0], [20, 0], [40, 0], [40, 25], [10, 25]]), typedFence))).toEqual([]);
+    // (Its ends where they were, but no longer the length typed: not; another kind of shape there: not.)
+    expect(typed(fill(l([[0, 0], [40, 0], [40, 25], [10, 25]]), l([[0, 0], [40, 0], [40, 25], [10, 25]], { measured: [{ side: 0, ft: 39 }] })))).toEqual([]);
+    expect(typed(fill({ ...house(0), type: 'poly', points: [[0, 0], [30, 0], [30, 20], [0, 20]] }, house(0, { measured: all })))).toEqual([]);
   });
 
   it('between two devices of this version they go across; reshaped on one, the side is forgotten on both; the scale set again without the box ticked, the rough scale too', async () => {

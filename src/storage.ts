@@ -7,7 +7,7 @@ import { cancelHistoryDebounce } from './history';
 import { DEFAULT_PRINT, state } from './state';
 import { isRole } from './roles';
 import { cleanPhaseName, filterActive, isStatus, MAX_PHASES } from './status';
-import type { BedConditions, BgImage, Clipboard, PathShape, PhotoRef, PlanBought, PlanDismissals, PlanHousehold, PlanSwitches, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, ShapeFilter, SunInfo, UtilityKind, WarningSwitch } from './types';
+import type { BedConditions, BgImage, Clipboard, MeasuredSide, PathShape, PhotoRef, PlanBought, PlanDismissals, PlanHousehold, PlanSwitches, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, ShapeFilter, SunInfo, UtilityKind, WarningSwitch } from './types';
 import { setWorldPoints } from './geometry';
 import { sanitizeMeasured, sideCount } from './measured';
 import { now, uid } from './util';
@@ -1202,9 +1202,12 @@ export async function replaceProjectContent(
   // (When only the ticks, the yard or the warning switches came, the plan keeps when it was last modified: what another
   // device carried over when plans got their own mustn't make every plan here "modified just now", and re-sort the list,
   // the day the first device updates. The review of the storage change, Nov 1.)
+  // (Sides typed as numbers, which the fingerprints leave out, Nov 4, count here: a download that brings them is a change
+  // to the plan, so an older tab's unsaved edit from before it is kept apart, not put over it. The review's J1. The
+  // photo's rough scale is in samePhoto's placement already.)
   const newName = name.trim() || 'Untitled';
   const onlyParts = newName === meta.name && coreHash('', syncedContent(base) as unknown as Record<string, unknown>) === coreHash('', syncedContent(data) as unknown as Record<string, unknown>)
-    && samePhoto(base, data);
+    && sameTypedSides(base.shapes, data.shapes) && samePhoto(base, data);
   const metaNext = { ...meta, name: newName, lastModified: onlyParts ? meta.lastModified : now(), shapeCount: data.shapes.length };
   bumpChange(id);
   // The write is queued before any later save's (and any read by a switch to this project), so they see it.
@@ -1239,6 +1242,14 @@ export async function replaceProjectContent(
     throw e;
   }
   return true;
+}
+/** Whether two versions of a plan have the same sides typed as numbers, shape by shape (each list in side order). */
+function sameTypedSides(a: Shape[], b: Shape[]): boolean {
+  const typed = (shapes: Shape[]) => canonical(shapes.flatMap((s) => {
+    const m = (s as { measured?: MeasuredSide[] }).measured;
+    return m?.length ? [[s.id, [...m].sort((x, y) => x.side - y.side)]] : [];
+  }));
+  return typed(a) === typed(b);
 }
 /** Whether two versions of a plan show the same photo, placed the same (its bytes and placement; not storage details). */
 function samePhoto(a: ProjectData, b: ProjectData): boolean {
