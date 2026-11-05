@@ -1,7 +1,9 @@
 // A plant's full details, shown when its row in the picker is opened: the
 // facts the catalog has, where it came from and how sure it is, and what
 // other sources say where they differ from the value shown.
-import { el } from '../dom';
+import { el, type Child } from '../dom';
+import { I } from '../icons';
+import { withSourcePane } from './source-pane';
 import type { Plant, PoisonParent } from '../plants';
 import { MONTH_NAMES, PLANT_META, formsOf, oldDogWarning, ownCopies, parentRated, tenderWoody, zoneNote } from '../plants';
 import { isMine } from '../my-plants';
@@ -256,9 +258,18 @@ export function winterParts(p: Plant): [string, string, string][] {
 function winterRow(p: Plant): HTMLElement | null {
   const parts = winterParts(p);
   if (!parts.length) return null;
-  const dd = el('dd', { 'data-testid': 'winter-row' });
+  return putParts(el('dd', { 'data-testid': 'winter-row' }), parts.map(([text, src, testid]) => [text, src, testid]));
+}
+/**
+ * A row of several facts (In winter, Bloom, Caterpillar host), each with its own source under it: one alone on its
+ * label's line, as every other row's fact is (Jason, Nov 4, note 8: "If a plant only has a single 'In winter' fact, it
+ * looks funny to have it broken to a new line"); more, each on a line of its own under the label ("With multiple winter
+ * facts breaking over multiple lines looks right").
+ */
+function putParts(dd: HTMLElement, parts: [text: Child, src: string, testid?: string][]): HTMLElement {
+  const one = parts.length === 1;
   for (const [text, src, testid] of parts) {
-    dd.appendChild(el('span', { className: 'details-part', 'data-testid': testid }, text));
+    dd.appendChild(el('span', { className: one ? 'details-one' : 'details-part', ...(testid ? { 'data-testid': testid } : {}) }, text));
     if (src) dd.appendChild(el('span', { className: 'details-src' }, src));
   }
   return dd;
@@ -381,7 +392,7 @@ function spreadRow(p: Plant): HTMLElement | null {
   // (One source line under both where they share it: "earlier list, unverified" once, not twice.)
   const same = parts.length === 2 && parts[0][1] === parts[1][1];
   parts.forEach(([text, src], i) => {
-    dd.appendChild(el('span', { className: 'details-part' }, text));
+    dd.appendChild(el('span', { className: parts.length === 1 ? 'details-one' : 'details-part' }, text)); // (one: on its label's line, putParts)
     if (src && !(same && i === 0)) dd.appendChild(el('span', { className: 'details-src' }, src));
   });
   return dd;
@@ -399,12 +410,7 @@ function bloomRow(p: Plant): HTMLElement | null {
   if (p.bloom_season?.length) parts.push([seasonText(p.bloom_season), sourceLine(p.prov?.bloom_season), 'bloom-season']);
   if (!local && p.bloom?.start) parts.push([months(p.bloom), sourceLine(p.prov?.bloom), 'bloom-months']);
   if (!parts.length) return null;
-  const dd = el('dd', { 'data-testid': 'bloom-row' });
-  for (const [text, src, testid] of parts) {
-    dd.appendChild(el('span', { className: 'details-part', ...(testid ? { 'data-testid': testid } : {}) }, text));
-    if (src) dd.appendChild(el('span', { className: 'details-src' }, src));
-  }
-  return dd;
+  return putParts(el('dd', { 'data-testid': 'bloom-row' }), parts);
 }
 /**
  * When it leafs out where the garden is: the middle day of its plant-years there, and the middle half of them
@@ -414,7 +420,7 @@ function leafOutRow(p: Plant): HTMLElement | null {
   const l = localLeafOut(p);
   if (!l) return null;
   const dd = el('dd', { 'data-testid': 'leaf-out-row' });
-  dd.appendChild(el('span', { className: 'details-part' }, `Around ${dayOfYear(l.med)} (most ${dayOfYear(l.q1)} to ${dayOfYear(l.q3)})`));
+  dd.appendChild(el('span', { className: 'details-one' }, `Around ${dayOfYear(l.med)} (most ${dayOfYear(l.q1)} to ${dayOfYear(l.q3)})`));
   dd.appendChild(el('span', { className: 'details-src' },
     `Source: ${l.n} plant-years ${l.species ? 'of its species ' : ''}in ${l.stateName}${l.area === 'region' ? ' and neighboring states' : ''} · ${l.source}`));
   return dd;
@@ -440,12 +446,7 @@ function hostRow(p: Plant): HTMLElement | null {
   }
   if (!p.hosts?.length && p.host) parts.push([butterflyCaps(p.host), sourceLine(p.prov?.host), 'hosts-earlier']);
   if (!parts.length) return null;
-  const dd = el('dd', { 'data-testid': 'host-row' });
-  for (const [text, src, testid] of parts) {
-    dd.appendChild(el('span', { className: 'details-part', 'data-testid': testid }, text));
-    if (src) dd.appendChild(el('span', { className: 'details-src' }, src));
-  }
-  return dd;
+  return putParts(el('dd', { 'data-testid': 'host-row' }), parts);
 }
 /**
  * Toxicity to animals, never left blank on a catalog plant (no line reads as "safe"): NC State's "Problem for"; its
@@ -596,11 +597,16 @@ export function plantDetails(p: Plant, flagged: string[] | undefined, opts: { ha
     box.appendChild(el('div', { className: 'details-flag', 'data-testid': 'reported-flag' },
       `Shown because of what other sources say for its ${flagged.join(' and ')}; the value shown first says otherwise (below).`));
   }
-  // Its botanical name, and a way to see what it looks like: a web image search for it, in a new tab (Jason, Nov 4, from
-  // Sam: "Wishes there were photos of the plants"; images in the app would mean licensing them).
+  // Its botanical name (Compare beside it, src/ui/compare-sheet.ts), and, on a line of its own with a picture's icon, a
+  // way to see what it looks like: a web image search for it, in a new tab (Jason, Nov 4, from Sam: "Wishes there were
+  // photos of the plants"; images in the app would mean licensing them. On its own line: Jason, Nov 4, note 9, "'See
+  // photos' kinda gets lost between the botanical name and 'compare'").
   const photos = el('a', { className: 'details-photos', href: photoSearchUrl(p), target: '_blank', rel: 'noopener noreferrer', 'data-testid': 'see-photos',
-    'aria-label': `See photos of ${p.common} (a web image search, in a new tab)` }, 'See photos', el('span', { 'aria-hidden': 'true', className: 'details-photos-arrow' }, ' \u2197'));
-  box.appendChild(el('div', { className: 'details-bot' }, p.botanical ? el('span', { className: 'details-bot-name' }, p.botanical) : null, photos));
+    'aria-label': `See photos of ${p.common} (a web image search, in a new tab)` },
+    el('span', { className: 'details-photos-icon', 'aria-hidden': 'true', html: I.image }),
+    el('span', { className: 'details-photos-text' }, 'See photos'), el('span', { 'aria-hidden': 'true', className: 'details-photos-arrow' }, ' \u2197'));
+  box.appendChild(el('div', { className: 'details-bot' }, p.botanical ? el('span', { className: 'details-bot-name' }, p.botanical) : null));
+  box.appendChild(el('div', { className: 'details-photos-line' }, photos));
   /** Each row drawn, by its label (placed below: at a glance, or in its group). */
   const drawn = new Map<string, HTMLElement[]>();
   const put = (label: string, dd: HTMLElement) => drawn.set(label, [el('dt', {}, label), dd]);
@@ -733,9 +739,31 @@ export function plantDetails(p: Plant, flagged: string[] | undefined, opts: { ha
   if (p.notes) box.appendChild(el('div', { className: 'details-notes' }, p.notes));
   // (A plant of mine switched to this one: its notes come along.)
   else if (ownCopies[p.id]?.notes) box.appendChild(el('div', { className: 'details-notes', 'data-testid': 'own-notes' }, 'Your notes: ' + ownCopies[p.id].notes));
+  markUnverified(box);
   // (Once it's on the page, where a line's width can be told.)
   requestAnimationFrame(() => clipCitations(box));
   return box;
+}
+
+/**
+ * The details from the earlier list, with no source behind them, marked on the fact itself: a small "Unverified" beside
+ * its value (Jason, Nov 4, note 1: "'not every detail is checked' can probably go, in favor of highlighting unchecked
+ * details somehow in the details unfold"); "Partly unverified" where only part of it is (one end of a range, the dogs'
+ * word beside NC State's). Its source line says so as before.
+ */
+export function markUnverified(root: HTMLElement) {
+  for (const src of root.querySelectorAll<HTMLElement>('.details-src')) {
+    const t = src.textContent ?? '';
+    if (!t.includes('earlier list, unverified')) continue;
+    const whole = /^Source: earlier list, unverified/.test(t);
+    const chip = el('span', { className: 'unverified-chip', 'data-testid': 'unverified-chip', title: 'From an earlier list with no sources; not yet checked' }, whole ? 'Unverified' : 'Partly unverified');
+    // (On the part it's the source of, in a row of several; else after the row's value, on its line.)
+    const part = src.previousElementSibling;
+    if (part?.matches('.details-part, .details-one')) { part.append(' ', chip); continue; }
+    const dd = src.closest('dd');
+    if (!dd?.firstChild || dd.firstChild === src) continue;
+    dd.firstChild.after(' ', chip);
+  }
 }
 
 /**
@@ -763,9 +791,10 @@ export function shortSources(text: string): string {
   return out;
 }
 /**
- * Each citation that would take more than a line, cut to one ending "…", opened in full with a tap (Jason,
- * 2026-10-27: a long one pushed the details apart). Closed, a tap on it opens it, a link in it too; open, a link
- * is followed, and a tap elsewhere on it closes it. Only one that doesn't fit: measured once it's laid out.
+ * Each citation that would take more than a line, cut to one ending "…" (Jason, 2026-10-27: a long one pushed the
+ * details apart), its sources by their short names; a tap on it opens the little pane with it in full, as the picker's
+ * Source does (src/ui/source-pane.ts; Jason, Nov 4, note 1: "We might be able to use that same design note all around"),
+ * so nothing below it moves. Only one that doesn't fit: measured once it's laid out.
  */
 export function clipCitations(root: HTMLElement) {
   for (const s of root.querySelectorAll<HTMLElement>('.details-src:not(.clipped)')) {
@@ -774,24 +803,20 @@ export function clipCitations(root: HTMLElement) {
     s.classList.remove('one-line');
     if (!over) continue;
     s.classList.add('clipped');
-    s.setAttribute('role', 'button');
-    s.tabIndex = 0;
-    s.setAttribute('aria-expanded', 'false');
     const full = s.textContent ?? '';
     s.title = full;
-    // (Shut, the sources it names go by their short names, so how sure it is still shows: "NC State, USDA ·
-    // confirmed", drawn by the style from `data-short`. Only on a line of plain text: one with a link stays as it is.
-    // The whole of it stays the line's text, hidden while shut, for a screen reader and a search of the page.)
-    const short = s.children.length ? null : shortSources(full);
+    // (In the pane: the line as it is, its links too. A line of plain text holds its whole for a screen reader and a
+    // search of the page, hidden while it's cut: the pane then shows it only to the eye.)
+    const linked = s.children.length > 0;
+    const inPane = (): Child => (linked ? [...s.childNodes].map((n) => n.cloneNode(true)) : full);
+    // (Cut, the sources it names go by their short names, drawn by the style from `data-short`. Only on a line of plain
+    // text: one with a link stays as it is.)
+    const short = linked ? null : shortSources(full);
     if (short && short !== full) { s.dataset.short = short; s.replaceChildren(el('span', { className: 'cite-full' }, full)); }
-    const toggle = (e: Event) => {
-      e.stopPropagation();
-      const open = s.getAttribute('aria-expanded') === 'true';
-      if (!open) e.preventDefault();
-      else if ((e.target as HTMLElement).closest('a')) return;
-      s.setAttribute('aria-expanded', String(!open));
-    };
-    s.addEventListener('click', toggle);
-    s.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(e); } });
+    // (In a block of its own, so the pane opens under the line and the line keeps its place.)
+    const wrap = el('div', {});
+    s.replaceWith(wrap);
+    withSourcePane(s, inPane, { wrap, testid: 'cite-pane' });
+    if (!linked) wrap.querySelector('.src-pane')?.setAttribute('aria-hidden', 'true');
   }
 }
