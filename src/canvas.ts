@@ -84,10 +84,8 @@ function layer(plan: HTMLElement, name: Layer): SVGGElement {
 const movers = (plan: HTMLElement) => plan.querySelectorAll<HTMLElement>(':scope > .plan-move');
 /** Whether the plan's layers are there, each in its <svg>, as ensureLayers makes them. */
 function layersReady(plan: HTMLElement): boolean {
-  // (The veil, the shapes as they were for a moment after a touch moved the view, isn't one of them: see redrawCanvasVeiled.)
-  const layers = plan.querySelectorAll<SVGGElement>(':scope > :not(.plan-veil) g[data-layer]');
-  const sheets = plan.childElementCount - plan.querySelectorAll(':scope > .plan-veil').length;
-  return sheets === SHEETS.length && layers.length === LAYERS.length && LAYERS.every((name, i) => layers[i].dataset.layer === name);
+  const layers = plan.querySelectorAll<SVGGElement>('g[data-layer]');
+  return plan.childElementCount === SHEETS.length && layers.length === LAYERS.length && LAYERS.every((name, i) => layers[i].dataset.layer === name);
 }
 function ensureLayers(plan: HTMLElement) {
   if (layersReady(plan)) return;
@@ -1283,59 +1281,7 @@ function asPreviewed(draw: () => void) {
 }
 /** Clear and redraw the whole canvas. Never touches panel DOM. */
 export function redrawCanvas() { asPreviewed(drawCanvas); }
-
-// ---------- The veil: the shapes as they were, over the plan drawn anew, till it's painted ----------
-/**
- * Jason, Nov 5, his third recording (on Next, the plan alone drawn again on release, in place): as the fingers lifted,
- * the plants' layer showed empty or half painted for one to three frames, filling in a strip at a time: Chrome on his
- * phone showing it before it had painted it all at the new zoom (the beds, the path and the photo there: their layers
- * paint fast). So after a touch's pan or pinch, the shapes' sheet as the gesture left it is kept on top, a veil, over a
- * new one drawn beneath it, nearly see-through (painted, but not seen: the two together would darken what overlaps),
- * till the new one has had time to paint (VEIL_MS); then the new one shows and the veil goes, in one frame. The veil
- * takes no taps, and nothing in it is found by the app or the tests: its layers renamed, its shapes' ids taken off. A
- * new gesture, or any other drawing of the plan, takes it away at once. (Headless Chrome, here and in CI, never shows a
- * layer half painted: e2e/flash.spec.ts checks the veil's steps, not the painting.)
- */
-const VEIL_MS = 150;
-/** How see-through the new sheet is under the veil: painted (not 0, which Chrome skips), never seen. */
-const UNDER_VEIL = '0.01';
-let veilTimer: ReturnType<typeof setTimeout> | null = null;
-/** Whether a drawing is the veiled one (redrawCanvasVeiled), the veil to stay. */
-let keepingVeil = false;
-/** The veil, if one is up, gone now, the new sheet shown. */
-export function dropVeil() {
-  if (veilTimer) { clearTimeout(veilTimer); veilTimer = null; }
-  const plan = planEl();
-  if (!plan) return;
-  plan.querySelectorAll(':scope > .plan-veil').forEach((v) => v.remove());
-  for (const m of movers(plan)) if (m.style.opacity) m.style.opacity = '';
-}
-/**
- * The plan drawn again after a touch moved the view (src/ui/render.ts viewMoved): as redrawCanvas, the shapes as they
- * were left on top a moment (the veil, above). Without a gesture's preview to keep, a plain redraw.
- */
-export function redrawCanvasVeiled() {
-  dropVeil();
-  const plan = planEl();
-  const sheet = plan && layersReady(plan) ? layer(plan, 'shapes').closest<HTMLElement>('.plan-move') : null;
-  if (!plan || !sheet || !sheet.style.transform) { redrawCanvas(); return; }
-  // (The new sheet where the old one was, beneath it: the old one, as it's painted now, is the veil.)
-  const fresh = el('div', { className: 'plan-move' }, svgEl('svg', { class: 'plan-sheet', width: state.canvasW, height: state.canvasH },
-    ...SHEETS.find((x) => x.layers.includes('shapes'))!.layers.map((name) => svgEl('g', { 'data-layer': name }))));
-  fresh.style.opacity = UNDER_VEIL;
-  sheet.before(fresh);
-  sheet.className = 'plan-veil';
-  sheet.setAttribute('aria-hidden', 'true');
-  for (const g of sheet.querySelectorAll('g[data-layer]')) g.setAttribute('data-layer', `was-${g.getAttribute('data-layer')}`);
-  for (const e of sheet.querySelectorAll('[data-shape-id], [data-shape-group], [data-role]')) {
-    e.removeAttribute('data-shape-id'); e.removeAttribute('data-shape-group'); e.removeAttribute('data-role');
-  }
-  keepingVeil = true;
-  try { redrawCanvas(); } finally { keepingVeil = false; }
-  veilTimer = setTimeout(dropVeil, VEIL_MS);
-}
 function drawCanvas() {
-  if (!keepingVeil) dropVeil();
   refreshCrowding();
   refreshSeeThrough();
   refreshUtilities();
@@ -1383,7 +1329,6 @@ const PREVIEW_DEPTH = 1000;
  * (CI, Chrome 141, PR #241: e2e/flash.spec.ts).
  */
 export function previewView() {
-  dropVeil();
   const plan = planEl();
   if (!plan || !layersReady(plan)) { redrawCanvas(); return; }
   const k = state.zoom / drawnView.zoom;
@@ -1401,7 +1346,6 @@ export function previewView() {
 /** Redraw only the given shapes (e.g. while dragging them). */
 export function redrawShapes(ids: string[]) { asPreviewed(() => drawShapes(ids)); }
 function drawShapes(ids: string[]) {
-  dropVeil();
   const plan = planEl();
   if (!plan || !layersReady(plan) || drawnView.zoom !== state.zoom ||
       drawnView.offsetX !== state.offsetX || drawnView.offsetY !== state.offsetY) { redrawCanvas(); return; }

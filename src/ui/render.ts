@@ -15,7 +15,7 @@ import { state } from '../state';
 import { fmtFeet, screenToFeet, shapeCenter } from '../geometry';
 import { measuredFeet, openAtHouseScale, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, drawPathWidth, editedShape, finishDraw, finishEditPoints, finishTypedRect, finishesItself, lastSnap, setDrawHover, setDrawKind, setDrawPathWidth, setTypedLength, shapeName, typedApplies, typedKind, typedLabel, startEditPoints, startKind, undoDrawPoint, unsnapLast, unsnapVertex, vertexSnap } from '../draw';
 import type { SubFeatureKind, TapSnap } from '../types';
-import { redrawCanvas, redrawCanvasVeiled, redrawHandles } from '../canvas';
+import { redrawCanvas, redrawHandles } from '../canvas';
 import { parseTypedLength } from '../draw-numbers';
 import { kindDef, METHOD_LABELS, nextTapPrompt, type KindKey } from '../kinds';
 import { methodIcon, renderAddSheet, renderShortcutsPanel, withKey } from './add-sheet';
@@ -146,9 +146,8 @@ let shownPlan: string | null | undefined;
  * the zoom's badge, the top bar gone too, while Chrome painted everything anew; behind the plant picker it was already
  * only the plan, the picker as it is: src/ui/picker-view.ts).
  */
-export function viewMoved(byTouch = false) {
-  // (After a touch's pan or pinch, the shapes as they were left over it a moment, till it's painted: src/canvas.ts.)
-  if (byTouch) redrawCanvasVeiled(); else redrawCanvas();
+export function viewMoved() {
+  redrawCanvas();
   noteView();
   if (!planLookOnly()) placeNotice();
 }
