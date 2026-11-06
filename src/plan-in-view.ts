@@ -60,14 +60,19 @@ export function sameView(a: View, b: View): boolean {
 export type SheetSize = 'rest' | 'full';
 /** How far (px) a drag of the handle goes before it counts as one way or the other, wherever it's let go. */
 export const SETTLE_PX = 40;
+/** Swiped down from full height, how far below its height at rest it's taken to close it: this share of that height. */
+export const FROM_FULL_CATCH = 1 / 3;
 /**
  * Where a phone's picker settles when its handle is let go, dragged from `startH` px tall to `endH`: below its height
  * at rest by SETTLE_PX or more, closed (Jason, Nov 4, note 3: "Since there's a handle there, I should be able to swipe
  * the half-height picker panel down to close it"); otherwise up by SETTLE_PX or more, full height; down as far, at
- * rest; less than that, whichever it's nearer.
+ * rest; less than that, whichever it's nearer. Swiped down from full height, it stops at rest unless taken a third of
+ * its height at rest below that (FROM_FULL_CATCH): a swipe from the top went on past rest and closed it (Jason, Nov 6:
+ * "we just need to make the 'catch' for halfway a little bigger").
  */
 export function settleSheet(startH: number, endH: number, restH: number, fullH: number): SheetSize | 'closed' {
-  if (endH <= restH - SETTLE_PX) return 'closed';
+  const fromFull = startH > restH + SETTLE_PX;
+  if (endH <= restH - (fromFull ? Math.max(SETTLE_PX, Math.round(restH * FROM_FULL_CATCH)) : SETTLE_PX)) return 'closed';
   const dy = endH - startH;
   if (dy >= SETTLE_PX) return 'full';
   if (dy <= -SETTLE_PX) return 'rest';

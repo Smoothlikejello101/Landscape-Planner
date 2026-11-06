@@ -1488,21 +1488,33 @@ function drawShapes(ids: string[]) {
 function liftHidden(shapes: Element) {
   let top = shapes.querySelector(':scope > g[data-role=hidden-over]');
   if (!top) top = shapes.appendChild(svgEl('g', { 'data-role': 'hidden-over', 'pointer-events': 'none' }));
-  for (const r of top.querySelectorAll(':scope > [data-role=hidden-rim], :scope > [data-role=pin-hit]')) r.remove();
+  for (const r of top.querySelectorAll(':scope > [data-role=hidden-rim], :scope > [data-role=pin-hit], :scope > [data-role=sel-ring]')) r.remove();
   for (const t of top.querySelectorAll(':scope > [data-label-of]')) if (!hidden.has((t as SVGElement).dataset.labelOf!)) t.remove();
   const ppf = pxPerFoot(), inert = shapesInert();
   const rims: SVGElement[] = [];
+  // A selected plant ringed white and black over everything, its middle in sight or not; a plant buried under the one
+  // selected, ringed in black alone (Jason, Nov 6: the white-and-black ring went to the plant under the one selected,
+  // and it read as the selection; a plant selected in a thick bed could be lost among the others' edges).
+  const ring = (s: Shape) => ({ cx: (s.x - state.offsetX) * ppf, cy: (s.y - state.offsetY) * ppf, r: Math.max(2, drawnRadius(s) * ppf - 1) });
+  for (const id of state.selectedIds) {
+    const s = state.shapes.find((x) => x.id === id);
+    if (!s || s.type !== 'circle' || s.role !== 'plant') continue;
+    const { cx, cy, r } = ring(s);
+    rims.push(svgEl('g', { 'data-role': 'sel-ring', 'data-rim-of': id, 'data-mark': 'selected' },
+      svgEl('circle', { cx, cy, r, fill: 'none', stroke: '#fff', 'stroke-width': 4, opacity: 0.9 }),
+      svgEl('circle', { cx, cy, r, fill: 'none', stroke: '#0f172a', 'stroke-width': 2, 'stroke-dasharray': '5 4', 'stroke-linecap': 'round' })));
+  }
   for (const id of hidden) {
     const s = state.shapes.find((x) => x.id === id);
     if (!s || s.type !== 'circle') continue;
-    const cx = (s.x - state.offsetX) * ppf, cy = (s.y - state.offsetY) * ppf, r = Math.max(2, drawnRadius(s) * ppf - 1);
-    const outlined = state.selectedIds.includes(id) || (hiddenBy.get(id) ?? []).some((c) => state.selectedIds.includes(c));
+    const { cx, cy, r } = ring(s);
+    const selected = state.selectedIds.includes(id) && s.role === 'plant';
+    const outlined = !selected && (state.selectedIds.includes(id) || (hiddenBy.get(id) ?? []).some((c) => state.selectedIds.includes(c)));
     // (Its pin sized by the plant as drawn and the zoom; none where it's a speck, below 85%, or with names hidden:
     // src/pins.ts.)
-    const pin = outlined ? null : pinRadius(r, state.zoom, state.showNames);
+    const pin = outlined || selected ? null : pinRadius(r, state.zoom, state.showNames);
     if (outlined) rims.push(svgEl('g', { 'data-role': 'hidden-rim', 'data-rim-of': id, 'data-mark': 'outline' },
-      svgEl('circle', { cx, cy, r, fill: 'none', stroke: 'rgba(255,255,255,0.75)', 'stroke-width': 3 }),
-      svgEl('circle', { cx, cy, r, fill: 'none', stroke: '#292524', 'stroke-width': 1.5, 'stroke-dasharray': '2 3', 'stroke-linecap': 'round', opacity: 0.8 })));
+      svgEl('circle', { cx, cy, r, fill: 'none', stroke: '#292524', 'stroke-width': 1.5, 'stroke-dasharray': '2 3', 'stroke-linecap': 'round', opacity: 0.85 })));
     else if (pin) rims.push(svgEl('g', { 'data-role': 'hidden-rim', 'data-rim-of': id, 'data-mark': 'pin' },
       svgEl('circle', { cx, cy, r: pin, fill: '#fff', opacity: 0.9 }), svgEl('circle', { cx, cy, r: Math.round(pin * 0.58 * 10) / 10, fill: '#292524' })));
     // (Its pin, a finger wide, and its lifted name pick it: round 3, Hank couldn't pick a daffodil under a catmint.

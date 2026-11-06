@@ -129,8 +129,14 @@ test.describe('on a phone', () => {
     await closeSheet(page);
     await openPicker(page);
     await expect(sheet(page)).toHaveClass(/\bfull\b/);
-    // From full height, swiped down past where it rests: closed.
+    // From full height, swiped down a good way past where it rests: caught there (Jason, Nov 6: "make the 'catch' for
+    // halfway a little bigger"); further: closed.
     await drag(vh * 0.4);
+    await expect(sheet(page)).toBeVisible();
+    await expect(sheet(page)).not.toHaveClass(/\bfull\b/);
+    await handle(page).click();
+    await expect(sheet(page)).toHaveClass(/\bfull\b/);
+    await drag(vh * 0.65);
     await expect(sheet(page)).toHaveCount(0);
     await openPicker(page);
     await handle(page).click();

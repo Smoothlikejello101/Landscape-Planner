@@ -50,11 +50,12 @@ test('a tall plant is solid like any other; a plant under it is pinned, and sele
   expect(await seeThrough(page, 'bb')).toBe(false);
   expect(await seeThrough(page, 'mint')).toBe(false);
   await expect(mark(page, 'ph')).toHaveAttribute('data-mark', 'pin');
-  // Its pin, tapped: the phlox selected, the buttonbush over it see-through, the phlox outlined.
+  // Its pin, tapped: the phlox selected, the buttonbush over it see-through, the phlox ringed as selected (white and
+  // black, over everything: Jason, Nov 6).
   await tapAt(page, await middle(page, '#canvas-svg [data-pin-of="ph"]'));
   await expect(page.locator('.sel-pill .name')).toHaveText('Creeping Phlox');
   await expect(look(page, 'bb')).toHaveAttribute('data-see-through', 'true');
-  await expect(mark(page, 'ph')).toHaveAttribute('data-mark', 'outline');
+  await expect(mark(page, 'ph')).toHaveAttribute('data-mark', 'selected');
   // Let go: solid again, the pin back.
   await page.keyboard.press('Escape');
   await expect(page.locator('.sel-pill')).toHaveCount(0);
@@ -65,7 +66,11 @@ test('a tall plant is solid like any other; a plant under it is pinned, and sele
   await tapAt(page, { x: bb.x - 40, y: bb.y - 30 });
   await expect(page.locator('.sel-pill .name')).toHaveText('Buttonbush');
   expect(await seeThrough(page, 'bb')).toBe(false);
+  // (The buttonbush ringed white and black, as selected; the phlox under it in black alone, Jason, Nov 6.)
+  await expect(mark(page, 'bb')).toHaveAttribute('data-mark', 'selected');
   await expect(mark(page, 'ph')).toHaveAttribute('data-mark', 'outline');
+  await expect(mark(page, 'ph').locator('circle')).toHaveCount(1);
+  await expect(mark(page, 'ph').locator('circle')).toHaveAttribute('stroke', '#292524');
   await page.keyboard.press('Escape');
   // By its name in Layers' list: the same.
   await page.locator('button[title=Layers]').click();
