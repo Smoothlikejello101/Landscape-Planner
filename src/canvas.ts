@@ -1,6 +1,6 @@
 import { renderBgHandles, renderBgImageInto } from './background';
 import { AXIS_LABEL, BG_COLOR, GRID_MAJOR, GRID_MINOR, PX_PER_FOOT_BASE } from './constants';
-import { svgEl, type Attrs } from './dom';
+import { el, svgEl, type Attrs } from './dom';
 import { alongLabel, boxLabelAngle, boxSize, shapeBBox, shapeCenter, displayLabel, LINE_HEIGHT, pathLabelPoint, pxPerFoot, textLines, textSize, trianglePoints, unionBounds, worldPoints } from './geometry';
 import { renderPathOverlay } from './draw';
 import { fullRingRadius } from './my-plants';
@@ -37,7 +37,7 @@ import { bandBlooms, bandLeaves, colorIn, coverBlooms, levelOf, mix } from './lo
 import { sameSaid } from './names';
 import { renderRescaleWas, rescalePreview } from './ui/rescale-card';
 
-// Canvas drawing. Everything here writes only into the <svg>, never into
+// Canvas drawing. Everything here writes only into the plan's element (#canvas-svg), never into
 // panel DOM, so it is safe to call while an input has keyboard focus.
 //
 // The canvas is a stack of layers so gestures can update just what changed:
@@ -46,34 +46,53 @@ import { renderRescaleWas, rescalePreview } from './ui/rescale-card';
 //   grid     grid lines and axis labels
 //   shapes   one <g> per shape (shape + label), then the marquee
 //   handles  background edit outline/handle, calibration markers, the selected shape's resize and rotate handles
-// During a pan or pinch the bg/shapes/handles layers are moved with a
-// transform and only the grid is redrawn; the full redraw happens on release.
+// During a pan or pinch the bg/shapes/handles layers are moved and only the grid is redrawn; the full redraw happens on
+// release.
+//
+// The layers are drawn in <svg>s stacked in the plan's element (a <div>: its id is the one the app and its tests have
+// always found the plan by): bg in one, shapes and handles together in another, each in a <div> that moves it during a
+// pan or a pinch: a CSS transform, the browser moving what it has already drawn (will-change: transform, styles.css),
+// not drawing it again. base and grid each have an <svg> of their own, which stays put. Until Nov 5 they were moved as SVG transforms, inside one <svg>: then each frame of a pinch laid
+// out every name on the plan again (an SVG text's size on the screen is part of its layout), painted and drew the whole
+// plan again, and decoded the photo again at its new size. On Jason's phone that was more than a frame could hold, with
+// a hundred plants and their names over a photo: "the screen flashes a lot while zooming and panning", frames drawn
+// with the plants' pictures gone, the photo missing or out of step, the selection's bar gone (his screen recording,
+// Nov 5). A pan or a pinch now lays out and draws nothing of the plan but its grid (e2e/flash.spec.ts).
 
 type Layer = 'base' | 'bg' | 'grid' | 'shapes' | 'handles';
 const LAYERS: Layer[] = ['base', 'bg', 'grid', 'shapes', 'handles'];
 const SCENE_LAYERS: Layer[] = ['bg', 'shapes', 'handles'];
+/** The <svg>s the layers are drawn in, bottom first, and whether the <div> around it moves it in a pan or a pinch. */
+const SHEETS: { layers: Layer[]; moves: boolean }[] = [
+  { layers: ['base'], moves: false },
+  { layers: ['bg'], moves: true },
+  { layers: ['grid'], moves: false },
+  { layers: ['shapes', 'handles'], moves: true },
+];
 
 /** The view the scene layers were last drawn with (for gesture previews). */
 let drawnView = { offsetX: 0, offsetY: 0, zoom: 1 };
 
-function canvasSvg(): SVGSVGElement | null {
-  return document.getElementById('canvas-svg') as SVGSVGElement | null;
+/** The plan's element: the layers' <svg>s, stacked (src/ui/render.ts makes it). */
+function planEl(): HTMLElement | null {
+  return document.getElementById('canvas-svg');
 }
-function layer(svg: SVGSVGElement, name: Layer): SVGGElement {
-  let g = svg.querySelector<SVGGElement>(`:scope > g[data-layer="${name}"]`);
-  if (!g) {
-    g = svgEl('g', { 'data-layer': name });
-    svg.appendChild(g);
-  }
-  return g;
+function layer(plan: HTMLElement, name: Layer): SVGGElement {
+  return plan.querySelector<SVGGElement>(`g[data-layer="${name}"]`)!;
 }
-function ensureLayers(svg: SVGSVGElement) {
-  const ok = svg.children.length === LAYERS.length &&
-    LAYERS.every((name, i) => (svg.children[i] as SVGElement).dataset.layer === name);
-  if (!ok) {
-    svg.replaceChildren();
-    for (const name of LAYERS) layer(svg, name);
-  }
+/** The <div>s that move the photo and the shapes (with their handles) in a pan or a pinch. */
+const movers = (plan: HTMLElement) => plan.querySelectorAll<HTMLElement>(':scope > .plan-move');
+/** Whether the plan's layers are there, each in its <svg>, as ensureLayers makes them. */
+function layersReady(plan: HTMLElement): boolean {
+  const layers = plan.querySelectorAll<SVGGElement>('g[data-layer]');
+  return plan.childElementCount === SHEETS.length && layers.length === LAYERS.length && LAYERS.every((name, i) => layers[i].dataset.layer === name);
+}
+function ensureLayers(plan: HTMLElement) {
+  if (layersReady(plan)) return;
+  plan.replaceChildren(...SHEETS.map(({ layers, moves }) => {
+    const svg = svgEl('svg', { class: 'plan-sheet', width: state.canvasW, height: state.canvasH }, ...layers.map((name) => svgEl('g', { 'data-layer': name })));
+    return moves ? el('div', { className: 'plan-move' }, svg) : svg;
+  }));
 }
 
 export function renderGrid(g: SVGElement) {
@@ -1220,8 +1239,14 @@ function sunHatchGroup(): SVGGElement | null {
   const beds = region.beds.map((s) => areaOutline(s, ppf)).filter((e): e is SVGElement => !!e);
   if (!beds.length) return null;
   for (const b of beds) b.setAttribute('fill', 'url(#sun-hatch-lines)');
-  const huge = { x: -1e6, y: -1e6, width: 2e6, height: 2e6 };
-  const mask = svgEl('mask', { id: 'sun-hatch-mask', maskUnits: 'userSpaceOnUse', ...huge }, svgEl('rect', { ...huge, fill: '#fff' }),
+  // (The mask over the beds' room alone, a pixel or two past it: it was a million px each way, which, the shapes drawn
+  // in an <svg> of their own and moved as one, made them a layer two million px across to the browser.)
+  const room = unionBounds(region.beds.map(shapeBBox))!;
+  const over = {
+    x: Math.floor((room.minX - state.offsetX) * ppf) - 2, y: Math.floor((room.minY - state.offsetY) * ppf) - 2,
+    width: Math.ceil((room.maxX - room.minX) * ppf) + 4, height: Math.ceil((room.maxY - room.minY) * ppf) + 4,
+  };
+  const mask = svgEl('mask', { id: 'sun-hatch-mask', maskUnits: 'userSpaceOnUse', ...over }, svgEl('rect', { ...over, fill: '#fff' }),
     ...region.suns.map((s) => areaOutline(s, ppf)).filter((e): e is SVGElement => !!e).map((e) => { e.setAttribute('fill', '#000'); return e; }));
   return svgEl('g', { 'data-role': 'sun-hatch', 'pointer-events': 'none' },
     svgEl('defs', {}, sunHatchPattern('sun-hatch-lines', -state.offsetX * ppf, -state.offsetY * ppf), mask),
@@ -1262,23 +1287,20 @@ function drawCanvas() {
   refreshUtilities();
   refreshLabelLayout();
   refreshBadgeLayout();
-  const svg = canvasSvg();
-  if (!svg) return;
-  ensureLayers(svg);
+  const plan = planEl();
+  if (!plan) return;
+  ensureLayers(plan);
   // (The view it's drawn at, the plan's top left in feet and the zoom, for the tests: e2e/helpers.ts planPoint.)
-  svg.setAttribute('data-view', `${state.offsetX} ${state.offsetY} ${state.zoom}`);
+  plan.setAttribute('data-view', `${state.offsetX} ${state.offsetY} ${state.zoom}`);
   const w = state.canvasW, h = state.canvasH;
-  layer(svg, 'base').replaceChildren(svgEl('rect', { 'data-role': 'grid', x: 0, y: 0, width: w, height: h, fill: BG_COLOR }));
-  for (const name of SCENE_LAYERS) {
-    const g = layer(svg, name);
-    g.removeAttribute('transform');
-    g.replaceChildren();
-  }
-  renderBgImageInto(layer(svg, 'bg'));
-  const grid = layer(svg, 'grid');
+  layer(plan, 'base').replaceChildren(svgEl('rect', { 'data-role': 'grid', x: 0, y: 0, width: w, height: h, fill: BG_COLOR }));
+  for (const m of movers(plan)) m.style.transform = '';
+  for (const name of SCENE_LAYERS) layer(plan, name).replaceChildren();
+  renderBgImageInto(layer(plan, 'bg'));
+  const grid = layer(plan, 'grid');
   grid.replaceChildren();
   renderGrid(grid);
-  const shapes = layer(svg, 'shapes');
+  const shapes = layer(plan, 'shapes');
   for (const s of paintOrder(state.shapes)) shapes.appendChild(shapeGroup(s));
   placeSunHatch(shapes);
   liftPlantNames(shapes);
@@ -1288,24 +1310,35 @@ function drawCanvas() {
   liftTrunks(shapes);
   const mq = marqueeRect();
   if (mq) shapes.appendChild(mq);
-  renderHandles(layer(svg, 'handles'));
+  renderHandles(layer(plan, 'handles'));
   drawnView = { offsetX: state.offsetX, offsetY: state.offsetY, zoom: state.zoom };
 }
 
+/** How far off (px) the perspective is that previewView zooms the scene in. Any distance gives the same picture. */
+const PREVIEW_DEPTH = 1000;
 /**
- * Show the current pan/zoom by transforming the already-drawn scene and
- * redrawing only the grid. Cheap enough to run on every pointer move.
+ * Show the current pan/zoom by moving the already-drawn scene (the photo, the shapes and their handles, by the <div>s
+ * around them: a CSS transform, which the browser does without laying out or drawing any of it again) and redrawing
+ * only the grid. Cheap enough to run on every pointer move.
+ *
+ * Its zoom is by bringing it nearer or further under a perspective, not by a scale: on the screen the same, each point
+ * where translate(tx, ty) scale(k) would put it (at depth z, under perspective d, everything is d / (d − z) the size),
+ * but no scale for the browser to see. Chrome lays out each SVG text again when the scale of anything around it
+ * changes, to fit its letters to their size on the screen: up to Chrome 141 at least, even through a <div> moved as
+ * these are (153 doesn't), and a pinch then laid out every name on the plan again each frame, as it had before Nov 5
+ * (CI, Chrome 141, PR #241: e2e/flash.spec.ts).
  */
 export function previewView() {
-  const svg = canvasSvg();
-  if (!svg || svg.children.length !== LAYERS.length) { redrawCanvas(); return; }
+  const plan = planEl();
+  if (!plan || !layersReady(plan)) { redrawCanvas(); return; }
   const k = state.zoom / drawnView.zoom;
   const ppf = PX_PER_FOOT_BASE * state.zoom;
   const tx = (drawnView.offsetX - state.offsetX) * ppf;
   const ty = (drawnView.offsetY - state.offsetY) * ppf;
-  const transform = `translate(${tx} ${ty}) scale(${k})`;
-  for (const name of SCENE_LAYERS) layer(svg, name).setAttribute('transform', transform);
-  const grid = layer(svg, 'grid');
+  const d = PREVIEW_DEPTH;
+  const transform = `perspective(${d}px) translate3d(${tx / k}px, ${ty / k}px, ${d * (1 - 1 / k)}px)`;
+  for (const m of movers(plan)) m.style.transform = transform;
+  const grid = layer(plan, 'grid');
   grid.replaceChildren();
   renderGrid(grid);
 }
@@ -1313,10 +1346,10 @@ export function previewView() {
 /** Redraw only the given shapes (e.g. while dragging them). */
 export function redrawShapes(ids: string[]) { asPreviewed(() => drawShapes(ids)); }
 function drawShapes(ids: string[]) {
-  const svg = canvasSvg();
-  if (!svg || svg.children.length !== LAYERS.length || drawnView.zoom !== state.zoom ||
+  const plan = planEl();
+  if (!plan || !layersReady(plan) || drawnView.zoom !== state.zoom ||
       drawnView.offsetX !== state.offsetX || drawnView.offsetY !== state.offsetY) { redrawCanvas(); return; }
-  const shapes = layer(svg, 'shapes');
+  const shapes = layer(plan, 'shapes');
   // (A utility dragged: its own outline measured again; the plants' badges catch up on release, with the full render.)
   if (ids.some((id) => state.shapes.find((sh) => sh.id === id)?.role === 'utility')) refreshUtilities();
   if (state.showCrowding || state.placing) {
@@ -1422,9 +1455,9 @@ function liftTrunks(shapes: Element) {
 
 /** Redraw only the marquee rectangle. */
 export function redrawMarquee() {
-  const svg = canvasSvg();
-  if (!svg || svg.children.length !== LAYERS.length) { redrawCanvas(); return; }
-  const shapes = layer(svg, 'shapes');
+  const plan = planEl();
+  if (!plan || !layersReady(plan)) { redrawCanvas(); return; }
+  const shapes = layer(plan, 'shapes');
   shapes.querySelector(':scope > [data-role="marquee"]')?.remove();
   const mq = marqueeRect();
   if (mq) shapes.appendChild(mq);
@@ -1433,9 +1466,9 @@ export function redrawMarquee() {
 /** Redraw only the background image and its handles. */
 export function redrawBackground() { asPreviewed(drawBackground); }
 function drawBackground() {
-  const svg = canvasSvg();
-  if (!svg || svg.children.length !== LAYERS.length) { redrawCanvas(); return; }
-  const bg = layer(svg, 'bg'), handles = layer(svg, 'handles');
+  const plan = planEl();
+  if (!plan || !layersReady(plan)) { redrawCanvas(); return; }
+  const bg = layer(plan, 'bg'), handles = layer(plan, 'handles');
   bg.replaceChildren(); handles.replaceChildren();
   renderBgImageInto(bg);
   renderHandles(handles);
@@ -1486,10 +1519,10 @@ function renderBedFocus(g: SVGGElement) {
 /** Redraw only the handles layer (drawing in progress, point handles). */
 export function redrawHandles() { asPreviewed(drawHandles); }
 function drawHandles() {
-  const svg = canvasSvg();
-  if (!svg || svg.children.length !== LAYERS.length || drawnView.zoom !== state.zoom ||
+  const plan = planEl();
+  if (!plan || !layersReady(plan) || drawnView.zoom !== state.zoom ||
       drawnView.offsetX !== state.offsetX || drawnView.offsetY !== state.offsetY) { redrawCanvas(); return; }
-  const handles = layer(svg, 'handles');
+  const handles = layer(plan, 'handles');
   handles.replaceChildren();
   renderHandles(handles);
 }
@@ -1513,8 +1546,8 @@ export function keepInViewOnTurn(fn: (() => void) | null) { keepOnTurn = fn; }
 let turnedAt = -Infinity;
 export function resizeCanvas() {
   const wrap = document.getElementById('canvas-wrap');
-  const svg = canvasSvg();
-  if (!wrap || !svg) return;
+  const plan = planEl();
+  if (!wrap || !plan) return;
   const rect = wrap.getBoundingClientRect();
   const w = Math.max(100, Math.round(rect.width));
   // A window made narrower or wider (a phone turned, a window resized) keeps what was in the middle in the middle,
@@ -1539,8 +1572,10 @@ export function resizeCanvas() {
   state.canvasW = w;
   state.canvasH = h;
   if (!typingNow()) restingH = state.canvasH;
-  svg.setAttribute('width', String(state.canvasW));
-  svg.setAttribute('height', String(state.canvasH));
+  for (const svg of plan.querySelectorAll('svg.plan-sheet')) {
+    svg.setAttribute('width', String(state.canvasW));
+    svg.setAttribute('height', String(state.canvasH));
+  }
   // (Turned, and its height settling just after: what's kept in view is put back in view, the walk's plants clear of
   // its chip. The warnings bug hunt, Nov 1: turned mid-walk, the chip covered the maple. Not the keyboard: it changes
   // only the height.)
