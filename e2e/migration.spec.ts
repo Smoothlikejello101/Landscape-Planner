@@ -177,7 +177,7 @@ test("plans from before open with nothing ticked and with who was in this device
   await openFilters(page);
   await expect(page.getByTestId('protect-kids')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('dogs-hideToxic')).toBeChecked();
+  await expect(page.getByTestId('active-chip')).toHaveText(['No plants rated toxic to people', 'No plants rated toxic to dogs']);
   await closeSheet(page);
   await page.waitForTimeout(600);
   // Nothing ticked, nothing else changed: not even when each plan last changed.

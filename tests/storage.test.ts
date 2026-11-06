@@ -1606,7 +1606,7 @@ describe("who's in the yard, kept with the plan (Jason, Nov 1)", () => {
     expect(household()).toEqual({ ...NO_YARD, kids: true, answered: true, at: expect.any(Number) });
     await switchProject('p2');
     expect(household()).toEqual({ ...NO_YARD, dogs: 'nonToxic', answered: true });
-    expect([plantFilter.noPoison, plantFilter.dogs]).toEqual([false, 'nonToxic']);
+    expect([plantFilter.noPoison, plantFilter.dogs]).toEqual([false, 'hideToxic']); // (kept as 'nonToxic', from before Nov 5: Dogs on)
     await switchProject('p1');
     expect([plantFilter.noPoison, plantFilter.dogs]).toEqual([true, '']);
     _resetStorageForTests();

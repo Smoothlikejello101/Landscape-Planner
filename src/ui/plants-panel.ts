@@ -4,12 +4,12 @@ import { smallerForms, type SmallerForm } from '../fix-problem';
 import { el, hasKeyboard, sheetCloseButton, tapSaid, type Child } from '../dom';
 import { needNames as needNamesOf, readNeeds, type NameIndex, type NeedSet } from '../search-needs';
 import { FLOWER_CHOICES } from '../flower-colors';
-import { applyYard, askAtTop, askDismissed, dismissAsked, household, saveHardy, saveYard, toggleYard, yardKeyOf, yardOf, type Yard } from '../yard';
+import { applyYard, askAtTop, askDismissed, dismissAsked, household, saveHardy, saveYard, toggleYard, YARD_CHIPS, yardHas, yardKeyOf, yardOf, type Yard } from '../yard';
 import { toast } from './toast';
 import { I } from '../icons';
-import type { DogFilter, Plant, PlantFilter } from '../plants';
+import type { Plant, PlantFilter, ToxicTo } from '../plants';
 import { byMatch, hostMatchText, inNotes, matchPlant, nearShows, readQuery, unsearchable } from '../search';
-import { seasonMonths, byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, noSoilRating, sunFit, sunRangeSaid, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, planCounts, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, bannedLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById, swapFiltersOn, treeFiltersAside } from '../plants';
+import { seasonMonths, byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, noSoilRating, sunFit, sunRangeSaid, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, planCounts, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, bannedLeftOut, pickerCount, toxicNote, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById, swapFiltersOn, treeFiltersAside } from '../plants';
 import { startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { SPREAD_WAYS, spreadWays } from '../spread';
@@ -58,15 +58,16 @@ let keptSearch = false;
 /** The picker just opened (src/ui/render.ts). */
 export function pickerOpened() { keptSearch = !!plantFilter.q; }
 /**
- * Whether "Anyone you need to protect?" is first among the filters while the picker is open: decided as it opens
+ * Whether "Hide plants rated toxic to:" is first among the filters while the picker is open: decided as it opens
  * (src/yard.ts askAtTop), so an answer given in it stays in view to see (Jason, Nov 1, from the UI review); a
  * dismissal moves it at once. Null with the picker closed.
  */
 let askingAtTop: boolean | null = null;
 /**
- * "Anyone you need to protect?" folded away while a search is typed, as the filters fold, so its results are what's in
- * view (the picker bug hunt, Nov 1: on a 360 × 640 phone it and Recent, since gone, left one result row in sight, at
- * Extra large none); back once the search is cleared, or the picker closes. Kept across a redraw while typing.
+ * "Hide plants rated toxic to:", first among the filters, folded away while a search is typed, as the filters fold, so its
+ * results are what's in view (the picker bug hunt, Nov 1: on a 360 × 640 phone it and Recent, since gone, left one
+ * result row in sight, at Extra large none); back once the search is cleared, or the picker closes. Kept across a
+ * redraw while typing.
  */
 let typingFold = false;
 /** The picker closed (src/ui/render.ts): asked again or not by what's kept, the next time it opens. */
@@ -188,13 +189,6 @@ const SWATCHES: Record<string, string> = {
   variegated: 'linear-gradient(135deg, #16a34a 50%, #fef3c7 50%)',
 };
 type ListKey = 'flowerColors' | 'leafColors' | 'attracts' | 'spread' | 'edibleParts';
-/**
- * "Anyone you need to protect?"'s note: what choosing does, plainly (Jason, Nov 4, from the beta testers: "The skin
- * irritant note is very confusing"; "something like 'we'll filter out plants that are toxic for them' and not bother
- * with the skin irritant note"). A plant that can irritate skin is still marked on its row whoever's in the yard
- * (Jason, Nov 1: anyone walking past can brush it); that isn't explained here.
- */
-const PROTECT_NOTE = 'We’ll hide plants that are toxic to them.';
 /** The parts a plant can be edible for, as chips under Edible (Jason, Oct 30). */
 const EDIBLE_PART_CHOICES: [string, string][] = [['fruit', 'Fruit'], ['leaves', 'Leaves'], ['flowers', 'Flowers']];
 /** One value of a list filter, as its chip says it ("Red flowers", "Attracts bees"). */
@@ -211,9 +205,10 @@ const FILTER_NAMES: Partial<Record<keyof PlantFilter, (f: PlantFilter) => string
   bloomMonth: (f) => `Blooming in ${bloomName(f.bloomMonth)}`, flowerColors: (f) => `${cap(joined(f.flowerColors, 'or'))} flowers`,
   flowers: () => 'Has flowers',
   hardyHere: () => (state.location ? `Hardy in zone ${state.location.zone}` : 'Hardy in your zone'),
-  // (One way for all four, as their controls say it: Jason, Nov 4, "I'm partial to 'hide plants toxic to …'".)
-  noPoison: () => 'No plants toxic to people', dogs: (f) => (f.dogs === 'hideToxic' ? 'No plants toxic to dogs' : 'Only plants rated safe for dogs'),
-  cats: () => 'No plants toxic to cats', horses: () => 'No plants toxic to horses',
+  // (One way for all four, as their line says it: Jason, Nov 4, "I'm partial to 'hide plants toxic to …'"; "rated", Nov
+  // 5, so what's left doesn't read as safe. Dogs kept as 'nonToxic', from before Nov 5, is the same: src/yard.ts.)
+  noPoison: () => 'No plants rated toxic to people', dogs: () => 'No plants rated toxic to dogs',
+  cats: () => 'No plants rated toxic to cats', horses: () => 'No plants rated toxic to horses',
   attracts: (f) => `Attracts ${joined(f.attracts, 'or')}`, hostOnly: () => 'Feeds caterpillars',
   native: (f) => (f.native === '@here' ? `Native to ${gardenStateName() ?? 'your state'}` : 'Native to North America'),
   leafColors: (f) => `${cap(joined(f.leafColors, 'or'))} leaves`, fallColor: () => 'Fall color', evergreen: () => 'Evergreen', winterInterest: () => 'Winter interest',
@@ -514,8 +509,8 @@ export function renderPlantsPanel() {
   }
   refreshList = () => { if (listWrap.isConnected) rebuildList(); };
   /**
-   * Kids and pets, as set by their own controls: kept with the plan (src/yard.ts), as the guided introduction's step 6
-   * does. Not "Clear filters" or "Show them": those are for the search at hand.
+   * People and pets, as set by their own chips (or a filter chip's ×): kept with the plan (src/yard.ts), as the guided
+   * introduction's step 6 does. Not "Clear filters" or "Show them": those are for the search at hand.
    */
   function keepYard(key: keyof PlantFilter) {
     // (A Swap opened from a warning: its filters are its own, put back as they were when it closes; taking one off
@@ -987,7 +982,7 @@ export function renderPlantsPanel() {
     else if (s.key === 'native') plantFilter.native = gardenStateName() ? '@here' : '@na';
     else Object.assign(plantFilter, { [s.key]: s.value });
   }
-  /** "Anyone you need to protect?" folded away, or back (typingFold). */
+  /** "Hide plants rated toxic to:", first among the filters, folded away, or back (typingFold). */
   function foldTops(on: boolean) {
     typingFold = on;
     if (topLine) topLine.hidden = on;
@@ -1138,74 +1133,28 @@ export function renderPlantsPanel() {
     setByNote,
     colorChips('flowerColors', FLOWER_CHOICES, 'Flower color', 'flower-colors'));
 
-  // ---- POISON & PETS ----
-  const poison = (() => {
-    const DOGS: [DogFilter, string][] = [
-      ['', 'Show all'],
-      ['hideToxic', 'Hide plants toxic to dogs'],
-      // Says unverified while it goes by the earlier list for any plant (until each has a sourced rating: docs/catalog-sources.md).
-      ['nonToxic', PLANTS.some((p) => !p.tox?.dog) ? 'Show only plants rated safe for dogs (unverified)' : 'Show only plants rated safe for dogs'],
-    ];
-    // (What the choice does, in numbers: how many it hides, and how many aren't rated at all.)
-    const nToxic = PLANTS.filter(toxicToDogs).length, nSafe = PLANTS.filter(nonToxicToDogs).length;
-    const nUnrated = PLANTS.length - nToxic - nSafe;
-    const note = el('div', { className: 'hint', 'data-testid': 'dogs-note' });
-    const sayNote = () => {
-      note.textContent = plantFilter.dogs === 'hideToxic' ? `Hides the ${countWord(nToxic)} plants toxic to dogs, according to NC State or an earlier list. The ${countWord(nUnrated)} not yet rated still show.`
-        : plantFilter.dogs === 'nonToxic' ? `Only the ${countWord(nSafe)} plants rated safe for dogs, according to an earlier list with no sources. The ${countWord(nUnrated)} not yet rated are hidden.`
-        : `According to NC State or an earlier list, ${countWord(nToxic)} plants are toxic to dogs; ${countWord(nUnrated)} aren't rated yet, which isn't the same as safe.`;
-    };
-    sayNote();
-    const group = el('div', { role: 'radiogroup', 'aria-label': 'Dogs', className: 'animal-rows' });
-    const radios: HTMLInputElement[] = [];
-    for (const [value, text] of DOGS) {
-      const r = el('input', { type: 'radio', name: 'dogs-filter', value, 'data-testid': `dogs-${value || 'any'}` });
-      r.checked = plantFilter.dogs === value;
-      r.addEventListener('change', () => { if (!r.checked) return; plantFilter.dogs = value; keepYard('dogs'); sayNote(); rebuildList(); });
-      radios.push(r);
-      group.appendChild(el('label', { className: 'check-row' }, r, el('span', {}, text)));
-    }
-    // (Only plants whose NC State page was read and lists no poison: one it doesn't rate isn't called safe, so it's hidden
-    // too, and said so. Cats and horses: only those NC State lists as toxic are hidden; one it doesn't rate stays.)
-    const kids = mkCheck('Hide plants toxic to people', 'noPoison');
-    const cats = mkCheck('Hide plants toxic to cats', 'cats');
-    const horses = mkCheck('Hide plants toxic to horses', 'horses');
-    const head = groupHead('Poison & pets');
-    const box = el('div', { id: 'poison-filters', 'data-testid': 'animal-toxicity' }, head,
-      kids,
-      el('div', { className: 'hint', 'data-testid': 'people-note' }, "According to NC State. Plants it hasn't rated are hidden too."),
-      el('div', { className: 'animal-name' }, 'Dogs'), group, note,
-      el('div', { className: 'animal-name' }, 'Cats and horses'),
-      cats,
-      horses,
-      el('div', { className: 'hint', 'data-testid': 'pets-note' }, 'According to NC State. Plants not yet rated still show.'));
-    const tick = (label: HTMLElement, on: boolean) => { label.querySelector('input')!.checked = on; };
-    return {
-      box,
-      /** "Anyone you need to protect?" at the head of the group, once it's no longer first among the filters. */
-      hold: (line: HTMLElement) => head.after(line),
-      /** The controls as the filters now stand (set from the line's chips). */
-      sync: () => {
-        tick(kids, plantFilter.noPoison); tick(cats, plantFilter.cats); tick(horses, plantFilter.horses);
-        for (const r of radios) r.checked = r.value === plantFilter.dogs;
-        sayNote();
-      },
-    };
-  })();
-
-  // ---- "Anyone you need to protect?" (Jason, Nov 1, from the UI review) ----
-  // Poison & pets' four as a chip each, kept in step with its controls and the plan's yard (src/yard.ts). First
-  // among the filters, with a ×, until it's answered for the plan or dismissed on this device (askingAtTop); then at
-  // the head of Poison & pets.
+  // ---- "Hide plants rated toxic to:" ----
+  // (Jason, Nov 5: "the whole poison filter could be reduced to 'hide plants toxic to …' with chips. Maybe replace
+  // 'kids' with 'people.'"; then "rated", so what's left doesn't read as safe.)
+  // One line in place of "Anyone you need to protect?" and the Poison & pets group: People, Dogs, Cats and Horses, a chip
+  // each, kept with the plan's yard (src/yard.ts). Each hides the plants rated toxic to them and nothing else
+  // (src/plants.ts toxicTo): a plant not rated still shows, and there's no "rated safe" filter, the only safe ratings
+  // being the earlier list's, unverified. Its note says whose word it takes and how many plants aren't rated yet.
+  // First among the filters, with a ×, until it's answered for the plan or dismissed on this device (askingAtTop); then
+  // in Filters where Poison & pets was, with no heading of its own: its title names it. (While naming a tree already
+  // in the yard, only there: its filters start cleared, the yard's with them, treeFiltersAside.)
   // Skin irritants are marked on rows for everyone (src/plants.ts rowFlags): anyone walking past can brush one. Poison
-  // when eaten is marked, and filtered, by who's in the yard.
-  const YARD_CHIPS: [keyof Yard, string][] = [['kids', 'Kids'], ['dogs', 'Dogs'], ['cats', 'Cats'], ['horses', 'Horses']];
+  // when eaten is marked by who's chosen; People hides any rating for people, the skin's too, as it did before.
+  const toxicBox = el('div', { className: 'toxic-filters', id: 'poison-filters', 'data-testid': 'toxic-filters', hidden: true });
   let yardChips: [keyof Yard, HTMLButtonElement][] = [];
-  const yardOn = (k: keyof Yard) => { const y = yardOf(plantFilter); return k === 'dogs' ? y.dogs !== '' : !!y[k]; };
-  /** The line's chips and Poison & pets' controls as the filters now stand. */
+  let yardNote: HTMLElement | null = null;
+  const yardOn = (k: keyof Yard) => yardHas(yardOf(plantFilter), k);
+  /** Who's chosen, as the note counts them (the yard's `kids` is People). */
+  const chosen = (): ToxicTo[] => YARD_CHIPS.filter(([k]) => yardOn(k)).map(([k]) => (k === 'kids' ? 'people' : k));
+  /** The line's chips, and its note's count, as the filters now stand. */
   function syncYard() {
     for (const [k, b] of yardChips) { b.classList.toggle('on', yardOn(k)); b.setAttribute('aria-pressed', String(yardOn(k))); }
-    poison.sync();
+    if (yardNote) yardNote.textContent = toxicNote(chosen());
   }
   function protectLine(top: boolean): HTMLElement {
     yardChips = YARD_CHIPS.map(([k, label]) => {
@@ -1213,37 +1162,40 @@ export function renderPlantsPanel() {
       b.addEventListener('click', () => {
         const y = toggleYard(yardOf(plantFilter), k);
         applyYard(plantFilter, y);
-        saveYard(y, k);
+        // (Kept with the plan, but not from a Swap opened from a warning, whose filters are its own: keepYard.)
+        if (!swapFiltersOn()) saveYard(y, k);
         syncYard();
         rebuildList();
       });
       return [k, b];
     });
+    yardNote = el('div', { className: 'protect-note', 'data-testid': 'protect-note' }, toxicNote(chosen()));
     const line = el('div', { className: 'protect-line' + (top ? ' at-top' : ''), role: 'group', 'aria-labelledby': 'protect-title', 'data-testid': 'protect-line' },
-      el('div', { className: 'protect-title', id: 'protect-title' }, 'Anyone you need to protect?'),
+      el('div', { className: 'protect-title', id: 'protect-title' }, 'Hide plants rated toxic to:'),
       el('div', { className: 'protect-chips' }, yardChips.map(([, b]) => b)),
-      el('div', { className: 'protect-note', 'data-testid': 'protect-note' }, PROTECT_NOTE));
+      yardNote);
     if (top) {
-      const x = el('button', { className: 'protect-x', html: I.x, 'aria-label': 'Dismiss this question (it moves to Filters, Poison & pets)', title: 'Dismiss', 'data-testid': 'protect-dismiss' });
+      const x = el('button', { className: 'protect-x', html: I.x, 'aria-label': 'Dismiss (it moves into Filters)', title: 'Dismiss', 'data-testid': 'protect-dismiss' });
       x.addEventListener('click', () => {
         // (Moved at once, in place: the list and the search as they were. Said where it went.)
         const focused = document.activeElement === x;
         dismissAsked();
         askingAtTop = false;
         line.remove();
-        poison.hold(protectLine(false));
-        toast("It's under Filters → Poison & pets.", 5000);
+        holdLine();
+        toast("It's under Filters.", 5000);
         if (focused) filtersBtn.focus(); // (the × gone: keyboards and screen readers kept by what holds it now)
       });
       line.prepend(x);
     }
     return line;
   }
-  // (Not while naming a tree already in the yard: its filters start cleared, the yard's with them: treeFiltersAside.)
+  /** The line in Filters, once it's no longer first among them. */
+  function holdLine() { toxicBox.replaceChildren(protectLine(false)); toxicBox.hidden = false; }
   const askTop = !forTree && (askingAtTop ??= askAtTop({ dismissed: askDismissed(), household: household() }));
   const topLine = askTop ? protectLine(true) : null;
   if (topLine) topLine.hidden = typingFold;
-  if (!askTop && !forTree) poison.hold(protectLine(false));
+  else holdLine();
 
   // ---- Edible, and which part ----
   // (The part chips show once Edible is ticked; unticking it takes them off too.)
@@ -1301,7 +1253,7 @@ export function renderPlantsPanel() {
     el('div', { className: 'hint' }, 'A plant shows the value more sources give (on a tie, the cautious one), with the other beside it. One shown only because of the other is marked !.'));
 
   // ---- One fold for them all, its button saying how many are on; "Hardy in zone 8a" beside it ----
-  const all = el('div', { className: 'filter-box', id: 'all-filters', hidden: !filtersOpen, 'data-testid': 'all-filters' }, primary, poison.box, adv);
+  const all = el('div', { className: 'filter-box', id: 'all-filters', hidden: !filtersOpen, 'data-testid': 'all-filters' }, primary, toxicBox, adv);
   const filtersLabel = el('span', {});
   const filtersBtn = el('button', { className: 'btn ghost fold-btn', 'aria-expanded': String(filtersOpen), 'aria-controls': 'all-filters', 'data-testid': 'filters' },
     el('span', { className: 'fold-icon', html: I.filter }), filtersLabel, el('span', { className: 'fold-chev', html: I.chevronDown }));
@@ -1337,7 +1289,7 @@ export function renderPlantsPanel() {
   const planToggle = el('button', { className: 'plan-toggle', 'aria-pressed': String(plantFilter.inPlan), 'data-testid': 'in-plan', title: 'Only the plants placed in this plan' }, 'In this plan');
   planToggle.addEventListener('click', () => { plantFilter.inPlan = !plantFilter.inPlan; planToggle.setAttribute('aria-pressed', String(plantFilter.inPlan)); rebuildList(); });
   const searchBar = el('div', { className: 'picker-search field' }, el('div', { className: 'search-row' }, el('div', { className: 'search-wrap' }, search, clearSearch), planToggle));
-  // (One block, so its spacing is its own: the sheet spaces its parts widely. "Anyone you need to protect?" first.)
+  // (One block, so its spacing is its own: the sheet spaces its parts widely. "Hide plants rated toxic to:" first, till answered.)
   body.appendChild(el('div', { className: 'picker-filters' }, topLine, foldRow, all, whyLine, activeRow));
   body.appendChild(countLine);
   body.appendChild(listWrap);

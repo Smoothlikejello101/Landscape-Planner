@@ -17,6 +17,8 @@ describe('a household with kids or pets', () => {
     expect(householdFlags(milkweed, { ...NO_YARD, kids: true })[0].title).toBe('Toxic if eaten (Low severity: leaves and sap/juice)');
     expect(householdFlags(milkweed, { ...NO_YARD, dogs: 'hideToxic', cats: true }).map((f) => f.text)).toEqual(['Toxic to dogs and cats']);
     expect(householdFlags(milkweed, NO_YARD)).toEqual([]);
+    // (Dogs kept as 'nonToxic', from before Nov 5: Dogs on, as now.)
+    expect(householdFlags(milkweed, { ...NO_YARD, dogs: 'nonToxic' }).map((f) => f.text)).toEqual(['Toxic to dogs']);
     expect(householdFlags(rose, { ...NO_YARD, kids: true })).toEqual([]); // (thorns: no parts, no severity)
   });
   it("flags a hybrid none rates as its parents are rated, and says it isn't rated itself (Jason, Oct 30: the 'Illinois Everbearing' mulberry)", () => {
@@ -31,7 +33,7 @@ describe('a household with kids or pets', () => {
     expect(householdFlags(skinOnly, { ...NO_YARD, kids: true })).toEqual([]);
     expect(householdFlags({ ...mulberry, poison_parents: undefined } as Plant, { ...NO_YARD, kids: true })).toEqual([]);
   });
-  it('marks a skin irritant on its row whoever is in the yard; "Poisonous to people" only with kids (Jason, Nov 1: anyone walking past can brush one)', () => {
+  it('marks a skin irritant on its row whoever is in the yard; "Toxic to people" only with People (Jason, Nov 1: anyone walking past can brush one)', () => {
     const mayapple = { id: 'may', common: 'Mayapple', form: 'Perennial', poison: { severity: 'high', parts: ['leaves', 'roots'], skin: true } } as unknown as Plant;
     const yards = [NO_YARD, { ...NO_YARD, kids: true }, { ...NO_YARD, dogs: 'hideToxic' as const }, { ...NO_YARD, dogs: 'nonToxic' as const },
       { ...NO_YARD, cats: true }, { ...NO_YARD, horses: true }, { kids: true, dogs: 'hideToxic' as const, cats: true, horses: true }];

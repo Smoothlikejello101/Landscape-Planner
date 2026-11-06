@@ -82,8 +82,8 @@ export function helpAnswers(d: HelpDevice): HelpAnswer[] {
     {
       id: 'protect', q: 'Mark what’s dangerous to my kids or pets',
       lines: [
-        'Say who’s in the yard: Kids, Dogs, Cats or Horses. The plant picker asks “Anyone you need to protect?” (once answered, it’s under Filters → Poison & pets), and Warnings → Poison has the same choice.',
-        'Plants toxic to them are then hidden in the picker, and any already on the plan are flagged in Warnings. It’s kept with the plan.',
+        'In the plant picker, “Hide plants rated toxic to:” People, Dogs, Cats or Horses (first among its filters until you answer it, then under Filters). Warnings → Poison has the same choice.',
+        'Plants rated toxic to them are then hidden in the picker, and any already on the plan are flagged in Warnings. A plant not rated still shows: that isn’t the same as safe. It’s kept with the plan.',
       ],
     },
     // (Jason, Nov 4, from the beta testers: Kayla "didn't know what it meant to install it on her home screen".)

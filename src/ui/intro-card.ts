@@ -12,11 +12,11 @@ import { pxPerFoot, rotatedBoxBounds, shapeBBox, shapeCenter } from '../geometry
 import { pulseShape, resizeCanvas } from '../canvas';
 import { MIN_ZOOM, PX_PER_FOOT_BASE } from '../constants';
 import { hintShown } from '../hints';
-import { PLANT_FILTER_DEFAULTS, plantFilter, plantMatches, plantsById, plantTakesSun } from '../plants';
+import { PLANT_FILTER_DEFAULTS, plantFilter, plantMatches, plantsById, plantTakesSun, toxicNote, type ToxicTo } from '../plants';
 import { hardyEnough, zoneFit } from '../climate';
 import { nativeHere, regulatedHere } from '../wild';
 import { sunAt, sunLevel } from '../sun';
-import { NO_YARD, applyYard, household, noteAsked, saveHardy, saveYard, toggleYard, yardFilter, yardOf, yardSet, type Yard } from '../yard';
+import { NO_YARD, YARD_CHIPS, applyYard, household, noteAsked, saveHardy, saveYard, toggleYard, yardFilter, yardHas, yardOf, yardSet, type Yard } from '../yard';
 import {
   NEW_RECORD, STEP_NUMBER, STEP_TITLE, UNSCALED, applies, nextStep, parseIntroRecord, plantCardText, prevStep, resumeStep, ringCardText, shrubToFind,
   stepDone, type IntroRecord, type Snapshot, type StepId,
@@ -175,7 +175,7 @@ function shrubForGarden() {
     // (Not one USGS's register lists as invasive in the lower 48, though the picker offers it: this is the app's own
     // suggestion.)
     flagged: (id) => { const p = plantsById[id]; return !p || p.wild_us === 'invasive' || p.wild_us === 'widespread invasive' || regulatedHere(p).length > 0; },
-    // (Not one the yard's own filters hide: no hydrangea to find with kids or dogs in it.)
+    // (Not one the yard's own filters hide: no hydrangea to find with people or dogs chosen.)
     yardOk: (id) => { const p = plantsById[id]; return !!p && plantMatches(p, yardOnly); },
   });
 }
@@ -244,7 +244,8 @@ function stepContent(step: StepId): { text: string; short?: string; action?: { l
       short: state.panel === 'add' ? `${Tap()} Sun Exposure, then draw the area.` : `Drag across the hours it gets sun, then close this with its ×.`,
       action: { label: 'Draw an area', run: () => startKind('sun') },
     };
-    case 'who': return { text: "Kids, dogs, cats, horses? We'll hide plants that are toxic to them. Change it any time in Filters.", extra: whoChips(), done: 'Next' };
+    // (The picker's words, Jason, Nov 5: "Hide plants rated toxic to …", People in place of Kids.)
+    case 'who': return { text: 'Hide plants rated toxic to people or pets? Choose who. Change it any time in Filters.', extra: whoChips(), done: 'Next' };
     case 'plant': {
       const bed = !!newestBed(), zip = !!state.location?.zip, sun = bedSun();
       const shrub = zip ? shrubForGarden() : null;
@@ -281,24 +282,25 @@ function stepContent(step: StepId): { text: string; short?: string; action?: { l
  * Step 6's choices: each a toggle that sets the picker's filter for it at once and keeps it with the plan
  * (src/yard.ts); read from the filters each time, so a change made in Filters meanwhile shows. And "None of these"
  * (Jason, Nov 4: "there should be a way to say 'none of the above'"): the four off, and the question answered for the
- * plan, so the picker keeps "Anyone you need to protect?" under its Filters fold and the warnings know no one's at
- * risk. It shows chosen while the plan's answer is no one; one of the four chosen, it isn't.
+ * plan, so the picker keeps "Hide plants rated toxic to:" under its Filters fold and the warnings know no one's at risk. It
+ * shows chosen while the plan's answer is no one; one of the four chosen, it isn't.
  */
 function whoChips(): HTMLElement {
   const row = el('div', { className: 'intro-chips', role: 'group', 'aria-label': "Who's in your yard" });
-  const chips: [keyof Yard, string][] = [['kids', 'Kids'], ['dogs', 'Dogs'], ['cats', 'Cats'], ['horses', 'Horses']];
-  const isOn = (k: keyof Yard) => { const y = yardOf(plantFilter); return k === 'dogs' ? y.dogs !== '' : !!y[k]; };
+  const isOn = (k: keyof Yard) => yardHas(yardOf(plantFilter), k);
   const noOne = () => { const h = household(); return h.answered && !yardSet(h); };
+  const chosen = (): ToxicTo[] => YARD_CHIPS.filter(([k]) => isOn(k)).map(([k]) => (k === 'kids' ? 'people' : k));
   const shown: [HTMLElement, () => boolean][] = [];
   const show = () => {
     for (const [b, on] of shown) { b.classList.toggle('on', on()); b.setAttribute('aria-pressed', String(on())); }
-    note.hidden = !isOn('dogs');
+    const who = chosen();
+    note.hidden = !who.length;
+    note.textContent = who.length ? toxicNote(who) : '';
   };
-  for (const [k, label] of chips) {
+  for (const [k, label] of YARD_CHIPS) {
     const b = el('button', { className: 'intro-chip', 'data-testid': `intro-${k}` }, label);
     b.addEventListener('click', () => {
-      // (Dogs back on: as it was set before, "only plants rated safe" kept if that's what it was. The picker's "Anyone
-      // you need to protect?" does the same: src/yard.ts toggleYard.)
+      // (As the picker's "Hide plants rated toxic to:" does it: src/yard.ts toggleYard.)
       const y = toggleYard(yardOf(plantFilter), k);
       applyYard(plantFilter, y);
       saveYard(y, k);
@@ -315,8 +317,9 @@ function whoChips(): HTMLElement {
   });
   shown.push([none, noOne]);
   row.appendChild(none);
-  // (Dogs: no dog warnings; a plant not yet rated still shows, which isn't the same as safe. Decided Oct 28.)
-  const note = el('div', { className: 'intro-note', 'data-testid': 'intro-dogs-note' }, "Dogs: plants with a warning for dogs are hidden; plants not yet rated still show.");
+  // (With anyone chosen, the picker's note: whose word it takes, and that a plant not yet rated still shows, which isn't
+  // the same as safe. Dogs alone, Oct 28; all four, Nov 5.)
+  const note = el('div', { className: 'intro-note', 'data-testid': 'intro-who-note' });
   show();
   return el('div', {}, row, note);
 }

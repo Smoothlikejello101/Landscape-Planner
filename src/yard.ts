@@ -1,10 +1,15 @@
 // Who's in the yard (the guided introduction's step 6, Oct 25: "Kids · Dogs · Cats · Horses" sets the picker's
 // filters; since Oct 30 (Jason, from round 2) it also puts warnings on rows, the plan and the plant: src/plants.ts
 // householdFlags). Kept with the plan since Nov 1 (Jason: it's the yard's, not the device's, and later maybe an area's
-// within a plan), so it's synced and in backups and plan files, and the plan keeps whether "Anyone you need to
-// protect?" was answered for it. The other filters are for the search at hand and reset, but kids and pets don't
-// change between visits. The picker's own controls for the same four keep it up to date (src/ui/plants-panel.ts), and
-// its filters follow the plan that's open (src/main.ts, setHouseholdListener).
+// within a plan), so it's synced and in backups and plan files, and the plan keeps whether the picker's question was
+// answered for it. The other filters are for the search at hand and reset, but people and pets don't change between
+// visits. The picker's "Hide plants rated toxic to:" line keeps it up to date (src/ui/plants-panel.ts), and its filters
+// follow the plan that's open (src/main.ts, setHouseholdListener).
+//
+// Since Nov 5 (Jason: "the whole poison filter could be reduced to 'hide plants toxic to …' with chips. Maybe replace
+// 'kids' with 'people'"), the four are People, Dogs, Cats and Horses, each hiding only the plants rated toxic to them.
+// What's kept is as it was, so nothing stored changes: `kids` is People; a dog value of 'nonToxic' (the dog filter's
+// "only plants rated safe", gone with it) reads as 'hideToxic', Dogs on (applyYard, src/plants.ts plantMatches).
 //
 // Before Nov 1 it was kept per device, in 'lp-yard' (chosen Oct 28 with the introduction, not by Jason). A plan from
 // before takes what this device had there (householdFromDevice), so nobody's setting changes with the update; 'lp-yard'
@@ -19,8 +24,18 @@ import { state } from './state';
 import { save } from './storage';
 import { now } from './util';
 
+/** Who's in the yard: `kids` is People (the name it's kept under); `dogs` on is any value but ''. */
 export interface Yard { kids: boolean; dogs: DogFilter; cats: boolean; horses: boolean }
 export const NO_YARD: Yard = { kids: false, dogs: '', cats: false, horses: false };
+/** The four as their chips say them, in order (Jason, Nov 5: People in place of Kids). */
+export const YARD_CHIPS: [keyof Yard, string][] = [['kids', 'People'], ['dogs', 'Dogs'], ['cats', 'Cats'], ['horses', 'Horses']];
+/** Whether one of the four is chosen. */
+export const yardHas = (y: Yard, k: keyof Yard): boolean => (k === 'dogs' ? y.dogs !== '' : !!y[k]);
+/** Who's chosen, in words: "people, dogs and cats" ('' for no one). */
+export function yardSaid(y: Yard): string {
+  const who = YARD_CHIPS.filter(([k]) => yardHas(y, k)).map(([, label]) => label.toLowerCase());
+  return who.length > 1 ? `${who.slice(0, -1).join(', ')} and ${who.at(-1)}` : who[0] ?? '';
+}
 const KEY = 'lp-yard';
 const DOGS: DogFilter[] = ['', 'hideToxic', 'nonToxic'];
 
@@ -57,30 +72,28 @@ export function saveYard(y: Yard, only?: keyof Yard): void {
   state.household = { kids: next.kids, dogs: next.dogs, cats: next.cats, horses: next.horses, answered: true, at: now() };
   save();
 }
-/** The yard member a picker filter stands for (Kids is "Not listed as poisonous to people"); null for another filter. */
+/** The yard member a picker filter stands for (People, `kids`, is `noPoison`); null for another filter. */
 export function yardKeyOf(filter: string): keyof Yard | null {
   return filter === 'noPoison' ? 'kids' : filter === 'dogs' || filter === 'cats' || filter === 'horses' ? filter : null;
 }
 /** The open plan's household for a new plan of the same garden (New project's "Same garden?"), answered or not, as it is. */
 export function householdCopy(): PlanHousehold { return { ...state.household, at: now() }; }
 /**
- * One of the four turned on or off, as a chip does it (the guided introduction's step 6; the picker's "Anyone you need
- * to protect?"). Dogs on is "no dog warnings", the Poison & pets dog control's first setting (decided Oct 28), or what
- * it was before it went off ("only plants rated safe" kept if that's what it was, as step 6 did before).
+ * One of the four turned on or off, as a chip does it (the guided introduction's step 6; the picker's "Hide plants
+ * toxic to:"; Warnings → Poison). Dogs on is 'hideToxic', whatever it was before it went off.
  */
-let lastDogs: DogFilter = 'hideToxic';
 export function toggleYard(y: Yard, k: keyof Yard): Yard {
   const out = { ...y };
-  if (k === 'dogs') { if (out.dogs) lastDogs = out.dogs; out.dogs = out.dogs ? '' : lastDogs; } else out[k] = !out[k];
+  if (k === 'dogs') out.dogs = out.dogs ? '' : 'hideToxic'; else out[k] = !out[k];
   return out;
 }
 /**
- * The yard as filters (decided Oct 28): kids, "Not listed as poisonous to people"; dogs, no dog warnings (plants not
- * yet rated still show) unless the picker was set to "only plants rated safe"; cats and horses, no warnings for them.
+ * The yard as filters (Jason, Nov 5): each of the four hides the plants rated toxic to them, and nothing else
+ * (src/plants.ts toxicTo). Dogs kept as 'nonToxic' (from before Nov 5) is Dogs on, as 'hideToxic'.
  */
 export function applyYard(f: PlantFilter, y: Yard): void {
   f.noPoison = y.kids;
-  f.dogs = y.dogs;
+  f.dogs = y.dogs ? 'hideToxic' : '';
   f.cats = y.cats;
   f.horses = y.horses;
 }
@@ -95,13 +108,14 @@ export const yardOf = (f: PlantFilter): Yard => ({ kids: f.noPoison, dogs: f.dog
 /** Whether anyone's in it. */
 export const yardSet = (y: Yard): boolean => y.kids || y.dogs !== '' || y.cats || y.horses;
 
-// "Anyone you need to protect?" (Jason, Nov 1, from the UI review: a tester saw "Can irritate skin" on rows but nothing
-// on a plant highly poisonous to people, and never learned the picker can screen for kids and pets without opening
-// Filters). The picker asks it first, at the top of its filters, until it's answered for the plan or dismissed on this
-// device; then it lives under Filters, Poison & pets (src/ui/plants-panel.ts). Answered is any of the four set
-// anywhere (saveYard), or step 6 of the guided introduction done, even with none ticked; kept with the plan (Jason,
-// Nov 1). Dismissed with its × stays per device in 'lp-protect-line' (a person's wish not to be asked, as the hints
-// are: it holds across plans). That key once said 'answered' too: read now for plans from before only.
+// The picker's question, "Hide plants rated toxic to:" since Nov 5 ("Anyone you need to protect?" before: Jason, Nov 1, from
+// the UI review: a tester saw "Can irritate skin" on rows but nothing on a plant highly poisonous to people, and never
+// learned the picker can screen for people and pets without opening Filters). The picker asks it first, at the top of
+// its filters, until it's answered for the plan or dismissed on this device; then it lives under Filters, where Poison
+// & pets was (src/ui/plants-panel.ts). Answered is any of the four set anywhere (saveYard), or step 6 of the guided
+// introduction done, even with none ticked; kept with the plan (Jason, Nov 1). Dismissed with its × stays per device
+// in 'lp-protect-line' (a person's wish not to be asked, as the hints are: it holds across plans). That key once said
+// 'answered' too: read now for plans from before only.
 const ASKED_KEY = 'lp-protect-line';
 export type Asked = 'answered' | 'dismissed' | null;
 /** What this device kept: 'dismissed' (the ×), or 'answered' as it was kept before plans kept it. */
@@ -136,8 +150,8 @@ export function askAtTop(o: { dismissed: boolean; household: PlanHousehold }): b
   return !o.dismissed && !o.household.answered && !yardSet(o.household);
 }
 
-// "Hardy in zone N" (beside the picker's Filters, decided with Jason, Oct 25) is about the garden, as kids and pets
-// are, not the search at hand: kept per device too (testers, Oct 30: it was ticked when the ZIP was set, unticked after
+// "Hardy in zone N" (beside the picker's Filters, decided with Jason, Oct 25) is about the garden, as people and
+// pets are, not the search at hand: kept per device too (testers, Oct 30: it was ticked when the ZIP was set, unticked after
 // a reload). Off until ticked here (or by the tour, or by a ZIP asked for from the picker): turned on by default, it
 // would start hiding plants with no zones known from someone who never asked for it.
 const HARDY_KEY = 'lp-hardy-here';

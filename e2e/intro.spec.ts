@@ -303,10 +303,13 @@ test('from an empty plan to a first plant: each step ends when it\'s done, the p
   await expect(step(page)).toHaveText('Step 5 of 8'); // (not until the sheet is closed)
   await closeSheet(page);
   await expect(step(page)).toHaveText('Step 6 of 8');
-  // Who's in the yard: kids and dogs.
+  // Who's in the yard: people and dogs, in the picker's words (Jason, Nov 5), its note under the chips once chosen.
+  await expect(page.getByTestId('intro-text')).toHaveText('Hide plants rated toxic to people or pets? Choose who. Change it any time in Filters.');
+  await expect(page.locator('.intro-chips .intro-chip')).toHaveText(['People', 'Dogs', 'Cats', 'Horses', 'None of these']);
+  await expect(page.getByTestId('intro-who-note')).toBeHidden();
   await page.getByTestId('intro-kids').click();
   await page.getByTestId('intro-dogs').click();
-  await expect(page.getByTestId('intro-dogs-note')).toBeVisible();
+  await expect(page.getByTestId('intro-who-note')).toHaveText(/^Hides plants NC State or an earlier list rates toxic to them\. Not rated toxic isn’t the same as safe: [\d,]+ plants have no rating yet\.$/);
   await page.getByTestId('intro-done').click();
   await expect(step(page)).toHaveText('Step 7 of 8');
   // Find a plant: the shrub named isn't a hydrangea (a problem for kids and dogs), and the picker opens hardy here.
@@ -316,8 +319,8 @@ test('from an empty plan to a first plant: each step ends when it\'s done, the p
   await expect(text).not.toContainText('hydrangea');
   await page.getByTestId('intro-go').click();
   await expect(page.getByTestId('hardy-here')).toBeChecked();
-  await expect(page.locator('.sheet')).toContainText('No plants toxic to people');
-  await expect(page.locator('.sheet')).toContainText('No plants toxic to dogs');
+  await expect(page.locator('.sheet')).toContainText('No plants rated toxic to people');
+  await expect(page.locator('.sheet')).toContainText('No plants rated toxic to dogs');
   // The search and Filters pulse together (Jason, Nov 4); Filters opened, neither does.
   await expect(page.getByTestId('plant-search')).toHaveClass(/intro-pulse/);
   await expect(page.getByTestId('filters')).toHaveClass(/intro-pulse/);
@@ -358,15 +361,15 @@ test('from an empty plan to a first plant: each step ends when it\'s done, the p
   await expect(page.locator('.project-btn .pname')).toBeVisible();
   await expect(card(page)).toHaveCount(0);
   await page.locator('.tool-btn.plants').click();
-  await expect(page.locator('.sheet')).toContainText('No plants toxic to people');
-  await expect(page.locator('.sheet')).toContainText('No plants toxic to dogs');
+  await expect(page.locator('.sheet')).toContainText('No plants rated toxic to people');
+  await expect(page.locator('.sheet')).toContainText('No plants rated toxic to dogs');
   // "Clear filters" is for the search at hand: the yard is still kept with the plan.
   await page.locator('.sheet').getByText('Clear filters').click();
-  await expect(page.locator('.sheet')).not.toContainText('No plants toxic to dogs');
+  await expect(page.locator('.sheet')).not.toContainText('No plants rated toxic to dogs');
   await page.reload();
   await expect(page.locator('.project-btn .pname')).toBeVisible();
   await page.locator('.tool-btn.plants').click();
-  await expect(page.locator('.sheet')).toContainText('No plants toxic to dogs');
+  await expect(page.locator('.sheet')).toContainText('No plants rated toxic to dogs');
 });
 
 test('step 7 pulses the search and Filters together; a search typed, neither pulses (Jason, Nov 4)', async ({ page }) => {

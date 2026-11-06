@@ -79,27 +79,22 @@ test('the ZIP sheet: the ZIP and what it’s for first; how it’s used and the 
   await expect(page.getByTestId('location-sources')).toBeHidden();
 });
 
-test('poison, one way everywhere: "Hide plants toxic to …", what each hides, according to NC State; the protect question says what it does', async ({ page }) => {
+test('poison, one way everywhere: "Hide plants rated toxic to:" People, Dogs, Cats, Horses; its note says by whose word, and that not rated isn\'t safe (Jason, Nov 5)', async ({ page }) => {
   await page.goto('./');
   await page.locator('.tool-btn.plants').click();
-  // "Anyone you need to protect?": what choosing does, without the skin irritant note.
-  const note = page.getByTestId('protect-note');
-  await expect(note).toHaveText('We’ll hide plants that are toxic to them.');
+  const line = page.getByTestId('protect-line');
+  await expect(line.locator('.protect-title')).toHaveText('Hide plants rated toxic to:');
+  await expect(line.locator('.protect-chip')).toHaveText(['People', 'Dogs', 'Cats', 'Horses']);
+  // Its note: whose word it takes, and that a plant not rated isn't safe; no skin irritant note.
+  await expect(page.getByTestId('protect-note')).toHaveText(/^Hides plants NC State or an earlier list rates toxic to them\. Not rated toxic isn’t the same as safe: [\d,]+ plants have no rating yet\.$/);
   await page.getByTestId('protect-cats').click();
-  await expect(page.getByTestId('active-chip')).toHaveText(['No plants toxic to cats']);
+  await expect(page.getByTestId('active-chip')).toHaveText(['No plants rated toxic to cats']);
+  await page.getByTestId('protect-dogs').click();
+  await expect(page.getByTestId('active-chip')).toHaveText(['No plants rated toxic to dogs', 'No plants rated toxic to cats']);
+  await expect(line).not.toContainText(/problem for|poisonous|kids|skin|rated safe/i);
+  // Filters holds no other poison control: the line is the one.
   await page.getByTestId('filters').click();
-  const box = page.getByTestId('animal-toxicity');
-  for (const who of ['people', 'cats', 'horses']) await expect(box.locator('label', { hasText: `Hide plants toxic to ${who}` })).toBeVisible();
-  // People: only plants NC State rates are kept; cats and horses: only those it lists as toxic go.
-  await expect(page.getByTestId('people-note')).toHaveText("According to NC State. Plants it hasn't rated are hidden too.");
-  await expect(page.getByTestId('pets-note')).toHaveText('According to NC State. Plants not yet rated still show.');
-  // Dogs: the three-way choice keeps its meaning, in the same words.
-  await expect(box.locator('[role=radiogroup] label')).toHaveText(['Show all', 'Hide plants toxic to dogs', /^Show only plants rated safe for dogs/]);
-  await page.getByTestId('dogs-hideToxic').check();
-  await expect(page.getByTestId('dogs-note')).toContainText('plants toxic to dogs, according to NC State or an earlier list');
-  await expect(page.getByTestId('dogs-note')).toContainText('not yet rated still show');
-  await expect(page.getByTestId('active-chip')).toHaveText(['No plants toxic to dogs', 'No plants toxic to cats']);
-  await expect(box).not.toContainText(/problem for|poisonous/i);
+  await expect(page.getByTestId('all-filters')).not.toContainText(/Poison & pets|rated safe|Show all/);
 });
 
 test('"width when grown", not "mature spread": the picker\'s size filters, a placed plant\'s size, its details\' plain row names', async ({ page }) => {
