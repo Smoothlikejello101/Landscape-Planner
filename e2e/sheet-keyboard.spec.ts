@@ -20,7 +20,12 @@ async function copyHeuchera(page: Page) {
   await page.locator('.proj-row', { hasText: "Heuchera 'Autumn Bride'" }).first().getByRole('button', { name: /Copy as my plant/ }).click();
   await expect(page.locator('.sheet .banner')).toContainText("Starting from Heuchera 'Autumn Bride'");
 }
-const top = async (l: Locator) => (await l.boundingBox())!.y;
+/** Its top (px), once it's laid out: read just as the app draws, its box can be missing for a moment (CI, Nov 6). */
+async function top(l: Locator): Promise<number> {
+  let box: { y: number } | null = null;
+  await expect.poll(async () => (box = await l.boundingBox()) !== null).toBe(true);
+  return box!.y;
+}
 
 /** From now on, every move of the sheet's title or of a field, frame by frame; and whether the sheet is drawn again. */
 async function watch(page: Page, testid: string) {
