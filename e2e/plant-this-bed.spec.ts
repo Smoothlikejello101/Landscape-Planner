@@ -287,7 +287,8 @@ test('For a clay bed: what no source rates for clay is listed below a divider; a
 
 /**
  * A catalog with soil textures as the build writes them (NC State's "Soil Texture": Jason, Nov 4), every plant taking
- * the Front bed's sun: rated for all three; for loam only; for sand only; for clay only; and for none.
+ * the Front bed's sun: rated for all three; for loam only; for sand only, and shallow rocky soil (in soil_also: Jason,
+ * Nov 5); for clay only; and for none.
  */
 const SOIL_CATALOG = (() => {
   const plant = (id: string, common: string, facts: Record<string, unknown>) => ({ id, common, src: ['ncsu'], audited: '2026-11-04',
@@ -300,7 +301,7 @@ const SOIL_CATALOG = (() => {
     plants: [
       plant('redbud', 'Redbud', { soil_texture: soil(['clay', 'loam', 'sand']), clay_ok: clayOk }),
       plant('bergamot', 'Wild bergamot', { soil_texture: soil(['loam']) }),
-      plant('prickly-pear', 'Prickly pear', { soil_texture: soil(['sand']) }),
+      plant('prickly-pear', 'Prickly pear', { soil_texture: soil(['sand']), soil_also: soil(['rocky']) }),
       plant('swamp-milkweed', 'Swamp milkweed', { soil_texture: soil(['clay']), clay_ok: clayOk }),
       plant('alumroot', 'Hairy alumroot', {}),
     ],
@@ -332,13 +333,25 @@ test('For a loam or sandy bed: plants rated for it, those rated for no texture b
   await expect(page.getByTestId('no-loam-divider')).toBeVisible();
   // Sandy, from Edit: rated for sand first.
   await page.getByTestId('bed-edit').click();
-  await expect(page.getByTestId('cond-soil-says')).toHaveText('Clay, Loam and Sandy each list the plants rated for that soil, then those no source rates for it, below them.');
+  await expect(page.getByTestId('cond-soil-says')).toHaveText('Clay, Loam, Sandy and Rocky (shallow, rocky soil) each list the plants rated for that soil, then those no source rates for it, below them.');
   await page.getByTestId('cond-soil-sand').click();
   await expect(page.getByTestId('conditions-sum')).toContainText('Sandy soil OK');
   await page.getByTestId('conditions-back').click();
   await expect(chips(page)).toHaveText(['Takes part shade to full sun', 'Sandy soil OK']);
   await expect.poll(() => listOrder(page)).toEqual(['Prickly Pear', 'Redbud', '|no-sand-divider', 'Hairy Alumroot']);
   await expect(page.getByTestId('no-sand-divider')).toHaveText('No source we\'ve read says how these do in sandy soil (1)');
+  // Rocky (Jason, Nov 5): rated for NC State's shallow rocky soil first, no texture rated below, the rest left out.
+  await page.getByTestId('bed-edit').click();
+  await page.getByTestId('cond-soil-rocky').click();
+  await expect(page.getByTestId('cond-soil-rocky')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('conditions-sum')).toContainText('Rocky soil OK');
+  await page.getByTestId('conditions-back').click();
+  await expect(chips(page)).toHaveText(['Takes part shade to full sun', 'Rocky soil OK']);
+  await expect.poll(() => listOrder(page)).toEqual(['Prickly Pear', '|no-rocky-divider', 'Hairy Alumroot']);
+  await expect(page.getByTestId('no-rocky-divider')).toHaveText('No source we\'ve read says how these do in shallow, rocky soil (1)');
+  await search(page).fill('redbud');
+  await expect(page.getByTestId('hidden-by')).toHaveText('1 plant matches “redbud”, hidden by Front bed: Rocky soil. Show them');
+  await page.getByTestId('clear-search').click();
   // Clay the same way (Jason, Nov 5): rated for clay first, no rating below its divider, rated only for others left out.
   await page.getByTestId('bed-edit').click();
   await page.getByTestId('cond-soil-clay').click();

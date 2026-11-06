@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { bedAt, bedChips, bedFilter, bedName, bedRules, bedsToPlant, partName, spotsIn, sunOverBed, withFilters, type BedRules } from '../src/bed-plant';
-import { clayRating, filteredPlants, noSoilRating, pickerCount, PLANT_FILTER_DEFAULTS, plantFilter, plantMatches, reportedMatch, reportedPhrase, sunFit, sunRangeOf, sunRangeSaid, waterWanted, type Plant, type PlantFilter } from '../src/plants';
+import { clayRating, soilRating, filteredPlants, noSoilRating, pickerCount, PLANT_FILTER_DEFAULTS, plantFilter, plantMatches, reportedMatch, reportedPhrase, sunFit, sunRangeOf, sunRangeSaid, waterWanted, type Plant, type PlantFilter } from '../src/plants';
 import type { Shape, SunInfo } from '../src/types';
 
 // Plant this bed (Jason, Nov 2, his answers to the proposal): what a bed's conditions filter on, exactly as the brief
@@ -130,6 +130,44 @@ describe('a bed\'s soil: loam and sandy, by the soil textures NC State rates (Ja
     expect(partName('soil', rules({ soil: 'sand' }))).toBe('Sandy soil');
     expect(partName('soil', rules({ soil: 'clay' }))).toBe('Clay');
     expect(partName('moisture', rules({ soil: 'sand' }))).toBe('Moisture');
+  });
+});
+
+describe('a bed\'s soil: rocky, by NC State\'s shallow rocky soil (Jason, Nov 5)', () => {
+  const glade = plant({ common: 'Little bluestem', soil_texture: ['loam', 'sand'], soil_also: ['rocky'] });
+  const fern = plant({ common: 'Walking fern', soil_also: ['rocky'] }); // (shallow rocky only, no texture)
+  const loamy = plant({ common: 'Bee balm', soil_texture: ['loam'], soil_also: ['organic'] });
+  const organicOnly = plant({ common: 'Pawpaw', soil_also: ['organic'] });
+  const unrated = plant({ common: 'Oakleaf hydrangea', clay_ok: true });
+  const five = [glade, fern, loamy, organicOnly, unrated];
+  it('lists plants rated for shallow rocky soil, and those rated for no texture; not one rated only for others', () => {
+    expect(five.filter((p) => fits(p, rules({ soil: 'rocky' }))).map((p) => p.common)).toEqual(['Little bluestem', 'Walking fern', 'Pawpaw', 'Oakleaf hydrangea']);
+    expect(bedFilter(rules({ soil: 'rocky' }))).toMatchObject({ soilBed: 'rocky', clayBed: false, clayOk: false });
+    expect(five.map((p) => soilRating(p, 'rocky'))).toEqual(['yes', 'yes', 'no', 'none', 'none']);
+    // (Loam and sandy as before: shallow rocky soil isn't a texture, so a plant rated only for it has none.)
+    expect(soilRating(fern, 'loam')).toBe('none');
+    expect(soilRating(glade, 'sand')).toBe('yes');
+  });
+  it('marks those rated for no texture for the divider, organic matter alone included', async () => {
+    const plants = await import('../src/plants');
+    plants.PLANTS.splice(0, plants.PLANTS.length, ...five);
+    const out = withFilters(bedFilter(rules({ soil: 'rocky' })), () => filteredPlants());
+    expect(out.map((p) => p.common)).toEqual(['Little bluestem', 'Oakleaf hydrangea', 'Pawpaw', 'Walking fern']);
+    expect([...noSoilRating].sort()).toEqual(['Oakleaf hydrangea', 'Pawpaw']);
+    expect(plantFilter.soilBed).toBe('');
+    plants.PLANTS.splice(0, plants.PLANTS.length);
+  });
+  it('says it in a chip and by name; taken off for now, filters nothing; a later word for soil, nothing either', () => {
+    expect(bedChips(rules({ soil: 'rocky' })).map((c) => c.text)).toEqual(['Rocky soil OK']);
+    expect(partName('soil', rules({ soil: 'rocky' }))).toBe('Rocky soil');
+    expect(bedFilter(rules({ soil: 'rocky' }), new Set(['soil']))).toMatchObject({ soilBed: '', clayBed: false });
+    const bed = rect('b', 0, 0, 4, 4, { role: 'bed', conditions: { soil: 'rocky' } } as Partial<Shape>);
+    expect(bedRules(bed, null).soil).toBe('rocky');
+    // (How a version before this one read it: a word it doesn't know, which filters nothing. The same here for one
+    // a later version might add.)
+    const later = rect('l', 0, 0, 4, 4, { role: 'bed', conditions: { soil: 'peaty' } } as Partial<Shape>);
+    expect(bedRules(later, null).soil).toBeNull();
+    expect(bedFilter(bedRules(later, null))).toMatchObject({ soilBed: '', clayBed: false });
   });
 });
 

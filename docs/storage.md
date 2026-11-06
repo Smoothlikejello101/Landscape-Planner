@@ -175,6 +175,10 @@ How they travel within a plan:
 - **A rule for later versions:** a question they add must have a word or true as its answer, or a sync guard of its
   own (like `withBedConditions`). This version keeps those and drops anything else, and its next upload would then lose
   it everywhere. The same goes for a new form of an answer this version asks (a sun with hours, soil as a list).
+- **Soil `rocky`** (Rocky, NC State's shallow rocky soil: Jason, Nov 5) is the first new word for a question already
+  asked. No store, record or database version changed: a version before it (DB_VERSION 4 and up) keeps `rocky` as a
+  later word, sends it on unchanged, and filters nothing by it (src/bed-plant.ts `bedRules`); versions before 4 drop
+  conditions altogether, as above (tests/storage.test.ts).
 
 Versions of database version 3 and before (release 3 is at 1, Next at 3 until this change) drop them: on this device the
 database version stops such a page saving over a plan saved at 4, and its journals are kept apart. Through sync, each

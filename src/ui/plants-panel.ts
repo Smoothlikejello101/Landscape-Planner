@@ -222,7 +222,7 @@ const FILTER_NAMES: Partial<Record<keyof PlantFilter, (f: PlantFilter) => string
   // (Set only by a Swap from a sun warning, beside the spot's sun: src/ui/fix-problem.ts.)
   afternoonSun: () => 'Takes hot afternoon sun',
   // (Set only by a bed the picker plants for: src/bed-plant.ts. Named by the bed where they hide a search's plants.)
-  sunRange: (f) => `Takes ${sunRangeSaid(f.sunRange)}`, clayBed: () => 'Clay OK', soilBed: (f) => (f.soilBed === 'sand' ? 'Sandy soil OK' : 'Loam OK'),
+  sunRange: (f) => `Takes ${sunRangeSaid(f.sunRange)}`, clayBed: () => 'Clay OK', soilBed: (f) => (f.soilBed === 'sand' ? 'Sandy soil OK' : f.soilBed === 'rocky' ? 'Rocky soil OK' : 'Loam OK'),
 };
 /**
  * Whether the filters are open: one fold for them all, folded to start and left as the gardener left it (Jason,
@@ -287,8 +287,8 @@ export function renderPlantsPanel() {
   }
   /** The box's Edit: the bed's conditions, then back here For it. */
   function editConditions() { state.panel = 'bedConditions'; render(); }
-  /** The soil the bed planted for lists the unrated below a divider for: its loam or sand, else clay. */
-  const soilOn = (): 'clay' | 'loam' | 'sand' => layer?.keys.soilBed || 'clay';
+  /** The soil the bed planted for lists the unrated below a divider for: its loam, sand or rocky, else clay. */
+  const soilOn = (): 'clay' | 'loam' | 'sand' | 'rocky' => layer?.keys.soilBed || 'clay';
   /** Whether the bed planted for sets this filter now (shown "Set by Front bed", the person's own set aside). */
   const setByBed = (k: keyof PlantFilter): boolean => !!layer && SET_BY_BED.includes(k);
   /** The controls of the filters a bed sets, as For now has them. */
@@ -755,11 +755,12 @@ export function renderPlantsPanel() {
       rows(earlier, 3);
     }
     // For a clay bed, what no source rates for clay, below a divider (Jason, Nov 2, answer D): listed, not hidden. For a
-    // loam or sandy bed, what no source rates for soil texture, the same way (Jason, Nov 4).
+    // loam, sandy or rocky bed, what no source rates for soil texture, the same way (Jason, Nov 4; rocky, Nov 5).
     if (unrated.length) {
       const soil = soilOn();
+      const said = soil === 'sand' ? 'sandy soil' : soil === 'rocky' ? 'shallow, rocky soil' : soil;
       listWrap.appendChild(el('div', { className: 'list-divider earlier', 'data-testid': `no-${soil}-divider` },
-        el('span', {}, `No source we've read says how these do in ${soil === 'sand' ? 'sandy soil' : soil} (${countWord(unratedN)})`)));
+        el('span', {}, `No source we've read says how these do in ${said} (${countWord(unratedN)})`)));
       rows(unrated, 4);
     }
     if (seasonal.length) {

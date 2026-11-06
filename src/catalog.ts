@@ -315,7 +315,8 @@ const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) =
   clay_ok: (v) => typeof v === 'boolean', wet_feet: (v) => typeof v === 'boolean', dry_shade: (v) => typeof v === 'boolean',
   // The soil textures it grows in (NC State's "Soil Texture"): clay, loam, sand, each once.
   soil_texture: wordsOf(SOIL_TEXTURES),
-  // Its other soils in that field (Jason, Nov 5): high organic matter, shallow rocky; shown, never a filter.
+  // Its other soils in that field (Jason, Nov 5): high organic matter, shallow rocky; shown, and shallow rocky filters a
+  // Rocky bed (Jason, Nov 5).
   soil_also: wordsOf(SOIL_ALSO),
   taproot: (v) => typeof v === 'boolean',
   // A plant's degree in USGS's register of introduced plants reproducing in the wild in the lower 48, in its own terms

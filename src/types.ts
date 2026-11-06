@@ -102,7 +102,8 @@ export type LaterWord = string & { readonly laterWord?: never };
  * A bed's conditions, as answered (ShapeBase `conditions`; docs/storage.md). Each question unset until answered.
  * - sun: asked only where no sun area covers the bed: from most to least (the same for a bed that doesn't vary), or
  *   Not sure;
- * - soil: Clay, Loam, Sandy, or Not sure (Jason, Nov 2: all four asked);
+ * - soil: Clay, Loam, Sandy, Rocky, or Not sure (Jason, Nov 2: all four asked; Rocky, NC State's shallow rocky soil,
+ *   Nov 5: a version before it keeps 'rocky' as a later word and filters nothing by it);
  * - moisture: Dry, Average, Wet, or Not sure;
  * - drip: drip irrigated (it lifts only the limits that keep out thirstier plants: Jason, Nov 2); unset when it isn't.
  * A question a later version asks is kept as it came, its answer a word or true (src/storage.ts sanitizeBedConditions):
@@ -110,7 +111,7 @@ export type LaterWord = string & { readonly laterWord?: never };
  */
 export interface BedConditions {
   sun?: { most: SunAnswer | LaterWord; least: SunAnswer | LaterWord } | 'unsure' | LaterWord;
-  soil?: 'clay' | 'loam' | 'sand' | 'unsure' | LaterWord;
+  soil?: 'clay' | 'loam' | 'sand' | 'rocky' | 'unsure' | LaterWord;
   moisture?: 'dry' | 'average' | 'wet' | 'unsure' | LaterWord;
   drip?: true;
   /**
@@ -126,7 +127,7 @@ export interface BedConditions {
  */
 export interface BedAnswers {
   sun?: { most: SunAnswer; least: SunAnswer } | 'unsure';
-  soil?: 'clay' | 'loam' | 'sand' | 'unsure';
+  soil?: 'clay' | 'loam' | 'sand' | 'rocky' | 'unsure';
   moisture?: 'dry' | 'average' | 'wet' | 'unsure';
   drip?: boolean;
 }

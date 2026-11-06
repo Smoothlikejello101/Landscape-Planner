@@ -1031,7 +1031,7 @@ describe("a bed's conditions (conditions, Plant this bed, Nov 2)", () => {
 
   it('is kept on a bed as answered: every word this version asks, Not sure an answer too, on a bed of any shape', () => {
     expect(read(ALL)).toEqual(ALL);
-    for (const soil of ['clay', 'loam', 'sand', 'unsure']) expect(read({ soil })).toEqual({ soil });
+    for (const soil of ['clay', 'loam', 'sand', 'rocky', 'unsure']) expect(read({ soil })).toEqual({ soil });
     for (const moisture of ['dry', 'average', 'wet', 'unsure']) expect(read({ moisture })).toEqual({ moisture });
     for (const most of ['Full', 'Part', 'Shade']) for (const least of ['Full', 'Part', 'Shade']) expect(read({ sun: { most, least } })).toEqual({ sun: { most, least } });
     expect(read({ sun: 'unsure', soil: 'unsure', moisture: 'unsure' })).toEqual({ sun: 'unsure', soil: 'unsure', moisture: 'unsure' });
@@ -1041,6 +1041,14 @@ describe("a bed's conditions (conditions, Plant this bed, Nov 2)", () => {
       bed({ id: 'p', type: 'poly', points: [[0, 0], [8, 0], [4, 6]], conditions: ALL }), { ...bed({ id: 'c', conditions: ALL }), type: 'circle', radius: 5 },
     ];
     expect(sanitizeProjectData({ shapes: beds }).shapes.map((s) => [s.id, s.conditions])).toEqual(['r', 'o', 't', 'p', 'c'].map((id) => [id, ALL]));
+  });
+
+  it('soil Rocky (Jason, Nov 5): kept through a save and a reload; no store or version change, read as it was before', () => {
+    // (sanitizeBedConditions is unchanged by it: versions from DB_VERSION 4 on kept 'rocky' as a later word already,
+    // sending it on unchanged; src/bed-plant.ts bedRules filters nothing by a word it doesn't know.)
+    const saved = JSON.parse(JSON.stringify(sanitizeProjectData({ shapes: [bed({ id: 'r', conditions: { soil: 'rocky', moisture: 'dry', drip: true } })] })));
+    expect(sanitizeProjectData(saved).shapes[0].conditions).toEqual({ soil: 'rocky', moisture: 'dry', drip: true });
+    expect(read({ soil: 'rocky', ph: 'acid' })).toEqual({ soil: 'rocky', ph: 'acid' });
   });
 
   it("a part that isn't one is dropped and the rest kept, never the plan; a question a later version adds, kept as it came", () => {
