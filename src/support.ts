@@ -33,9 +33,6 @@ export const SETTING_KEYS = [
   // the plants under taller ones on this device before plans kept it, Nov 4: no longer written, read only as where a plan
   // that has never had it picked starts.)
   'lp-see-through', 'lp-see-through-from', 'lp-print-under',
-  // (How long a pan or a pinch is held still before the plan's drawn again where it is, src/gestures.ts: set only by
-  // the tests, never by the app.)
-  'lp-hold-fill-ms',
 ];
 /** Data, by name and size: exact keys, and prefixes (a project per key, an unsaved-edits journal per project). */
 export const DATA_KEYS = ['lp-projects', 'lp-clipboard', ERROR_LOG_KEY];

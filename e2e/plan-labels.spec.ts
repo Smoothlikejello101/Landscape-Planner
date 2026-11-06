@@ -109,10 +109,7 @@ test("zoomed far out, no name is bigger than what it names: \"Path\" isn't 21 ft
   await openPlan(page, YARD, { zoom: 1, x: 3, y: 8 });
   const path = nameOf(page, 'path');
   await expect(path).toHaveText('Path');
-  // (Read once it's settled: a drawing just after the plan opens, the catalog's, can make it anew between the two.)
-  let at100: { width: number; height: number } | null = null;
-  await expect.poll(async () => (at100 = await path.boundingBox()) !== null).toBe(true);
-  at100 = at100!;
+  const at100 = (await path.boundingBox())!;
   expect(at100.height).toBeLessThan(18);
   expect(at100.width).toBeLessThan(32);
 

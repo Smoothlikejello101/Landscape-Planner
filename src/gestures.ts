@@ -10,7 +10,7 @@ import { clearSelection, isSelected, selectOnly, toggleSelect } from './selectio
 import { gesture, state, tapTracker } from './state';
 import { save, saveView } from './storage';
 import type { Gesture, Point, Shape } from './types';
-import { drawnBySize, isHidden, isSeeThrough, previewView, redrawBackground, redrawHandles, redrawMarquee, redrawShapes, viewPreviewed } from './canvas';
+import { drawnBySize, isHidden, isSeeThrough, previewView, redrawBackground, redrawHandles, redrawMarquee, redrawShapes } from './canvas';
 import { drawTap, editedShape, forgetLastTap, insertVertex, moveVertex, notePointer } from './draw';
 import { notJustPlaced, placeTap, selectionJustPlaced } from './place';
 import { afterMove, freeStrandedVines, saidFreed } from './ui/vine-offers';
@@ -104,25 +104,7 @@ export function normalizeDeg(d: number): number {
  * viewMoved), never the whole app: behind the plant picker, the picker as it is (its search, its scroll, the rows opened
  * in it: src/ui/picker-view.ts); anywhere, no blank frames as the fingers lift (Jason, Nov 5).
  */
-function viewSettled(touch = byTouch) { stopHoldFill(); viewMoved(touch); }
-/**
- * A pan or a pinch held still a moment, fingers still down: the plan drawn again where it is, so what came into view
- * past its layers' edge fills in without lifting (Jason, Nov 5, his answer #3 to "blank canvas at the edges"). By
- * touch, the shapes as they were stay over the new drawing till it's painted, and move on with the gesture
- * (src/canvas.ts redrawCanvasVeiled). The gesture carries on from the new drawing.
- */
-function heldStill() {
-  holdTimer = null;
-  const g = gesture.current;
-  if (!g || !(g.type === 'pinch' || (g.type === 'pan' && g.moved)) || !viewPreviewed()) return;
-  viewMoved(byTouch);
-}
-/** How long a pan or a pinch is held still before the plan's drawn again (ms). The tests set it for themselves. */
-const holdMs = (): number => { try { return Number(localStorage.getItem('lp-hold-fill-ms')) || 250; } catch { return 250; } };
-let holdTimer: ReturnType<typeof setTimeout> | null = null;
-/** The view moved by a pan or a pinch: its hold, timed from now. */
-function holdFill() { if (holdTimer) clearTimeout(holdTimer); holdTimer = setTimeout(heldStill, holdMs()); }
-function stopHoldFill() { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } }
+function viewSettled(touch = byTouch) { viewMoved(touch); }
 /** Whether the last press on the plan was a finger's: a pan or pinch by touch ends with the shapes veiled (src/canvas.ts). */
 let byTouch = false;
 
@@ -252,7 +234,6 @@ export function onCanvasPointerMove(e: PointerEvent) {
       state.zoom = newZoom;
       e.preventDefault();
       previewView();
-      holdFill();
       updateStatusReadout();
       return;
     }
@@ -288,7 +269,6 @@ export function onCanvasPointerMove(e: PointerEvent) {
       state.offsetX = g.startOffset.x - (clientX - g.startX) / pxPerFoot();
       state.offsetY = g.startOffset.y - (clientY - g.startY) / pxPerFoot();
       previewView();
-      if (g.moved) holdFill();
       return;
     case 'marquee': {
       movedPastThreshold(g, e);
@@ -445,7 +425,6 @@ function handleShapeTap(shape: Shape, at?: { x: number; y: number }) {
 
 export function onCanvasPointerUp(e: PointerEvent) {
   if (!activePointers.delete(e.pointerId)) return; // not a canvas pointer
-  stopHoldFill(); // (a finger lifted: what happens next is the release's, or a new gesture's)
   const g = gesture.current;
   if (!g) return;
 
@@ -729,7 +708,6 @@ function featureDragChanged(g: Extract<Gesture, { type: 'drag-feature' }>): bool
 /** Forget all pointers (window lost focus or page hidden mid-gesture). */
 export function cancelGestures() {
   activePointers.clear();
-  stopHoldFill();
   const g = gesture.current;
   // (A handle's drag cut short keeps what it did so far, undoably.)
   if ((g?.type === 'shape-resize' || g?.type === 'shape-rotate') && g.moved && handleDragChanged(g, state.shapes)) { flushHistoryDebounce(); pushHistory(); save(); }
