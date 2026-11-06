@@ -116,6 +116,13 @@ describe('where the phone\'s picker settles when its handle is let go', () => {
     expect(sheetHeights(500, 340)).toEqual({ rest: 300, full: Math.round(FULL * 840 - 340) });
     expect(sheetHeights(100, 600).full).toBe(60); // (never less than at rest)
   });
+  it('full, its top stays where it was as the keyboard shortens the window (Android): 15% of the window without it (Jason, Nov 5)', () => {
+    // An 839 px window, the keyboard taking 290 of it: the layer is 549 tall, and the picker's top stays 126 px down.
+    expect(sheetHeights(549, 0, 839).full).toBe(549 - Math.round((1 - FULL) * 839));
+    expect(549 - sheetHeights(549, 0, 839).full).toBe(839 - sheetHeights(839, 0, 839).full);
+    // (The same top whether the keyboard shortens the window or is measured over it, iOS.)
+    expect(sheetHeights(549, 290, 839).full + 290).toBe(sheetHeights(839, 0, 839).full);
+  });
 });
 
 describe('whether a phone\'s keyboard is up', () => {

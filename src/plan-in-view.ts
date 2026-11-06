@@ -12,7 +12,7 @@ import type { Bounds } from './types';
  * zoom-in-and-check tool").
  */
 export const REST = 0.6;
-/** And at full height: as the picker always was (styles.css, 85dvh less the keyboard). */
+/** And at full height: as the picker always was, its top 15% of the window down (styles.css, with or without a keyboard). */
 export const FULL = 0.85;
 
 /** Where the plan is looked at from: its top left (feet) and its zoom. */
@@ -74,10 +74,15 @@ export function settleSheet(startH: number, endH: number, restH: number, fullH: 
   return endH > (restH + fullH) / 2 ? 'full' : 'rest';
 }
 
-/** The heights (px) of a phone's picker at rest and full, in an overlay `overlayH` px tall over a keyboard `kb` px tall. */
-export function sheetHeights(overlayH: number, kb: number): { rest: number; full: number } {
+/**
+ * The heights (px) of a phone's picker at rest and full, in an overlay `overlayH` px tall over a keyboard `kb` px tall,
+ * in a window `restH` px tall with no keyboard up (src/app-height.ts restHeight): full, its top stays 15% of that below
+ * the window's top, whether the keyboard shortens the window (Android) or is measured over the page (iOS), as
+ * styles.css draws it (Jason, Nov 5: it moved with every keyboard change).
+ */
+export function sheetHeights(overlayH: number, kb: number, restH = overlayH + kb): { rest: number; full: number } {
   const rest = Math.round(overlayH * REST);
-  return { rest, full: Math.max(rest, Math.round(FULL * (overlayH + kb) - kb)) };
+  return { rest, full: Math.max(rest, Math.round(overlayH - (1 - FULL) * restH)) };
 }
 
 /** How much shorter (px) the window gets before it's taken for a phone's keyboard, not a toolbar coming and going. */
