@@ -19,7 +19,8 @@
   happens on pointer release, except when only the view moved (a pan, a
   pinch, the wheel, a zoom button): then the plan alone is drawn again, in
   place (`viewMoved`), as a full render there blanked the screen for a few
-  frames on Android (Jason, Nov 5).
+  frames on Android (Jason, Nov 5). The same when a pan or pinch is held
+  still a moment, fingers down (`heldStill`).
 - Storage changes need a migration path, a test in tests/storage.test.ts,
   and a pull request of their own.
 - Service worker updates are user-confirmed (src/pwa.ts); don't add
