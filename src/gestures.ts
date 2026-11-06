@@ -104,14 +104,16 @@ export function normalizeDeg(d: number): number {
  * viewMoved), never the whole app: behind the plant picker, the picker as it is (its search, its scroll, the rows opened
  * in it: src/ui/picker-view.ts); anywhere, no blank frames as the fingers lift (Jason, Nov 5).
  */
-function viewSettled() { viewMoved(); }
+function viewSettled(touch = byTouch) { viewMoved(touch); }
+/** Whether the last press on the plan was a finger's: a pan or pinch by touch ends with the shapes veiled (src/canvas.ts). */
+let byTouch = false;
 
 /** Shift, Ctrl or Cmd held: add to the selection or take from it, as in most desktop apps. */
 const adding = (e: PointerEvent) => e.shiftKey || e.ctrlKey || e.metaKey;
 
 export function onCanvasPointerDown(e: PointerEvent) {
   notePointer(e.pointerType);
-  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY }); byTouch = e.pointerType === 'touch';
   if (activePointers.size === 2) { startPinchGesture(); return; }
   if (activePointers.size > 2) return; // palm rejection
   // Behind the plant picker, the plan is there to look at: a drag pans it and two fingers zoom it, wherever they press;
@@ -215,7 +217,7 @@ export function onCanvasPointerMove(e: PointerEvent) {
   // Only fingers that went down on the canvas drive gestures (not, say, a
   // second finger resting on the toolbar).
   if (!activePointers.has(e.pointerId)) return;
-  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY }); byTouch = e.pointerType === 'touch';
   const g = gesture.current;
   if (!g) return;
   const clientX = e.clientX, clientY = e.clientY;
@@ -576,7 +578,7 @@ export function onShapePointerDown(e: PointerEvent, shape: Shape) {
     return;
   }
   e.stopPropagation();
-  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY }); byTouch = e.pointerType === 'touch';
   if (activePointers.size === 2) { startPinchGesture(); return; }
   if (activePointers.size > 2) return;
 
@@ -685,7 +687,7 @@ export function onFeaturePointerDown(e: PointerEvent, shape: Shape, featureId: s
   const spot = f && featureSpot(shape, f);
   if (!own || !spot || shape.type === 'circle' || shape.type === 'text') { onShapePointerDown(e, shape); return; }
   e.stopPropagation();
-  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY }); byTouch = e.pointerType === 'touch';
   if (activePointers.size === 2) { startPinchGesture(); return; }
   if (activePointers.size > 2) return;
   flushHistoryDebounce();
@@ -758,5 +760,5 @@ export function onWheel(e: WheelEvent) {
   }
   previewView();
   if (wheelSettle) clearTimeout(wheelSettle);
-  wheelSettle = setTimeout(() => { wheelSettle = null; viewSettled(); }, 150);
+  wheelSettle = setTimeout(() => { wheelSettle = null; viewSettled(false); }, 150);
 }
