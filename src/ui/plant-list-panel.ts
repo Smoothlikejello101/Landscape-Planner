@@ -25,7 +25,13 @@ const listNow = () => JSON.stringify([state.currentProjectId, plantList(state.sh
 export function openPlantList() {
   state.panel = 'plantList';
   state.menu = null;
+  howKept = false;
 }
+/**
+ * The line on what the ticks are for, once shown, kept till the list closes: gone at the first + or tick, the rows moved
+ * up under the next press, and it missed (the bug hunt, Nov 6: + pressed twice bought 1 of 2).
+ */
+let howKept = false;
 /** Whether the plan has a plant to list. */
 export const hasPlantsToList = () => state.shapes.some((s) => s.role === 'plant' && s.status !== 'gone' && s.status !== 'remove');
 
@@ -119,13 +125,19 @@ export function renderPlantListPanel() {
   if (!any) {
     body.appendChild(el('div', { className: 'hint', 'data-testid': 'pl-empty' }, 'No plants in this plan yet. Plants you place from the plant picker are listed here, ready to buy.'));
   } else {
-    body.appendChild(el('div', { className: 'pl-totals', 'data-testid': 'pl-totals' }, totalsText(totals)));
+    // (What's bought on a line of its own on a phone, its room kept from the start while there's anything to buy: it
+    // came in at the first tick, wrapped, and moved the rows down under the next press. The bug hunt, Nov 6.)
+    const [said, more] = totalsText(totals).split(' \u00b7 ');
+    body.appendChild(el('div', { className: 'pl-totals' + (totals.toBuy && !more ? ' reserve' : ''), 'data-testid': 'pl-totals' },
+      el('span', {}, said), more ? el('span', { className: 'pl-tot-bought' }, el('span', { className: 'dot' }, ' \u00b7 '), more) : null));
     for (const [g, title] of GROUPS) {
       const rows = list[g];
       if (!rows.length) continue;
       const n = rows.reduce((k, r) => k + r.count, 0);
       // (Nothing ticked yet: what the ticks are for, in a line.)
-      const how = g === 'buy' && !totals.bought ? el('div', { className: 'hint pl-how', 'data-testid': 'pl-how' }, 'Tick each kind as you buy it, or count them with \u2212 and +. Mark planted then records the day they go in.') : null;
+      const showHow = g === 'buy' && (!totals.bought || howKept);
+      if (showHow) howKept = true;
+      const how = showHow ? el('div', { className: 'hint pl-how', 'data-testid': 'pl-how' }, 'Tick each kind as you buy it, or count them with \u2212 and +. Mark planted then records the day they go in.') : null;
       // (To buy counts what's left to buy, as the totals do: not those bought already. The list bug hunt, Nov 1.)
       const count = ` (${g === 'buy' ? buyCount(totals) : n})`;
       body.appendChild(el('section', { className: 'pl-group', 'data-testid': `pl-group-${g}`, 'aria-label': title },

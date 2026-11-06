@@ -52,16 +52,26 @@ const full = (): boolean => chosen === 'full' || heldFull || (searching && (kbUp
 const isSearch = (t: EventTarget | null): boolean => t instanceof HTMLInputElement && t.dataset.testid === 'plant-search';
 
 /** The picker's sheet classes, as it's drawn. */
-export const pickerSheetClass = (): string => 'sheet picker-sheet' + (full() ? ' full' : '');
+export const pickerSheetClass = (): string => 'sheet picker-sheet' + (full() ? ' full' : '') + (tightNow() ? ' kb-tight' : '');
 
 /** The handle's words: what pressing it does. */
 const handleSaid = (isFull: boolean) => (isFull ? 'Shorter: more of the plan in view' : 'Full height: more of the list in view');
 
 /** The picker's height and its handle as they now should be, in place. */
+/**
+ * A window this short (px, at the default text size, more with larger text) with the keyboard up: the For row and
+ * Filters fold while the search is typed in, for a result or two above the keyboard (the bug hunt, Nov 6: a 360 × 640
+ * phone showed none, the For row, the search, Filters and the count filling what the keyboard left).
+ */
+const TIGHT_PX = 460;
+const textScale = (): number => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ts')) / 1.15 || 1;
+function tightNow(): boolean { return full() && searching && kbUp && window.innerHeight < TIGHT_PX * textScale(); }
 function apply() {
   const f = full();
+  const tight = tightNow();
   for (const sheet of document.querySelectorAll<HTMLElement>('.picker-sheet')) {
     sheet.classList.toggle('full', f);
+    sheet.classList.toggle('kb-tight', tight);
     const h = sheet.querySelector<HTMLElement>('[data-testid=picker-handle]');
     if (h) { h.setAttribute('aria-expanded', String(f)); h.setAttribute('aria-label', handleSaid(f)); h.title = handleSaid(f); }
   }
@@ -118,10 +128,11 @@ function install() {
 
 /**
  * The picker closed (src/ui/render.ts): a height held by a press in it goes, and so does its search (closed while typed
- * in, Place pressed say, its box is gone without always saying it lost the focus); the height chosen with the handle
- * stays.
+ * in, Place pressed say, its box is gone without always saying it lost the focus); and the height chosen with the
+ * handle: it opens at rest each time, as What's new says, the plan in view above it (the bug hunt, Nov 6: once at full
+ * height, it opened at full height every time after).
  */
-export function pickerViewClosed() { heldFull = false; searching = false; sawKeyboard = false; kbUp = false; }
+export function pickerViewClosed() { heldFull = false; searching = false; sawKeyboard = false; kbUp = false; chosen = 'rest'; }
 
 // ---------- Closing it ----------
 /** Opened from a plant's sheet to swap it, or from a circle's to link it. */

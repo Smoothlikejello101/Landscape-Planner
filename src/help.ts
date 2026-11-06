@@ -80,7 +80,7 @@ export function helpAnswers(d: HelpDevice): HelpAnswer[] {
       ],
     },
     {
-      id: 'protect', q: 'Mark what’s dangerous to my kids or pets',
+      id: 'protect', q: 'Mark what’s dangerous to people or pets',
       lines: [
         'In the plant picker, “Hide plants rated toxic to:” People, Dogs, Cats or Horses (first among its filters until you answer it, then under Filters). Warnings → Poison has the same choice.',
         'Plants rated toxic to them are then hidden in the picker, and any already on the plan are flagged in Warnings. A plant not rated still shows: that isn’t the same as safe. It’s kept with the plan.',

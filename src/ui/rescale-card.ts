@@ -67,11 +67,14 @@ function work(a: Pick<Asking, 'before' | 'from' | 'to' | 'ticks'>) {
 
 /**
  * The photo's scale was just set (src/background.ts finishBgCalibration, its step pushed), from `from`: the question,
- * if anything over the photo would move more than 3 inches. Whether it's asked (then the plan, not the background
+ * if anything over the photo would move more than 3 inches, unless `nothingOver`: the plan is as it was when the photo
+ * was added on this page, so nothing was drawn over it. Whether it's asked (then the plan, not the background
  * sheet, is shown, to see the card and what Move would do).
  */
-export function askAfterScale(from: Placement): boolean {
+export function askAfterScale(from: Placement, nothingOver = false): boolean {
   asking = null;
+  // (The plan as it was when the photo was added here: drawn before it, not over it. Nothing to ask: src/background.ts.)
+  if (nothingOver) return false;
   const bg = state.bgImage, plan = state.currentProjectId, snap = state.history[state.historyIndex];
   if (!bg || !plan || !snap) return false;
   const to = placementOf(bg);

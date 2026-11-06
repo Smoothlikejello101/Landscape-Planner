@@ -454,12 +454,16 @@ test('animal toxicity: a chip each, hiding only what\'s rated toxic to them; a w
   await page.getByTestId('protect-horses').click();
   await expect(item).toHaveCount(0);
   await page.getByTestId('plant-search').fill("'Acapulco Orange'");
-  // Clearing the filters keeps the search and the open section.
+  // Clearing the filters keeps the search and the open section, and who's in the yard: not a filter for the search at
+  // hand, kept with the plan (the bug hunt, Nov 6: cleared here, they came back the next time the list opened).
   await openFilters(page);
   await dogs.click();
+  await expect(page.getByTestId('reset-filters')).toHaveCount(0); // (the people and pets alone: nothing to clear)
+  await page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any form' }) }).selectOption('Perennial');
   await page.getByTestId('reset-filters').click();
-  await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.getByTestId('protect-horses')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any form' }) })).toHaveValue('');
+  await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('protect-horses')).toHaveAttribute('aria-pressed', 'true');
   await expect(fold).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByTestId('plant-search')).toHaveValue("'Acapulco Orange'");
 });

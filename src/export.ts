@@ -79,6 +79,24 @@ function withSunHours(s: Shape, label: string): string {
   return label ? `${label} \u00b7 ${hours}` : hours;
 }
 /**
+ * Plants' names (and printed numbers) while a picture or a printout is drawn whole: held back, to go over every plant,
+ * as the plan draws them, never under a taller one beside them (the bug hunt, Nov 6: a picture's "Pink Muhly Gr…" and
+ * "'Hot Lips'" half under an Ozark witch hazel drawn after them).
+ */
+let laterNames: string[] | null = null;
+/** `fn`'s drawing (`out`), and the plants' names it drew, held back to go over all of it (`names`). */
+export function namesOver<T>(fn: () => T): { out: T; names: string } {
+  const was = laterNames;
+  laterNames = [];
+  try { const out = fn(); return { out, names: laterNames.join('') }; } finally { laterNames = was; }
+}
+/** A plant's name or number: held back while namesOver runs, to go over every plant; otherwise drawn here. */
+export function nameMark(markup: string): string {
+  if (!markup || !laterNames) return markup;
+  laterNames.push(markup);
+  return '';
+}
+/**
  * Names, lengths and sun hours drawn: the screen's "Hide names and badges" off, none (Jason, Oct 31: what's printed
  * and exported starts from what the screen shows). Set while a picture or a printout is made.
  */
@@ -258,7 +276,7 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
       + `<polyline points="${pts(connector)}" fill="none" stroke="${color}" stroke-opacity="${op}" stroke-width="${Math.max(1.5 * k, w / 3)}" stroke-linecap="round"/>`
       + leaves + (blooms && inMonth?.bloom === 'around' ? `<g opacity="0.45">${blooms}</g>` : blooms)
       + `<circle cx="${cx}" cy="${cy}" r="${Math.max(4 * k, VINE_DOT_RADIUS * scale)}" fill="${look ? look.pal.dark : s.color}" stroke="rgba(0,0,0,0.35)" stroke-width="${k}"/>`
-      + (name ? text(cx, cy - Math.max(4 * k, VINE_DOT_RADIUS * scale) - 9 * k, 11, name) : '');
+      + (name ? nameMark(text(cx, cy - Math.max(4 * k, VINE_DOT_RADIUS * scale) - 9 * k, 11, name)) : '');
   }
   if (s.type === 'circle') {
     // (A vine grown as a groundcover: its patch by its spacing, a faint ring out to its spread, as on the plan.)
@@ -291,15 +309,15 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
     // Round 3, Jordan. exportRuns, set while a picture is made.)
     const run = exportRuns?.get(s.id);
     if (run !== undefined) {
-      if (run) out += text((run.x - originX) * scale, (run.y - originY) * scale, Math.max(10, Math.min(14, (r / k) * 0.4)), run.text);
+      if (run) out += nameMark(text((run.x - originX) * scale, (run.y - originY) * scale, Math.max(10, Math.min(14, (r / k) * 0.4)), run.text));
     } else if (name) {
       // Plants: the name fitted inside, as on screen (sizes in screen px, scaled by k for print).
       const plant = s.role === 'plant' && s.plantId ? plantsById[s.plantId] : undefined;
       const fit = plantLabelFit(name, (canopyInnerRadius(s) * scale) / k, tree ? { below: trunkReachPx(s, scale / k) + 1 } : {}, plant);
       if (fit) {
         const lh = fit.fontSize * LABEL_LINE_HEIGHT * k;
-        out += fit.lines.map((line, i) => text(cx, cy + fit.dy * k + (i - (fit.lines.length - 1) / 2) * lh, fit.fontSize, line)).join('');
-      } else out += text(cx, cy, Math.max(10, Math.min(14, (r / k) * 0.4)), name); // over the edge, as before
+        out += nameMark(fit.lines.map((line, i) => text(cx, cy + fit.dy * k + (i - (fit.lines.length - 1) / 2) * lh, fit.fontSize, line)).join(''));
+      } else out += nameMark(text(cx, cy, Math.max(10, Math.min(14, (r / k) * 0.4)), name)); // over the edge, as before
     }
     return out;
   }
@@ -451,8 +469,10 @@ export function buildExportSVG(area: PrintArea = WHOLE_PLAN): { svg: string; wid
     exportRuns = runsOf(sorted, scale);
     try {
       // (A plant numbered under a taller one: no name under it, its bits showing at the edges; the key has it.)
-      withSeeThrough(paper.thin, () => withWindows(windowCircles(sorted, paper.windows), () => {
-        for (const s of sorted) shapesSvg += shapeToSvgString(dots?.numbers.has(s.id) ? ({ ...s, label: '' } as Shape) : s, minX, minY, scale);
+      // (The plants' names over every plant, after them: namesOver.)
+      shapesSvg += withSeeThrough(paper.thin, () => withWindows(windowCircles(sorted, paper.windows), () => {
+        const drawn = namesOver(() => sorted.map((s) => shapeToSvgString(dots?.numbers.has(s.id) ? ({ ...s, label: '' } as Shape) : s, minX, minY, scale)).join(''));
+        return drawn.out + drawn.names;
       }));
     } finally { exportRuns = null; }
   }));

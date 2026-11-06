@@ -73,6 +73,16 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .sel-pill button.pill-more .icon { flex-shrink: 0; }
 .sel-pill button.pill-close { background: none; color: #57534e; border-radius: 999px; width: 40px; min-height: 40px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin: 0 -6px 0 -4px; }
 .sel-pill button.pill-close svg { width: 18px; height: 18px; }
+/* On a phone, Edit points gives way too, with Another or Plant this bed, so the chip never runs past the screen's edge
+   and its × is always in reach; and a bed's Edit is its pencil alone (named by its title), for Plant this bed's words
+   (the bug hunt, Nov 6: at 360 px and large text the × sat off screen, and "Plant this bed" read "P…"). */
+.sel-pill button.pill-points { min-width: 44px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 1; }
+@media (max-width: 480px) {
+  .sel-pill { gap: 6px; padding: 6px 8px; }
+  .sel-pill .name { min-width: 2.5em; }
+  .sel-pill:has(.pill-points):has(.pill-plant-bed) button.edit { padding: 4px 10px; }
+  .sel-pill:has(.pill-points):has(.pill-plant-bed) button.edit span { display: none; }
+}
 .plant-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 2px 0 10px; }
 .plant-actions .btn { flex: 1 1 auto; }
 .multi-bar { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); background: #1c1917; color: #fff; border-radius: 999px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); padding: 4px; display: flex; align-items: center; gap: 2px; font-size: calc(12px * var(--ts)); z-index: 6; width: max-content; max-width: calc(100% - 16px); }
@@ -314,11 +324,16 @@ a { color: inherit; }
 #toast-action { touch-action: pan-y; }
 #toast-action.swiping { transition: none; }
 #toast-action.gone { transition: transform 0.18s ease-in, opacity 0.18s ease-in; opacity: 0; }
+/* A short window with the keyboard up (a small phone, large text): the For row, Filters and the chips fold while the
+   search is typed in, so a result or two shows above the keyboard (src/ui/picker-view.ts TIGHT_PX). */
+.picker-sheet.kb-tight .for-row, .picker-sheet.kb-tight .fold-row, .picker-sheet.kb-tight .active-filters { display: none; }
 /* Placing: above the place bar, the words and ✕ on one line, the buttons on one under it (src/ui/toast.ts placeNotice). */
 #toast-action.at-bottom > span, #toast-action.at-bottom > .notice-line { order: 1; }
 #toast-action.at-bottom > .notice-detail { order: 3; }
-#toast-action.at-bottom > .notice-buttons { order: 4; flex: 1 1 100%; flex-wrap: nowrap; margin-left: 0; }
-#toast-action.at-bottom > .notice-buttons button { flex: 1 1 0; min-width: 0; padding: 10px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* On one row where they fit, on two where they don't (a small phone, large text): kept to one, the row was wider than the
+   notice and ran off the screen's left edge, "Nudge apart" cut to "part" (the bug hunt, Nov 6). */
+#toast-action.at-bottom > .notice-buttons { order: 4; flex: 1 1 100%; flex-wrap: wrap; margin-left: 0; min-width: 0; }
+#toast-action.at-bottom > .notice-buttons button { flex: 1 1 auto; min-width: 0; padding: 10px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* An icon in place of a word (the crowding notice's Settings, since Nudge apart joined it: Jason's UI review, Nov 2): its
    own width, and the words beside it as wide as they need, so the four keep to one row by the place bar (Bea, round 3). */
 #toast-action .notice-buttons button.notice-icon { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; padding: 10px; }
@@ -512,6 +527,11 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
    counter (the UI review, 2026-11-01). */
 .pl-body { gap: 14px; }
 .pl-totals { font-size: calc(16px * var(--ts)); font-weight: 600; color: #1c1917; }
+@media (max-width: 600px) {
+  .pl-totals .pl-tot-bought { display: block; }
+  .pl-totals .pl-tot-bought .dot { display: none; }
+  .pl-totals.reserve::after { content: '\00a0'; display: block; }
+}
 .pl-group { display: flex; flex-direction: column; }
 .pl-head { font-size: calc(12px * var(--ts)); font-weight: 600; color: #57534e; text-transform: uppercase; letter-spacing: 0.04em; padding-bottom: 4px; }
 .pl-head-n { font-weight: 400; color: #78716c; text-transform: none; letter-spacing: 0; }
@@ -596,7 +616,9 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 .year-bar .year-step { width: 44px; padding: 0; font-size: 24px; line-height: 1; }
 .year-head { flex: 1; min-width: 0; text-align: center; }
 .year-month { font-size: calc(19px * var(--ts)); font-weight: 800; color: #1c1917; white-space: nowrap; overflow: hidden; }
-.year-count { display: block; max-width: 100%; margin: 0 auto; padding: 0 6px; min-height: 24px; border: 0; background: none; font: inherit; font-size: calc(12px * var(--ts)); color: #047857; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+/* (Wrapped where it doesn't fit, never cut: at large text on a small phone "1 of 51 in bloom" read "1 of 5…". The bug
+   hunt, Nov 6.) */
+.year-count { display: block; max-width: 100%; margin: 0 auto; padding: 0 6px; min-height: 24px; border: 0; background: none; font: inherit; font-size: calc(12px * var(--ts)); color: #047857; text-decoration: underline; text-underline-offset: 2px; white-space: normal; overflow-wrap: anywhere; line-height: 1.3; cursor: pointer; }
 .year-count:disabled { color: #57534e; text-decoration: none; cursor: default; }
 .year-list { max-height: 30vh; overflow-y: auto; padding: 6px 12px 8px; border-bottom: 1px solid #e7e5e4; font-size: calc(14px * var(--ts)); color: #292524; }
 .year-list-row { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 6px 0; font: inherit; color: inherit; cursor: pointer; }

@@ -132,6 +132,7 @@ const plantsIn = () => state.shapes.some((s) => s.role === 'plant');
  * when `at` is given.
  */
 export function openWarnings(at?: WarningKind) {
+  heldHeads.clear();
   if (at) { kindsOpen.add(at); flashKind = at; }
   state.menu = null;
   if (wideNow()) { sideOpen = true; if (state.panel === 'warnings' || state.panel === 'settings') state.panel = null; }
@@ -303,9 +304,20 @@ function fix(st: KindState) {
   }
 }
 
+/**
+ * Kinds that, open, said why they couldn't run, with its button: answered from inside (people or pets chosen in it), the
+ * line and the button keep their room, unseen, till the kind is folded or Warnings opened again, so what's under them
+ * stays under the finger (the bug hunt, Nov 6: People picked, the chips moved up, and a quick press on Dogs missed).
+ */
+const heldHeads = new Map<WarningKind, CantRun>();
 function kindFold(st: KindState, rows: WarningRow[]): HTMLElement {
   const kind = st.kind, name = NAMES[kind];
   const open = kindsOpen.has(kind);
+  if (!open) heldHeads.delete(kind);
+  else if (st.cantRun && CANT[st.cantRun].fix) heldHeads.set(kind, st.cantRun);
+  const held = open && !st.cantRun ? heldHeads.get(kind) : undefined;
+  /** Its room, kept: unseen, unheard, not reached by Tab. */
+  const unseen = (e: HTMLElement) => { e.style.visibility = 'hidden'; e.setAttribute('aria-hidden', 'true'); if (e instanceof HTMLButtonElement) e.tabIndex = -1; return e; };
   const on = rows.filter((r) => !r.dismissed), off = rows.filter((r) => r.dismissed);
   // Its line under the name: why it can't run; off; or on with none (utilities with none drawn: said so, quietly, as a
   // yard may have none, not as a check that can't run).
@@ -318,7 +330,7 @@ function kindFold(st: KindState, rows: WarningRow[]): HTMLElement {
     el('span', { className: 'wk-icon', 'aria-hidden': 'true', html: MARKS[kind] }),
     el('span', { className: 'wk-name' }, name),
     meta,
-    sub ? el('span', { className: 'wk-sub', 'data-testid': 'kind-sub' }, sub) : null,
+    sub ? el('span', { className: 'wk-sub', 'data-testid': 'kind-sub' }, sub) : held ? unseen(el('span', { className: 'wk-sub' }, CANT[held].said)) : null,
     el('span', { className: 'wk-chev', 'aria-hidden': 'true' }, open ? '▾' : '›'));
   toggle.addEventListener('click', () => { if (open) kindsOpen.delete(kind); else kindsOpen.add(kind); render(); });
   // (Each kind a heading under Warnings, so a screen reader can go kind by kind: the review found the order upside down.)
@@ -328,7 +340,7 @@ function kindFold(st: KindState, rows: WarningRow[]): HTMLElement {
     const b = el('button', { className: 'warn-fix', 'data-testid': `warnings-fix-${kind}` }, fixSaid);
     b.addEventListener('click', () => fix(st));
     head.appendChild(b);
-  }
+  } else if (held) head.appendChild(unseen(el('button', { className: 'warn-fix', type: 'button' }, CANT[held].fix ?? '')));
   const wrap = el('section', { className: 'warn-kind' + (open ? ' open' : ''), 'data-testid': `warnings-kind-${kind}`, 'data-state': !st.on ? 'off' : st.cantRun ? 'cant-run' : rows.length ? 'found' : 'none' }, head);
   if (!open) return wrap;
   wrap.appendChild(switchCard(kind));

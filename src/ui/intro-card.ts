@@ -294,8 +294,11 @@ function whoChips(): HTMLElement {
   const show = () => {
     for (const [b, on] of shown) { b.classList.toggle('on', on()); b.setAttribute('aria-pressed', String(on())); }
     const who = chosen();
-    note.hidden = !who.length;
-    note.textContent = who.length ? toxicNote(who) : '';
+    // (With no one chosen, its room kept, unseen, as it would be for all four: the card is held at the foot of the
+    // screen, so a note coming in grew it upward, and the chips moved up from under the finger. The bug hunt, Nov 6.)
+    note.style.visibility = who.length ? '' : 'hidden';
+    note.setAttribute('aria-hidden', String(!who.length));
+    note.textContent = toxicNote(who.length ? who : ['people', 'dogs', 'cats', 'horses']);
   };
   for (const [k, label] of YARD_CHIPS) {
     const b = el('button', { className: 'intro-chip', 'data-testid': `intro-${k}` }, label);
@@ -324,6 +327,8 @@ function whoChips(): HTMLElement {
   return el('div', {}, row, note);
 }
 
+/** The step and sheet whose pulsing control was last brought into view (once each, not at every redraw). */
+let pulseShownFor = '';
 /**
  * Whether the ZIP sheet's field holds a whole ZIP. Till it does, the field pulses, then Look up (the UI review,
  * 2026-11-01: Look up pulsing over an empty field read as the focus being there).
@@ -411,6 +416,13 @@ function drawIntro(root: HTMLElement): void {
   const targets = sel ? [...root.querySelectorAll<HTMLElement>(sel)] : [];
   for (const t of targets) t.classList.add('intro-pulse');
   const target = targets[0];
+  // (In a sheet, brought into view once for the step and the sheet: the Add sheet opened at its top on a small phone,
+  // the Building button pulsing below the screen. The bug hunt, Nov 6.)
+  const shownFor = `${step}:${state.panel}`;
+  if (target?.closest('.sheet') && shownFor !== pulseShownFor) {
+    pulseShownFor = shownFor;
+    requestAnimationFrame(() => { if (target.isConnected) target.scrollIntoView({ block: 'nearest' }); });
+  }
   // (The ZIP typed: the pulse moves on to Look up there and then, without a redraw, which typing never makes.)
   if (target?.dataset.testid === 'zip') target.addEventListener('input', () => {
     target.classList.toggle('intro-pulse', !zipTyped());
