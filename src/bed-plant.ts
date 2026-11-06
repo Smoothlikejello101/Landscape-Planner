@@ -6,7 +6,8 @@
 // tolerant, Takes wet soil and Clay OK are the bed's while it's planted for; the person's own are set aside, untouched,
 // and are as they were with Anywhere again. Everything else (Hardy in zone, who's in the yard, the search) adds to it.
 // Loam and Sandy filter by the soil textures NC State rates a plant for (Jason, Nov 4); Clay by Clay OK or those textures,
-// a plant NC State rates only for other soils left out as for them (Jason, Nov 5).
+// a plant NC State rates only for other soils left out as for them (Jason, Nov 5); Rocky by NC State's shallow rocky
+// soil, the same way (Jason, Nov 5).
 //
 // Here: which bed the picker is For (never stored), the sun across a bed from its sun areas (worked out each time,
 // never stored), and what a bed's conditions filter on. The picker's row and box: src/ui/plant-for.ts; the questions:
@@ -142,7 +143,7 @@ export function sunOverBed(bed: Shape, shapes: Shape[]): BedSun | null {
 /** A bed's conditions as the picker reads them: its sun (sunniest, shadiest), soil, moisture, drip. */
 export interface BedRules {
   sun: [SunLevel, SunLevel] | null;
-  soil: 'clay' | 'loam' | 'sand' | 'unsure' | null;
+  soil: 'clay' | 'loam' | 'sand' | 'rocky' | 'unsure' | null;
   moisture: 'dry' | 'average' | 'wet' | 'unsure' | null;
   drip: boolean;
 }
@@ -157,7 +158,7 @@ export function bedRules(bed: Shape, sun: BedSun | null): BedRules {
   if (!range && c.sun && typeof c.sun === 'object' && isLevel(c.sun.most) && isLevel(c.sun.least)) {
     range = RANK[c.sun.most] <= RANK[c.sun.least] ? [c.sun.most, c.sun.least] : [c.sun.least, c.sun.most];
   }
-  const soil = (['clay', 'loam', 'sand', 'unsure'] as const).find((v) => v === c.soil) ?? null;
+  const soil = (['clay', 'loam', 'sand', 'rocky', 'unsure'] as const).find((v) => v === c.soil) ?? null;
   const moisture = (['dry', 'average', 'wet', 'unsure'] as const).find((v) => v === c.moisture) ?? null;
   return { sun: range, soil, moisture, drip: c.drip === true };
 }
@@ -171,9 +172,10 @@ export const PART_OF: Partial<Record<keyof PlantFilter, BedPart>> = {
  * What a bed's conditions filter on (Jason's answers, Nov 2), as the picker's filters: every filter the bed sets,
  * the ones it doesn't use cleared, so the person's own aren't counted while it's planted for. `off`: parts taken off.
  * - Sun: plants whose sun range takes in some of the bed's (answer A).
- * - Clay, loam and sandy: plants rated for that soil first; one rated for none, below a divider (answer D); one rated
- *   only for others, left out (Jason, Nov 4 for loam and sandy, by the soil textures NC State rates; Nov 5 for clay,
- *   by Clay OK or those textures: src/plants.ts clayRating). Not sure: nothing.
+ * - Clay, loam, sandy and rocky: plants rated for that soil first; one rated for none, below a divider (answer D); one
+ *   rated only for others, left out (Jason, Nov 4 for loam and sandy, by the soil textures NC State rates; Nov 5 for
+ *   clay, by Clay OK or those textures: src/plants.ts clayRating; Nov 5 for rocky, by NC State's shallow rocky soil:
+ *   soilRating). Not sure: nothing.
  * - Dry: drought tolerant. Average: water needs low or moderate, so High and Wetland are left out (answer 7). Wet:
  *   takes wet soil. Not sure: nothing.
  * - Drip irrigated lifts only the limits that keep out thirstier plants (answer 6): dry or average with drip, any
@@ -183,7 +185,7 @@ export function bedFilter(r: BedRules, off: ReadonlySet<BedPart> = new Set()): P
   const out: Partial<PlantFilter> = { sun: '', sunRange: '', water: '', drought: false, wetFeet: false, clayOk: false, clayBed: false, soilBed: '' };
   if (r.sun && !off.has('sun')) out.sunRange = `${r.sun[0]}-${r.sun[1]}`;
   if (r.soil === 'clay' && !off.has('soil')) out.clayBed = true;
-  if ((r.soil === 'loam' || r.soil === 'sand') && !off.has('soil')) out.soilBed = r.soil;
+  if ((r.soil === 'loam' || r.soil === 'sand' || r.soil === 'rocky') && !off.has('soil')) out.soilBed = r.soil;
   if (!off.has('moisture')) {
     if (r.moisture === 'dry' && !r.drip) out.drought = true;
     else if (r.moisture === 'average' && !r.drip) out.water = 'Low,Moderate';
@@ -198,6 +200,7 @@ export function bedChips(r: BedRules): { part: BedPart; text: string }[] {
   if (r.soil === 'clay') out.push({ part: 'soil', text: 'Clay OK' });
   else if (r.soil === 'loam') out.push({ part: 'soil', text: 'Loam OK' });
   else if (r.soil === 'sand') out.push({ part: 'soil', text: 'Sandy soil OK' });
+  else if (r.soil === 'rocky') out.push({ part: 'soil', text: 'Rocky soil OK' });
   if (r.moisture === 'dry' && !r.drip) out.push({ part: 'moisture', text: 'Drought tolerant' });
   else if (r.moisture === 'average' && !r.drip) out.push({ part: 'moisture', text: 'Water needs: low or moderate' });
   else if (r.moisture === 'wet') out.push({ part: 'moisture', text: 'Takes wet soil' });
@@ -205,9 +208,10 @@ export function bedChips(r: BedRules): { part: BedPart; text: string }[] {
 }
 /** What a part is called where it hid plants a search found: "hidden by Front bed: Clay". */
 export const PART_NAME: Record<BedPart, string> = { sun: 'Sun', soil: 'Clay', moisture: 'Moisture' };
-/** The same, by the bed's own soil: "Front bed: Loam", "Front bed: Sandy soil" (a clay bed's is Clay, as before). */
+/** The same, by the bed's own soil: "Front bed: Loam", "Front bed: Sandy soil", "Front bed: Rocky soil" (a clay bed's is Clay, as before). */
+const SOIL_NAME: Partial<Record<NonNullable<BedRules['soil']>, string>> = { loam: 'Loam', sand: 'Sandy soil', rocky: 'Rocky soil' };
 export const partName = (part: BedPart, r: BedRules): string =>
-  part === 'soil' && r.soil === 'loam' ? 'Loam' : part === 'soil' && r.soil === 'sand' ? 'Sandy soil' : PART_NAME[part];
+  (part === 'soil' && r.soil && SOIL_NAME[r.soil]) || PART_NAME[part];
 
 /** `fn` with these filters set, the filters as they were after. */
 export function withFilters<T>(set: Partial<PlantFilter>, fn: () => T): T {

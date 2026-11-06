@@ -1,6 +1,7 @@
 // A bed's conditions (Plant this bed: Jason, Nov 2): a Conditions section in the bed's panel, and the same as a sheet
 // of its own from the picker's bed box (Edit). Its sun is worked out from the sun areas over it wherever any are, never
-// asked or stored; asked only where none touches it. Soil (Clay, Loam, Sandy, Not sure: answer 3) and moisture (Dry,
+// asked or stored; asked only where none touches it. Soil (Clay, Loam, Sandy, Not sure: answer 3; Rocky, NC State's
+// shallow rocky soil: Jason, Nov 5) and moisture (Dry,
 // Average, Wet, Not sure), with drip irrigated, are asked. "Not sure" filters nothing, and is kept as answered; neither
 // is ever guessed from the ZIP. Set through setBedConditions (src/mutations.ts), one undo step each. Chips, buttons and
 // a box only: each answer redraws this part in place, never the whole page (CLAUDE.md, keyboard safety).
@@ -19,7 +20,7 @@ import { startKind } from '../draw';
 
 const RANK: Record<SunLevel, number> = { Full: 0, Part: 1, Shade: 2 };
 const SUN_CHOICES: [SunAnswer, string][] = [['Full', 'Full sun'], ['Part', 'Part shade'], ['Shade', 'Shade']];
-const SOIL_CHOICES: [NonNullable<BedAnswers['soil']>, string][] = [['clay', 'Clay'], ['loam', 'Loam'], ['sand', 'Sandy'], ['unsure', 'Not sure']];
+const SOIL_CHOICES: [NonNullable<BedAnswers['soil']>, string][] = [['clay', 'Clay'], ['loam', 'Loam'], ['sand', 'Sandy'], ['rocky', 'Rocky'], ['unsure', 'Not sure']];
 const MOISTURE_CHOICES: [NonNullable<BedAnswers['moisture']>, string][] = [['dry', 'Dry'], ['average', 'Average'], ['wet', 'Wet'], ['unsure', 'Not sure']];
 const cap = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);
 
@@ -116,9 +117,9 @@ export function conditionsBody(bedId: string, changed?: () => void): HTMLElement
         unsure);
     }
     // ---- Soil ----
-    const soil = (['clay', 'loam', 'sand', 'unsure'] as const).find((v) => v === c.soil);
+    const soil = (['clay', 'loam', 'sand', 'rocky', 'unsure'] as const).find((v) => v === c.soil);
     out.push(el('div', { className: 'cond-label' }, 'Soil'), choices('Soil', 'soil', SOIL_CHOICES, soil, (v) => set(bed, { soil: v })),
-      el('div', { className: 'hint', 'data-testid': 'cond-soil-says' }, 'Clay, Loam and Sandy each list the plants rated for that soil, then those no source rates for it, below them.'));
+      el('div', { className: 'hint', 'data-testid': 'cond-soil-says' }, 'Clay, Loam, Sandy and Rocky (shallow, rocky soil) each list the plants rated for that soil, then those no source rates for it, below them.'));
     // ---- Moisture, and drip ----
     const moisture = (['dry', 'average', 'wet', 'unsure'] as const).find((v) => v === c.moisture);
     const drip = c.drip === true;

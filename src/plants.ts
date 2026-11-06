@@ -264,11 +264,11 @@ export const PLANT_FILTER_DEFAULTS = {
    */
   clayBed: false,
   /**
-   * A loam or sandy bed ('loam', 'sand'): plants NC State rates for that soil texture, and plants no source rates for
-   * soil texture (below a divider, as for clay: noSoilRating); not one rated only for other textures (Jason, Nov 4). Set
-   * only by a bed the picker plants for.
+   * A loam, sandy or rocky bed ('loam', 'sand', 'rocky'): plants NC State rates for that soil, and plants no source
+   * rates for soil texture (below a divider, as for clay: noSoilRating); not one rated only for other soils (Jason,
+   * Nov 4; rocky, NC State's shallow rocky soil, Nov 5): soilRating. Set only by a bed the picker plants for.
    */
-  soilBed: '' as '' | 'loam' | 'sand',
+  soilBed: '' as '' | 'loam' | 'sand' | 'rocky',
   /** Blooming in: a month ('1' to '12') or a season ('spring', 'summer', 'fall', 'winter'): src/plants.ts bloomMatch. */
   bloomMonth: '',
   /** '' any; '@here' native to the garden's state (Kew's checklist); '@na' native to North America (the earlier list's word). */
@@ -581,8 +581,8 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   // rated only for other soils, as loam and sandy (Jason, Nov 5): clayRating.)
   if (f.sunRange && !sunFit(p, f.sunRange)) return false;
   if (f.clayBed && clayRating(p) === 'no') return false;
-  // (A loam or sandy bed: rated for it, or not rated for soil texture at all; not one rated only for other textures.)
-  if (f.soilBed && p.soil_texture?.length && !p.soil_texture.includes(f.soilBed)) return false;
+  // (A loam, sandy or rocky bed: rated for it, or not rated for soil texture at all; not one rated only for others.)
+  if (f.soilBed && soilRating(p, f.soilBed) === 'no') return false;
   if (f.afternoonSun && p.sun_most !== 'Full') return false;
   // ("@here": native to the garden's state, by Kew's checklist; until its state is known, no filter. "@na": native to
   // North America, the earlier list's word, its regional and local-ecotype natives included.)
@@ -791,7 +791,7 @@ const FILTER_READS: [keyof PlantFilter, (p: Plant, f: PlantFilter) => string[], 
   ['bloomMonth', (p, f) => (bloomMatch(p, f.bloomMonth) === 'earlier' ? ['bloom'] : []), 'bloom time'], ['native', (_p, f) => (f.native === '@here' ? [] : ['native']), 'native status'],
   ['deerResistant', () => ['deer'], 'deer resistance'], ['spread', () => ['self_seed', 'habit'], 'how it spreads'], ['height', () => ['height'], 'height'],
   ['width', () => ['width'], 'width'],
-  ['wetFeet', () => ['wet_feet'], 'wet soil'], ['clayOk', () => ['clay_ok'], 'clay'], ['clayBed', (p) => (p.soil_texture?.includes('clay') ? ['soil_texture'] : ['clay_ok']), 'clay'], ['soilBed', () => ['soil_texture'], 'soil'],
+  ['wetFeet', () => ['wet_feet'], 'wet soil'], ['clayOk', () => ['clay_ok'], 'clay'], ['clayBed', (p) => (p.soil_texture?.includes('clay') ? ['soil_texture'] : ['clay_ok']), 'clay'], ['soilBed', (p, f) => (f.soilBed === 'rocky' && p.soil_also?.includes('rocky') ? ['soil_also'] : ['soil_texture']), 'soil'],
   ['hostOnly', (p) => (hostPlant(p) === 'earlier' ? ['host'] : []), 'host plant'], ['fallColor', () => ['fall_color'], 'fall color'], ['evergreen', () => ['foliage'], 'evergreen'],
   ['winterInterest', () => ['winter_interest'], 'winter interest'], ['edible', () => ['edible'], 'edible'],
   ['hardyHere', () => ['zone_min', 'zone_max'], 'hardiness zones'],
@@ -812,6 +812,18 @@ export function clayRating(p: Plant, sources = PLANT_META?.sources): 'yes' | 'no
   if (textures.includes('clay')) return 'yes';
   if (textures.length) return p.clay_ok === true && !earlierListOnly(p.prov?.clay_ok, sources) ? 'yes' : 'no';
   return p.clay_ok === true ? 'yes' : 'none';
+}
+/**
+ * A loam, sandy or rocky bed's reading of a plant, by NC State's soil field: 'yes', rated for that soil (for rocky,
+ * NC State's "shallow rocky", kept in soil_also: Jason, Nov 5); 'no', its soil textures rated but not that one; 'none',
+ * no soil texture rated (listed below the divider). A plant NC State lists only for high organic matter counts as not
+ * rated, for rocky as for loam and sandy: pawpaw and Heuchera villosa are listed so, and grow in clay or loam; most
+ * likely their texture wasn't rated.
+ */
+export function soilRating(p: Plant, soil: 'loam' | 'sand' | 'rocky'): 'yes' | 'no' | 'none' {
+  const textures = p.soil_texture ?? [];
+  if (soil === 'rocky' ? p.soil_also?.includes('rocky') : textures.includes(soil)) return 'yes';
+  return textures.length ? 'no' : 'none';
 }
 /**
  * The filters a catalog plant passes only on the earlier list's word (what the filter reads has no source but that
@@ -937,7 +949,7 @@ export const comesIn = new Map<string, string[]>();
 export const bySeason = new Set<string>();
 /**
  * Plants in the last list for a bed's soil that no source rates for it, listed below a divider: for a clay bed
- * (`clayBed`), those not rated for clay; for a loam or sandy one (`soilBed`), those with no soil texture rated.
+ * (`clayBed`), those not rated for clay; for a loam, sandy or rocky one (`soilBed`), those with no soil texture rated.
  */
 export const noSoilRating = new Set<string>();
 /**
@@ -983,9 +995,10 @@ export function filteredPlants(near = true): Plant[] {
       // (A species that comes in several colors, one of them asked for; a month met only by its season.)
       if (plantFilter.flowerColors.length && !trueToColor(plant)) comesIn.set(plant.id, showyColors(plant).filter((c) => plantFilter.flowerColors.includes(c)));
       if (month && bloomMatch(plant, plantFilter.bloomMonth) === 'season') bySeason.add(plant.id);
-      // (A clay bed: one no source rates for clay, below its divider; a loam or sandy bed: one with no soil texture rated.)
+      // (A clay bed: one no source rates for clay, below its divider; a loam, sandy or rocky bed: one with no soil
+      // texture rated.)
       if (plantFilter.clayBed && clayRating(plant) === 'none') noSoilRating.add(plant.id);
-      if (plantFilter.soilBed && !plant.soil_texture?.length) noSoilRating.add(plant.id);
+      if (plantFilter.soilBed && soilRating(plant, plantFilter.soilBed) === 'none') noSoilRating.add(plant.id);
     }
     return m !== null;
   });

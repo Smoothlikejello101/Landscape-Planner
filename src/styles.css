@@ -941,9 +941,10 @@ select:disabled { color: #0f766e; background: #f0fdfa; opacity: 1; }
 .cond-label { font-size: calc(13px * var(--ts)); font-weight: 600; color: #44403c; margin-top: 8px; }
 .cond-label:first-child { margin-top: 0; }
 .cond-sub { font-size: calc(12px * var(--ts)); color: #57534e; }
-.cond-seg { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); border: 1px solid #d6d3d1; border-radius: 8px; overflow: hidden; }
-.cond-seg button { min-height: 44px; padding: 4px 6px; background: #fff; color: #292524; font-size: calc(14px * var(--ts)); border-left: 1px solid #d6d3d1; }
-.cond-seg button:first-child { border-left: 0; }
+/* (Wraps cleanly on a narrow phone or large text, soil's five choices especially: the 1px gaps over the gray are the
+   lines between, and a choice on a row of its own fills it.) */
+.cond-seg { display: flex; flex-wrap: wrap; gap: 1px; background: #d6d3d1; border: 1px solid #d6d3d1; border-radius: 8px; overflow: hidden; }
+.cond-seg button { flex: 1 1 56px; min-height: 44px; padding: 4px 4px; background: #fff; color: #292524; font-size: calc(14px * var(--ts)); }
 .cond-seg button.on { background: #1c1917; color: #fff; font-weight: 600; }
 .cond-seg button:focus-visible { outline: 2px solid #059669; outline-offset: -2px; }
 .cond-unsure { align-self: flex-start; min-height: 40px; padding: 4px 14px; border: 1px solid #d6d3d1; border-radius: 999px; background: #fff; color: #292524; font-size: calc(13px * var(--ts)); }
