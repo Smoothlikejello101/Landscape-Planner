@@ -16,18 +16,32 @@ begin
   if not coalesce(ok, false) then raise exception 'FAILED: %', what; end if;
 end $$;
 
--- ---------- Sign-ups: from the website, with no account ----------
+-- ---------- Sign-ups: from the website, with no account, through its server function ----------
+-- (Since Nov 5: the form's server function checks with Cloudflare that a person filled it in, then calls
+-- beta_signup_checked with the project's secret key, the service_role, and the address the form came from:
+-- 08-beta-check.sql. The old way in, beta_signup with the public key, is closed: 09-beta-close.sql.)
 set role anon;
-select pg_temp.check(public.beta_signup(' Cara.Smith+beta@Gmail.com ', 'Cara', '72923', 'iphone', true, 'A shade bed under the oaks', 'Reddit') = 'ok', 'sign-up');
+do $$ begin perform public.beta_signup('x@example.com', 'X', 'TX', 'none', false, null, null); raise exception 'FAILED: the old way in still open'; exception when insufficient_privilege then null; end $$;
+do $$ begin perform public.beta_signup_checked('203.0.113.9', 'x@example.com', 'X', 'TX', 'none', false, null, null); raise exception 'FAILED: anon skipped the check'; exception when insufficient_privilege then null; end $$;
+reset role;
+set role authenticated;
+do $$ begin perform public.beta_signup('x@example.com', 'X', 'TX', 'none', false, null, null); raise exception 'FAILED: the old way in open to accounts'; exception when insufficient_privilege then null; end $$;
+do $$ begin perform public.beta_signup_checked('203.0.113.9', 'x@example.com', 'X', 'TX', 'none', false, null, null); raise exception 'FAILED: an account skipped the check'; exception when insufficient_privilege then null; end $$;
+reset role;
+set role service_role;
+select pg_temp.check(public.beta_signup_checked(null, ' Cara.Smith+beta@Gmail.com ', 'Cara', '72923', 'iphone', true, 'A shade bed under the oaks', 'Reddit') = 'ok', 'sign-up');
 -- The same Gmail address another way: still one sign-up, and the first answers stand.
-select pg_temp.check(public.beta_signup('carasmith@gmail.com', 'Someone else', 'TX', 'android', false, null, null) = 'ok', 'a second sign-up answers the same');
-select pg_temp.check(public.beta_signup('not-an-email', 'Dev', 'Ohio', 'android', false, null, null) = 'invalid: email', 'bad email refused');
-select pg_temp.check(public.beta_signup('dev@example.com', '  ', 'Ohio', 'android', false, null, null) = 'invalid: first name', 'blank name refused');
-select pg_temp.check(public.beta_signup('dev@example.com', 'Dev', 'O', 'android', false, null, null) = 'invalid: ZIP code or state', 'place too short refused');
-select pg_temp.check(public.beta_signup('dev@example.com', 'Dev', 'Ohio', 'blackberry', false, null, null) = 'invalid: phone', 'unknown phone refused');
-select pg_temp.check(public.beta_signup('dev@example.com', 'Dev', 'Ohio', 'none', false, repeat('x', 1001), null) = 'invalid: what you''re planning', 'long answer refused');
-select pg_temp.check(public.beta_signup('dev@example.com', 'Dev', 'Ohio', 'none', false, '   ', '') = 'ok', 'blank optional answers are fine');
+select pg_temp.check(public.beta_signup_checked(null, 'carasmith@gmail.com', 'Someone else', 'TX', 'android', false, null, null) = 'ok', 'a second sign-up answers the same');
+select pg_temp.check(public.beta_signup_checked(null, 'not-an-email', 'Dev', 'Ohio', 'android', false, null, null) = 'invalid: email', 'bad email refused');
+select pg_temp.check(public.beta_signup_checked(null, 'dev@example.com', '  ', 'Ohio', 'android', false, null, null) = 'invalid: first name', 'blank name refused');
+select pg_temp.check(public.beta_signup_checked(null, 'dev@example.com', 'Dev', 'O', 'android', false, null, null) = 'invalid: ZIP code or state', 'place too short refused');
+select pg_temp.check(public.beta_signup_checked(null, 'dev@example.com', 'Dev', 'Ohio', 'blackberry', false, null, null) = 'invalid: phone', 'unknown phone refused');
+select pg_temp.check(public.beta_signup_checked(null, 'dev@example.com', 'Dev', 'Ohio', 'none', false, repeat('x', 1001), null) = 'invalid: what you''re planning', 'long answer refused');
+select pg_temp.check(public.beta_signup_checked(null, 'dev@example.com', 'Dev', 'Ohio', 'none', false, null, repeat('x', 201)) = 'invalid: how you heard', 'long how-you-heard refused');
+select pg_temp.check(public.beta_signup_checked(null, 'dev@example.com', 'Dev', 'Ohio', 'none', false, '   ', '') = 'ok', 'blank optional answers are fine');
+reset role;
 -- Nobody reads or writes the list through the API.
+set role anon;
 do $$ begin perform 1 from public.beta_signups; raise exception 'FAILED: anon read the sign-ups'; exception when insufficient_privilege then null; end $$;
 do $$ begin insert into public.beta_signups (email, email_key, first_name, place, phone) values ('x@y.zz', 'k', 'X', 'TX', 'none'); raise exception 'FAILED: anon wrote a sign-up directly'; exception when insufficient_privilege then null; end $$;
 do $$ begin perform public.new_beta_code(5); raise exception 'FAILED: anon made a code'; exception when insufficient_privilege then null; end $$;
@@ -40,32 +54,29 @@ select pg_temp.check((select planning is null and heard is null from public.beta
 -- Past 200 sign-ups in an hour: busy.
 insert into public.beta_signups (email, email_key, first_name, place, phone)
   select 'f' || i || '@example.com', 'flood' || i, 'F', 'TX', 'none' from generate_series(1, 200) i;
-set role anon;
-select pg_temp.check(public.beta_signup('late@example.com', 'Late', 'TX', 'none', false, null, null) = 'busy', 'flood cap');
+set role service_role;
+select pg_temp.check(public.beta_signup_checked(null, 'late@example.com', 'Late', 'TX', 'none', false, null, null) = 'busy', 'flood cap');
 reset role;
 delete from public.beta_signups where email_key like 'flood%';
--- One internet address: 10 tries an hour, wrong ones too; another address isn't held back.
-set role anon;
-select set_config('request.headers', '{"x-forwarded-for": "203.0.113.7, 10.0.0.1"}', false);
-select pg_temp.check(public.beta_signup('a' || i || '@example.com', 'A', 'TX', 'none', false, null, null) = 'ok', 'tries from one address') from generate_series(1, 9) i;
-select pg_temp.check(public.beta_signup('bad', 'A', 'TX', 'none', false, null, null) = 'invalid: email', 'a wrong try counts too');
-select pg_temp.check(public.beta_signup('a99@example.com', 'A', 'TX', 'none', false, null, null) = 'too-many', 'the eleventh try from one address waits');
-select set_config('request.headers', '{"x-forwarded-for": "198.51.100.4"}', false);
-select pg_temp.check(public.beta_signup('b1@example.com', 'B', 'TX', 'none', false, null, null) = 'ok', 'another address is fine');
-select set_config('request.headers', '', false);
+-- One internet address (as the function passes it): 10 tries an hour, wrong ones too; another address isn't held back.
+set role service_role;
+select pg_temp.check(public.beta_signup_checked('203.0.113.7', 'a' || i || '@example.com', 'A', 'TX', 'none', false, null, null) = 'ok', 'tries from one address') from generate_series(1, 9) i;
+select pg_temp.check(public.beta_signup_checked('203.0.113.7', 'bad', 'A', 'TX', 'none', false, null, null) = 'invalid: email', 'a wrong try counts too');
+select pg_temp.check(public.beta_signup_checked('203.0.113.7', 'a99@example.com', 'A', 'TX', 'none', false, null, null) = 'too-many', 'the eleventh try from one address waits');
+select pg_temp.check(public.beta_signup_checked('198.51.100.4', 'b1@example.com', 'B', 'TX', 'none', false, null, null) = 'ok', 'another address is fine');
 reset role;
 select pg_temp.check((select count(*) = 2 and bool_and(ip_hash ~ '^[0-9a-f]{64}$') from (select distinct ip_hash from public.beta_signup_tries) x), 'addresses kept only as hashes');
 select pg_temp.check((select count(*) = 0 from public.beta_signup_tries where ip_hash like '%203.0.113%'), 'no address in the clear');
 -- An hour later the address may try again; older tries are deleted.
 update public.beta_signup_tries set at = now() - interval '61 minutes';
-set role anon;
-select set_config('request.headers', '{"x-forwarded-for": "203.0.113.7"}', false);
-select pg_temp.check(public.beta_signup('a99@example.com', 'A', 'TX', 'none', false, null, null) = 'ok', 'an hour later, fine again');
-select set_config('request.headers', '', false);
+set role service_role;
+select pg_temp.check(public.beta_signup_checked('203.0.113.7', 'a99@example.com', 'A', 'TX', 'none', false, null, null) = 'ok', 'an hour later, fine again');
 reset role;
 select pg_temp.check((select count(*) = 1 from public.beta_signup_tries), 'tries older than an hour deleted');
 delete from public.beta_signups where email ~ '^(a[0-9]+|b1)@example\.com$';
 select pg_temp.check((select count(*) = 2 from public.beta_signups), 'back to the two sign-ups');
+-- 06-beta.sql run again opens the old way in again; 09-beta-close.sql run after it closes it (its comment says so).
+reset role;
 
 -- ---------- Codes ----------
 create temp table codes as select public.new_beta_code(2, 'Wave 1') as wave1, public.new_beta_code(5, 'Old', 1) as old;
