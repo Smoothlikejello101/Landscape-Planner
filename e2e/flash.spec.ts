@@ -5,8 +5,10 @@ import { shapeCount } from './helpers';
 // isn't as bad if I turn off labels, but it still happens", on his real plan: a photo, beds, a house, about a hundred
 // named plants, a bed selected). His screen recording showed frames with the plants' pictures gone and their names and
 // pins left, the photo and beds out of step with the rest, the selection's bar gone. A pinch or a pan should only move
-// what's drawn (and draw the grid again), with the full redraw on release (CLAUDE.md), and the release's redraw should
-// never show a frame with anything missing. src/canvas.ts, src/background.ts, src/gestures.ts.
+// what's drawn (and draw the grid again), with the plan drawn again on release, and the release's redraw should
+// never show a frame with anything missing. Since his second recording (Nov 5), the release draws the plan alone again,
+// in place: drawn again whole, the app's every element new, his phone showed two or three blank frames as the fingers
+// lifted, everything gone but the zoom's badge, while Chrome painted it all anew. src/canvas.ts, src/background.ts, src/gestures.ts.
 
 type P = { x: number; y: number; id?: number };
 /** Plants of his kinds: catalog id, name, spread (radius, ft). */
@@ -207,20 +209,23 @@ test.describe('on a phone', () => {
     // zoomed by a perspective now, src/canvas.ts previewView.)
     expect(work.textLayouts / moves, 'texts laid out a frame').toBeLessThan(rest.names / 2);
     expect(work.decodes, 'times the photo was decoded again').toBeLessThan(moves / 8);
-    // The release: the full redraw, the photo the same <image> (no new one to decode, the plan drawn without it
-    // meanwhile), decoded before it's drawn; then every frame as it was, but for the names that fit at the new zoom.
+    // The release: the plan drawn again in place, the same plan and app (nothing on the page made anew, for the browser
+    // to paint from nothing), the photo the same <image> (no new one to decode, the plan drawn without it meanwhile),
+    // decoded before it's drawn; then every frame as it was, but for the names that fit at the new zoom.
     let after: Frame[] = [];
     const release = await traced(browser, page, async () => {
       await touches(cdp, 'touchEnd', []);
       for (let i = 0; i < 3; i++) await frame(page);
       after = await frames(page);
     });
-    gestureFrames(after.filter((f) => f.plan)); // (the fingers still down)
-    after = after.filter((f) => !f.plan);
+    gestureFrames(after.filter((f) => f.view === rest.view)); // (the fingers still down)
+    after = after.filter((f) => f.view !== rest.view);
     expect(after.length).toBeGreaterThanOrEqual(3);
     const names = await page.locator('#canvas-svg g[data-layer=shapes] text').count();
     expect(release.textLayouts, 'the release redraws the plan (and the trace counts what it lays out)').toBeGreaterThanOrEqual(names);
-    for (const f of after) expect([f.groups, f.looks, f.names, f.photo, f.pill, f.buttons]).toEqual([rest.groups, rest.looks, names, true, true, true]);
+    for (const f of after) expect([f.plan, f.groups, f.looks, f.names, f.photo, f.pill, f.buttons]).toEqual([true, rest.groups, rest.looks, names, true, true, true]);
+    const made = (await churn(page)).filter((x) => typeof x === 'string' && /^(canvas-svg|app\b|sel-pill)/.test(x));
+    expect(made, 'the plan, the app or the selection\'s bar made anew at the release').toEqual([]);
     await expect(page.locator('#canvas-svg image')).toHaveAttribute('decoding', 'sync');
     expect(Number(await page.locator('#canvas-svg').getAttribute('data-zoom'))).not.toBe(100);
   });

@@ -140,12 +140,19 @@ let shownTool: object | null = null;
 /** The plan the app last drew (undefined before it first drew). */
 let shownPlan: string | null | undefined;
 /**
- * The view changed by a button (zoom in or out): the whole app drawn again, or, behind the plant picker, only the plan,
- * the picker as it is (src/ui/picker-view.ts).
+ * The view changed (a pan, a pinch, the wheel, a zoom button), nothing else: only the plan drawn again, in place, its
+ * layers the same elements, and what says the zoom; a notice placed clear of its shape again. Never the whole app (Jason,
+ * Nov 5, his recording: drawn again whole as the fingers lifted, the screen showed two or three frames blank but for
+ * the zoom's badge, the top bar gone too, while Chrome painted everything anew; behind the plant picker it was already
+ * only the plan, the picker as it is: src/ui/picker-view.ts).
  */
-function viewChanged() {
-  if (planLookOnly()) { redrawCanvas(); noteView(); } else render();
+export function viewMoved() {
+  redrawCanvas();
+  noteView();
+  if (!planLookOnly()) placeNotice();
 }
+/** The view changed by a button (zoom in or out). */
+function viewChanged() { viewMoved(); }
 export function render() {
   const root = document.getElementById('root')!;
   refreshWarnings(); // (the plan's warnings, worked out once for this drawing: src/ui/warnings-sheet.ts)

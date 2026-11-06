@@ -10,11 +10,11 @@ import { clearSelection, isSelected, selectOnly, toggleSelect } from './selectio
 import { gesture, state, tapTracker } from './state';
 import { save, saveView } from './storage';
 import type { Gesture, Point, Shape } from './types';
-import { drawnBySize, isHidden, isSeeThrough, previewView, redrawBackground, redrawCanvas, redrawHandles, redrawMarquee, redrawShapes } from './canvas';
+import { drawnBySize, isHidden, isSeeThrough, previewView, redrawBackground, redrawHandles, redrawMarquee, redrawShapes } from './canvas';
 import { drawTap, editedShape, forgetLastTap, insertVertex, moveVertex, notePointer } from './draw';
 import { notJustPlaced, placeTap, selectionJustPlaced } from './place';
 import { afterMove, freeStrandedVines, saidFreed } from './ui/vine-offers';
-import { noteView, render, updateStatusReadout } from './ui/render';
+import { render, updateStatusReadout, viewMoved } from './ui/render';
 import { now, snap } from './util';
 import { canopyHint } from './canopy';
 import { hintDue, hintShown } from './hints';
@@ -100,10 +100,11 @@ export function normalizeDeg(d: number): number {
 }
 
 /**
- * A pan or zoom of the plan behind the plant picker, ended: only the plan is drawn again, the picker as it is (its search,
- * its scroll, the rows opened in it), never the whole app (src/ui/picker-view.ts).
+ * A pan or zoom of the plan ended, nothing else changed: only the plan is drawn again, in place (src/ui/render.ts
+ * viewMoved), never the whole app: behind the plant picker, the picker as it is (its search, its scroll, the rows opened
+ * in it: src/ui/picker-view.ts); anywhere, no blank frames as the fingers lift (Jason, Nov 5).
  */
-function viewSettled() { redrawCanvas(); noteView(); }
+function viewSettled() { viewMoved(); }
 
 /** Shift, Ctrl or Cmd held: add to the selection or take from it, as in most desktop apps. */
 const adding = (e: PointerEvent) => e.shiftKey || e.ctrlKey || e.metaKey;
@@ -440,7 +441,7 @@ export function onCanvasPointerUp(e: PointerEvent) {
         };
       } else {
         saveView(); // (where it's looked at from, not a change to the plan: src/storage.ts)
-        if (planLookOnly()) viewSettled(); else render(); // full redraw replaces the gesture preview
+        viewSettled(); // (the plan drawn again in place of the gesture's preview)
       }
     }
     return;
@@ -515,6 +516,8 @@ export function onCanvasPointerUp(e: PointerEvent) {
         saveView(); forgetLastTap(); // (the plan moved: the same spot on screen is another place)
         // (The first few times a drag over a shape pans, on this device: how to move it.)
         if (g.overShape && hintDue(DRAG_HINT, 3)) { toast('That moved the plan. To move a shape, tap it first, then drag it.', 4000); hintShown(DRAG_HINT); }
+        viewSettled(); // (only the view moved: the plan drawn again in place, not the whole app)
+        return;
       }
       else if (state.draw) drawTap(g.startX, g.startY);
       else if (state.featurePlace) featureTap(g.startX, g.startY);
@@ -755,5 +758,5 @@ export function onWheel(e: WheelEvent) {
   }
   previewView();
   if (wheelSettle) clearTimeout(wheelSettle);
-  wheelSettle = setTimeout(() => { wheelSettle = null; if (planLookOnly()) viewSettled(); else render(); }, 150);
+  wheelSettle = setTimeout(() => { wheelSettle = null; viewSettled(); }, 150);
 }
