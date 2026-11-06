@@ -50,15 +50,21 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .canvas-wrap > .plan { position: absolute; inset: 0; touch-action: none; overflow: hidden; }
 /* The plan's layers, each an <svg> of its own, stacked (src/canvas.ts): only what's drawn in them takes a press. The
    photo's and the shapes' are moved in a pan or a pinch by the <div> around each, as the browser has them drawn
-   (will-change: transform: not laid out or drawn again each frame, which on a phone made the plan flash: Jason, Nov 5);
-   what's beyond the plan's edge comes into view as they move (overflow: visible). */
-.plan > svg, .plan > .plan-move { position: absolute; left: 0; top: 0; pointer-events: none; }
+   (will-change: transform: not laid out or drawn again each frame, which on a phone made the plan flash: Jason, Nov 5). */
+.plan > svg { position: absolute; left: 0; top: 0; pointer-events: none; }
 .plan svg { display: block; overflow: visible; pointer-events: none; }
 .plan g[data-layer] { pointer-events: visiblePainted; }
-.plan-move { will-change: transform; transform-origin: 0 0; }
+/* What's beyond the plan's edge comes into view as they move, a quarter of the plan's width and height out on each side
+   (each <div> half as wide and as tall again as the plan, centered on it, its <svg> at the plan's corner): never more.
+   Unbounded (overflow: visible on the <div>s, Nov 5), a fast pinch out had the browser paint the whole yard at the
+   size it was drawn, for each of the photo's and the shapes' layers: on Jason's phone more than it had room for, and it
+   dropped what it had painted everywhere, the bottom bar too, a frame at a time ("disco mode if I move too fast", his
+   fourth recording, Nov 5). Bounded, each is at most 2¼ times the plan's size, however far out a pinch goes. */
+.plan > .plan-move, .plan > .plan-veil { position: absolute; left: -25%; top: -25%; width: 150%; height: 150%; overflow: hidden;
+  pointer-events: none; will-change: transform; transform-origin: 16.6667% 16.6667%; }
+.plan > .plan-move > svg, .plan > .plan-veil > svg { position: absolute; left: 16.6667%; top: 16.6667%; }
 /* (The veil: the shapes as a touch's pan or pinch left them, over the plan drawn anew a moment, as painted, taking no
    taps: src/canvas.ts redrawCanvasVeiled.) */
-.plan > .plan-veil { position: absolute; left: 0; top: 0; will-change: transform; transform-origin: 0 0; pointer-events: none; }
 .plan-veil g[data-layer] { pointer-events: none; }
 /* (The page still zoomed in with nothing open: a pinch on the plan zooms the page back out. src/page-zoom.ts) */
 .page-zoomed .canvas-wrap, .page-zoomed .canvas-wrap > .plan { touch-action: pinch-zoom; }
