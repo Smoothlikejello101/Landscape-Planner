@@ -392,6 +392,10 @@ function aimedAt(at: { x: number; y: number }, id: string): boolean {
 }
 /** What the last tap moved down the stack from, if it did: a quick second tap (a double tap) opens that one's pane. */
 let cycledFrom: string | null = null;
+/** The last tap on a shape: where (feet), and what it picked. */
+let lastPress: { at: Point; picked: string } | null = null;
+/** How near the last tap a tap is, at most, to be the same tap again (px): a finger's spread, tapping one spot. */
+const AGAIN_PX = 20;
 /**
  * A tap on a shape. `at` (client px): where, for what's stacked there. A quick second tap opens the pane of what the
  * first picked; a separate tap where one of the stack is selected picks the next one under it, round the stack
@@ -407,14 +411,19 @@ function handleShapeTap(shape: Shape, at?: { x: number; y: number }) {
   // A hidden plant's pin or name, pressed: that plant, whatever's selected around it. (Jason, Nov 6, his recording: a
   // lobelia picked by its pin, then the pin of the one beside it, inside the first one's circle, picked the bed: the tap
   // was taken for a second tap on the first, and went on down the stack under it.) Its own pin, when it's the one
-  // selected, goes on down the stack as before.
-  const aimed = !!at && aimedAt(at, shape.id);
+  // selected, goes on down the stack as before. And so does a tap again where the last one was, on what it picked,
+  // whatever pin or name is there: the stack walked down to the ground and round. (Jason, Nov 6, his second recording:
+  // taps on one spot, a lobelia's name, went lobelia, cardinal flower, lobelia, cardinal flower… never to the bed.)
+  const ft = at ? screenToFeet(at.x, at.y) : null;
+  const again = !!ft && !!lastPress && lastPress.picked === state.selectedIds[0]
+    && Math.hypot(ft.x - lastPress.at.x, ft.y - lastPress.at.y) * pxPerFoot() <= AGAIN_PX;
+  const aimed = !again && !!at && aimedAt(at, shape.id);
   if (aimed && shape.id !== state.selectedIds[0] && shape.id !== tapTracker.id) { tapTracker.id = null; cycledFrom = null; }
   if (tapTracker.id && stack.some((s) => s.id === tapTracker.id) && t - tapTracker.time < DOUBLE_TAP_MS) {
     // (A double tap on the one selected: its pane, though its first tap went on down the stack.)
     selectOnly(cycledFrom ?? tapTracker.id);
     state.panel = 'props';
-    tapTracker.id = null; tapTracker.time = 0; cycledFrom = null;
+    tapTracker.id = null; tapTracker.time = 0; cycledFrom = null; lastPress = null;
     return;
   }
   // (Plants Done just left selected weren't picked by a tap: a tap on one picks it, not what's under it. The UI review,
@@ -432,6 +441,7 @@ function handleShapeTap(shape: Shape, at?: { x: number; y: number }) {
   cycledFrom = sel >= 0 && pick.id !== state.selectedIds[0] ? state.selectedIds[0] : null;
   if (!walked) selectOnly(pick.id);
   tapTracker.id = pick.id; tapTracker.time = t;
+  lastPress = ft ? { at: ft, picked: pick.id } : null;
   // (The first few times a tap lands on a stack, on this device: say so.)
   if (sel < 0 && stack.length > 1 && hintDue(STACK_HINT, 3)) {
     const next = stack[(stack.indexOf(pick) + 1) % stack.length];
