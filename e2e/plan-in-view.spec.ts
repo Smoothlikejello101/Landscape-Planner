@@ -122,12 +122,16 @@ test.describe('on a phone', () => {
     await drag(250);
     await expect(sheet(page)).toHaveCount(0);
     await expect(page.locator('.sel-pill')).toHaveCount(0); // (nothing picked on the way)
-    // The choice is kept while the app is open: closed and opened again, it's as it was left.
+    // Left at full height, closed and opened again: at rest, as it always opens (the bug hunt, Nov 6: it opened at full
+    // height every time after, the plan out of sight).
     await openPicker(page);
     await expect(sheet(page)).not.toHaveClass(/\bfull\b/);
     await handle(page).click();
+    await expect(sheet(page)).toHaveClass(/\bfull\b/);
     await closeSheet(page);
     await openPicker(page);
+    await expect(sheet(page)).not.toHaveClass(/\bfull\b/);
+    await handle(page).click();
     await expect(sheet(page)).toHaveClass(/\bfull\b/);
     // From full height, swiped down a good way past where it rests: caught there (Jason, Nov 6: "make the 'catch' for
     // halfway a little bigger"); further: closed.

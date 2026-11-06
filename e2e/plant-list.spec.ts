@@ -100,7 +100,17 @@ test("Mark planted, once bought: the kind's plants go to Planted with today's da
   // Nothing bought yet: no Mark planted, and a line says what the ticks are for.
   await expect(page.getByTestId('pl-mark-planted')).toHaveCount(0);
   await expect(page.getByTestId('pl-how')).toHaveText('Tick each kind as you buy it, or count them with − and +. Mark planted then records the day they go in.');
+  // Ticked: the line stays while the list is open, so the rows stay under the next press (the bug hunt, Nov 6: it went
+  // at the first +, and the second + missed). Opened again, it's gone.
+  const firstRow = page.getByTestId('pl-row').first();
+  const rowAt = (await firstRow.boundingBox())!.y;
   await row(page, 'buy', 'Wild Columbine').getByTestId('pl-tick').click();
+  await expect(row(page, 'buy', 'Wild Columbine').getByTestId('pl-mark-planted')).toBeVisible();
+  await expect(page.getByTestId('pl-how')).toHaveCount(1);
+  expect((await firstRow.boundingBox())!.y).toBeCloseTo(rowAt, 0);
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('pl-totals')).toHaveCount(0);
+  await page.getByTestId('plant-list-open').click();
   await expect(page.getByTestId('pl-how')).toHaveCount(0);
   await row(page, 'buy', 'Wild Columbine').getByTestId('pl-mark-planted').click();
   const day = await page.evaluate(() => new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));

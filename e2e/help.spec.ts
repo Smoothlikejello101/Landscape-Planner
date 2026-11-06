@@ -7,7 +7,7 @@ import { openFresh, placeOnceAtCenter } from './helpers';
 
 const QUESTIONS = [
   'Print my plan, or one bed', 'Get a plant list', 'Back up my plans, and restore them on another device', 'Undo, and redo',
-  'Add my own plant', 'Set my garden’s location', 'Mark what’s dangerous to my kids or pets', 'Install the app on my phone',
+  'Add my own plant', 'Set my garden’s location', 'Mark what’s dangerous to people or pets', 'Install the app on my phone',
 ];
 const base = { opacity: 0.65, locked: false };
 const shapes = [

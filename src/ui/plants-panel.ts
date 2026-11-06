@@ -896,9 +896,11 @@ export function renderPlantsPanel() {
    * stays too, unless `all` (a search the filters emptied: "Show them").
    */
   function resetFilters(all = false) {
-    const { q, inPlan, hardyHere } = plantFilter;
-    // (Hardy in the garden's zone sits beside the filters, not among them: it stays.)
-    Object.assign(plantFilter, PLANT_FILTER_DEFAULTS, { q, inPlan: !all && inPlan, hardyHere });
+    const { q, inPlan, hardyHere, noPoison, dogs, cats, horses } = plantFilter;
+    // (Hardy in the garden's zone sits beside the filters, not among them: it stays. So do the people and pets in the
+    // yard: who's there, kept with the plan, not a filter for the search at hand. Cleared here, they came back the next
+    // time the list opened, and Warnings still counted them: the bug hunt, Nov 6. Each one's own chip turns it off.)
+    Object.assign(plantFilter, PLANT_FILTER_DEFAULTS, { q, inPlan: !all && inPlan, hardyHere, noPoison, dogs, cats, horses });
     render(); // full rebuild so every control shows its cleared value
   }
   /**
@@ -1279,7 +1281,8 @@ export function renderPlantsPanel() {
       b.addEventListener('click', () => { c.clear(); keepYard(c.key); render(); }); // (a full rebuild, so its control shows it off)
       return b;
     }));
-    if (chips.length) {
+    // ("Clear filters" leaves who's in the yard: only with another filter on, to clear.)
+    if (chips.some((c) => !yardKeyOf(c.key))) {
       const all = el('button', { className: 'link-btn', 'data-testid': 'reset-filters' }, 'Clear filters');
       all.addEventListener('click', () => resetFilters());
       activeRow.appendChild(all);

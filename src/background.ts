@@ -120,6 +120,7 @@ export async function handleBgImageFile(file: File): Promise<boolean> {
     };
     state.photoElsewhere = null; // this photo replaces one kept on another device
     pushHistory();
+    planAtAdd = { imageId: state.bgImage.imageId!, shapes: JSON.stringify(state.shapes) };
     // (The whole photo in view, to find the two points on: Dana and Grace saw only a blur of green and gray.)
     fitPhoto();
     calibrationSeen(); // (just added: no reminder this session; the calibration banner asks)
@@ -129,6 +130,20 @@ export async function handleBgImageFile(file: File): Promise<boolean> {
     void tell('Could not load image: ' + (e instanceof Error ? e.message : String(e)));
     return false;
   }
+}
+/**
+ * The plan as it was when the photo was added on this page (its shapes, as JSON): while it's still that, nothing was
+ * drawn over the photo, so setting its scale has nothing to move with it. Never stored: after a reload, it asks.
+ */
+let planAtAdd: { imageId: string; shapes: string } | null = null;
+/**
+ * Whether the plan is as it was when this photo was added here: drawn before it, not over it. (The bug hunt, Nov 6: a
+ * yard drawn first, then a photo added and its scale set, was asked "Was your plan drawn over the photo?", Move it with
+ * the photo its first button, which would have grown or shrunk the whole plan by the photo's starting size.)
+ */
+function nothingDrawnOverPhoto(): boolean {
+  const bg = state.bgImage;
+  return !!bg && !!planAtAdd && planAtAdd.imageId === bg.imageId && planAtAdd.shapes === JSON.stringify(state.shapes);
 }
 /**
  * The whole photo in view, a small margin round it. Again once setting its scale has begun, with the plan as tall as
@@ -256,7 +271,7 @@ export function finishBgCalibration(distanceFt: number, rough = false) {
   offerTrace(state.currentProjectId); // (next: "Now trace" the house, driveway and the rest over it: src/ui/trace-card.ts)
   state.bgCalibrate = null;
   // ("Was your plan drawn over the photo?" first, a rough scale or not; "Now trace" waits for its answer.)
-  const asked = askAfterScale(from);
+  const asked = askAfterScale(from, nothingDrawnOverPhoto());
   state.panel = asked ? null : 'bg';
   render();
   if (asked) fitRescale();

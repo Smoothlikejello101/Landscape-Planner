@@ -363,9 +363,9 @@ test('from an empty plan to a first plant: each step ends when it\'s done, the p
   await page.locator('.tool-btn.plants').click();
   await expect(page.locator('.sheet')).toContainText('No plants rated toxic to people');
   await expect(page.locator('.sheet')).toContainText('No plants rated toxic to dogs');
-  // "Clear filters" is for the search at hand: the yard is still kept with the plan.
-  await page.locator('.sheet').getByText('Clear filters').click();
-  await expect(page.locator('.sheet')).not.toContainText('No plants rated toxic to dogs');
+  // Who's in the yard isn't a filter for the search at hand: no "Clear filters" for them alone (each chip's × turns one
+  // off). Kept with the plan (the bug hunt, Nov 6: Clear filters took them off till the list opened again).
+  await expect(page.locator('.sheet').getByText('Clear filters')).toHaveCount(0);
   await page.reload();
   await expect(page.locator('.project-btn .pname')).toBeVisible();
   await page.locator('.tool-btn.plants').click();

@@ -343,7 +343,11 @@ export function render() {
       // the warnings bug hunt, Nov 1. Then it's at the top of the plan, just left of the side buttons.)
       const room = planRoomAcross();
       const most = Math.min(window.innerWidth - w - 8, room ? room.x1 - w : Infinity);
-      floatRedoAt = { top: `${Math.round(r.bottom + 6)}px`, left: `${Math.round(Math.max(8, Math.min(most, r.left + r.width / 2 - w / 2)))}px` };
+      // (And under the strip at the plan's top that says what to do, Edit points' say: it covered its middle. The bug
+      // hunt, Nov 6.)
+      const says = document.querySelector('[data-testid=mode-strip]')?.getBoundingClientRect();
+      const under = says && says.height && says.right > r.left - w && says.left < r.right + w ? Math.max(r.bottom, says.bottom) : r.bottom;
+      floatRedoAt = { top: `${Math.round(under + 6)}px`, left: `${Math.round(Math.max(8, Math.min(most, r.left + r.width / 2 - w / 2)))}px` };
       btn.style.top = floatRedoAt.top;
       btn.style.left = floatRedoAt.left;
       btn.classList.add('shown');
@@ -677,7 +681,7 @@ export function render() {
       pill.appendChild(el('div', { className: 'sw', style: { background: shapeDot(s) } }));
       // (Unnamed: what it is, "Path", not how it was drawn. Jason, Oct 30.)
       pill.appendChild(el('div', { className: 'name' }, labelShown(s) || sheetTitle(s)));
-      const editBtn = el('button', { className: 'edit' });
+      const editBtn = el('button', { className: 'edit', title: 'Edit', 'aria-label': 'Edit' });
       editBtn.innerHTML = I.edit + '<span>Edit</span>';
       editBtn.addEventListener('click', () => { state.panel = 'props'; render(); });
       pill.appendChild(editBtn);

@@ -365,6 +365,9 @@ function theName(s: Shape): string {
   if (plant) return `the ${plant}`;
   const name = s.label.trim() || (kind ? kindDef(kind).label : 'shape');
   if (!s.label.trim() || (kind && sameName(name, kindDef(kind).startLabel([])))) return `the ${inSentence(name)}`;
+  // (A name with a capital past its first letter, "SW Corner" or "Rain Garden", as typed: lowered, it read "the sW
+  // Corner" and "the rain Garden". The bug hunt, Nov 6. "Front bed" still reads "the front bed".)
+  if (/\p{Lu}/u.test(name.slice(1))) return `the ${name}`;
   return `the ${name.charAt(0).toLowerCase()}${name.slice(1)}`;
 }
 const STACK_HINT = 'lp-hint-tap-under';

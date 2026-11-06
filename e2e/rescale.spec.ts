@@ -39,7 +39,7 @@ const YARD = [
 ];
 const PLACED = { dataUrl: PHOTO, naturalWidth: 1040, naturalHeight: 880, ftPerPx: 96 / 1040, cx: 0, cy: 0, rotation: 0, opacity: 0.75, visible: true };
 
-async function seed(page: Page, shapes: object[] = YARD, photo: object = PLACED) {
+async function seed(page: Page, shapes: object[] = YARD, photo: object | null = PLACED) {
   await page.addInitScript(([s, bg]) => {
     if (sessionStorage.getItem('seeded')) return;
     sessionStorage.setItem('seeded', '1');
@@ -227,6 +227,33 @@ test('on a photo\'s first scale, a rough one too: the card comes first, "Now tra
   await expect(card(page)).toHaveCount(0);
   await saved(page);
   expect(plain((await stored(page)).shapes)).toEqual(plain(before));
+});
+
+test('a photo added over a plan drawn before it: setting its scale asks nothing, as nothing was drawn over it; once something is, set again, it asks (the bug hunt, Nov 6)', async ({ page }) => {
+  // (It asked "Was your plan drawn over the photo?" of a yard drawn first, Move it with the photo its first button.)
+  await seed(page, YARD, null);
+  const before = plain((await stored(page)).shapes);
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'Background image' }).click();
+  await page.locator('.sheet input[type=file]').setInputFiles({ name: 'yard.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(PHOTO.split(',')[1], 'base64') });
+  await expect.poll(async () => !!(await stored(page)).bgImage).toBe(true); // (saved, for where its points are)
+  await setScale(page, 104, { start: false });
+  // (Not asked: the photo's sheet, with its scale, as when there's nothing over the photo. No "Now trace" either: the
+  // yard has all it lists.)
+  await expect(page.locator('.sheet')).toContainText('Current scale:');
+  await expect(card(page)).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.sheet')).toHaveCount(0);
+  expect(plain((await stored(page)).shapes)).toEqual(before);
+  // A bed moved over the photo: drawn over it now. Its scale set again: asked.
+  const island = YARD.find((s) => s.id === 'island') as { x: number; y: number };
+  const at = await planPoint(page, island.x + 5, island.y + 6);
+  await page.mouse.click(at.x, at.y);
+  await expect(page.locator('.sel-pill .name')).toHaveText('Island bed');
+  await page.keyboard.press('ArrowRight');
+  await saved(page);
+  await setScale(page, 90);
+  await expect(card(page)).toBeVisible();
 });
 
 test('the photo dragged after tracing: asked whether to move the plan with it; Leave it changes nothing; Move it moves it just as far, one step', async ({ page }) => {

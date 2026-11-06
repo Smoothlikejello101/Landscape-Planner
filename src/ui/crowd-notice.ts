@@ -51,7 +51,9 @@ export function crowdNotice(shape: Shape, moveIt: () => void) {
     { label: 'Dismiss', run: () => leaveClose(shape.id, list.map((c) => c.other.id)) },
     { label: 'Move it', run: () => { mindsSpacing(); moveIt(); render(); toast('Tap where it should go.'); } },
     { label: 'Settings', run: openCrowdingSettings, icon: I.settings },
-  ], 10000, TESTID, { detail, tone: crowded.length ? 'red' : 'amber' });
+    // (Placing: up till the next press anywhere else, not ten seconds. Read at large text, it went first, and Nudge
+    // apart pressed where it had been placed another plant there. The bug hunt, Nov 6.)
+  ], 10000, TESTID, { detail, tone: crowded.length ? 'red' : 'amber', untilAction: !!state.placing });
   const n = document.getElementById('toast-action');
   if (n) n.dataset.about = shape.id; // (gone with the plant: src/ui/toast.ts placeNotice)
 }

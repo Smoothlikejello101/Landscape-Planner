@@ -2,7 +2,7 @@ import { bedOf, isPlant } from './beds';
 import { utilityLabel } from './utility-kinds';
 import { paintOrder, paperUnder } from './canvas';
 import { escapeHtml } from './dom';
-import { areaNamesSvg, gatherAreaNames, hiddenRimsSvg, plantCircles, shapeToSvgString, windowCircles, withNames, withSeeThrough, withWindows } from './export';
+import { areaNamesSvg, gatherAreaNames, hiddenRimsSvg, nameMark, namesOver, plantCircles, shapeToSvgString, windowCircles, withNames, withSeeThrough, withWindows } from './export';
 import { rotatedBoxBounds, shapeBBox, unionBounds } from './geometry';
 import { plantsById, type Plant } from './plants';
 import { ROLES, roleKey, roleLabel } from './roles';
@@ -306,7 +306,8 @@ export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage |
   // edges ("Cro", Jason's crocuses under his viburnum); the key has it.
   const hiddenPlants = shapes.filter((s) => paper.hidden.has(s.id) && isPlant(s) && numbered(s));
   const dots = names && (keys || under === 'screen') ? dotKey(hiddenPlants, plantsById, keys, opts.order ?? shapes) : null;
-  const { out: body, names: areas } = gatherAreaNames(() => withNames(names, () => withSeeThrough(paper.thin, () => withWindows(windows, () => shapes.map((s) => ring(s) + (() => {
+  // (The plants' names and numbers over every plant, after them: src/export.ts namesOver.)
+  const { out: drawn, names: areas } = gatherAreaNames(() => withNames(names, () => withSeeThrough(paper.thin, () => withWindows(windows, () => namesOver(() => shapes.map((s) => ring(s) + (() => {
     if (dots?.numbers.has(s.id)) return shapeToSvgString({ ...s, label: '' }, win.minX, win.minY, pxPerFt, k); // (its dot has its number)
     if (!keys || !isPlant(s)) return shapeToSvgString(s, win.minX, win.minY, pxPerFt, k);
     const key = keys.get(labelShown(s).trim() || 'Unlabeled plant');
@@ -315,9 +316,10 @@ export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage |
     const b = shapeBBox(s);
     const cx = ((b.minX + b.maxX) / 2 - win.minX) * pxPerFt, cy = ((b.minY + b.maxY) / 2 - win.minY) * pxPerFt;
     const fs = 11 * k;
-    out += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="${fs}" font-weight="700" fill="#0f172a" font-family="sans-serif" stroke="#ffffff" stroke-width="${2.5 * k}" paint-order="stroke" stroke-linejoin="round">${key}</text>`;
+    out += nameMark(`<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="${fs}" font-weight="700" fill="#0f172a" font-family="sans-serif" stroke="#ffffff" stroke-width="${2.5 * k}" paint-order="stroke" stroke-linejoin="round">${key}</text>`);
     return out;
-  })()).join('')))));
+  })()).join(''))))));
+  const body = drawn.out + drawn.names;
   const pins = hiddenRimsSvg(shapes, paper.hidden, win.minX, win.minY, pxPerFt, k, dots?.numbers);
   // The beds', paths' and buildings' names last, clear of each other and of the plants (src/export.ts areaNamesSvg):
   // "Driveway" printed over "Driveway flower bed", beside it (the UI review, 2026-11-01).

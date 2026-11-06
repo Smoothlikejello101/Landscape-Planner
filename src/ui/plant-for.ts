@@ -39,9 +39,17 @@ export function forRow(chosen: (bed: Shape | null) => void): HTMLElement | null 
   const pick = el('button', { className: 'for-chip for-pick', 'data-testid': 'for-pick', title: tapSaid('Close the list, tap a bed on the plan, and come back') },
     el('span', { className: 'for-pick-icon', html: I.target }), 'Pick on the plan');
   pick.addEventListener('click', () => { startPickingBed(); render(); });
+  const row = el('div', { className: 'for-chips' }, chip(null), beds.map(chip), pick);
+  // (The bed chosen in view, scrolled to where the row runs past the screen: a small phone showed "Anywhere" and the
+  // first bed, neither chosen, the chosen one out of sight at the right. The bug hunt, Nov 6.)
+  const on = now ? chips.find((c) => c.dataset.bed === now.id) : undefined;
+  if (on) requestAnimationFrame(() => {
+    if (!on.isConnected) return;
+    const r = on.getBoundingClientRect(), box = row.getBoundingClientRect();
+    if (r.right > box.right || r.left < box.left) row.scrollLeft += r.left - box.left - 16;
+  });
   return el('div', { className: 'for-row', role: 'group', 'aria-label': 'Plant for', 'data-testid': 'plant-for' },
-    el('span', { className: 'for-label', 'aria-hidden': 'true' }, 'For'),
-    el('div', { className: 'for-chips' }, chip(null), beds.map(chip), pick));
+    el('span', { className: 'for-label', 'aria-hidden': 'true' }, 'For'), row);
 }
 
 // ---------- Pick on the plan ----------

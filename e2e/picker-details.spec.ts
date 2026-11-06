@@ -454,12 +454,16 @@ test('animal toxicity: a chip each, hiding only what\'s rated toxic to them; a w
   await page.getByTestId('protect-horses').click();
   await expect(item).toHaveCount(0);
   await page.getByTestId('plant-search').fill("'Acapulco Orange'");
-  // Clearing the filters keeps the search and the open section.
+  // Clearing the filters keeps the search and the open section, and who's in the yard: not a filter for the search at
+  // hand, kept with the plan (the bug hunt, Nov 6: cleared here, they came back the next time the list opened).
   await openFilters(page);
   await dogs.click();
+  await expect(page.getByTestId('reset-filters')).toHaveCount(0); // (the people and pets alone: nothing to clear)
+  await page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any form' }) }).selectOption('Perennial');
   await page.getByTestId('reset-filters').click();
-  await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.getByTestId('protect-horses')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any form' }) })).toHaveValue('');
+  await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('protect-horses')).toHaveAttribute('aria-pressed', 'true');
   await expect(fold).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByTestId('plant-search')).toHaveValue("'Acapulco Orange'");
 });
@@ -1205,9 +1209,10 @@ test('step 6\'s "None of these": the four off and the question answered for the 
   await expect(page.getByTestId('intro-none')).toHaveAttribute('aria-pressed', 'true');
 });
 
-// One of the four set after Clear filters (the filters are for the search at hand; the yard stays) changes that one
-// alone: Cats ticked after clearing kids' and the dog's filters keeps the kids and the dog in the yard (the review of the
-// storage change, Nov 1: taken whole from the filters, the yard lost them, on every device).
+// One of the four set after Clear filters changes that one alone: Cats ticked after clearing keeps the kids and the dog in
+// the yard (the review of the storage change, Nov 1: taken whole from the filters, the yard lost them, on every device).
+// Clear filters leaves the four as they are since the bug hunt, Nov 6 (cleared from the list, they came back the next
+// time it opened).
 test("one of the four set after Clear filters keeps the others in the yard: Cats joins the kids and the dog", async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
@@ -1215,9 +1220,11 @@ test("one of the four set after Clear filters keeps the others in the yard: Cats
   await page.getByTestId('protect-dogs').click();
   await expect.poll(() => planHousehold(page)).toEqual({ ...NONE, kids: true, dogs: 'hideToxic', answered: true });
   await openFilters(page);
+  await page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any form' }) }).selectOption('Perennial');
   await page.getByTestId('reset-filters').click();
-  await expect(page.getByTestId('active-chip')).toHaveCount(0);
-  await expect(page.getByTestId('protect-kids')).toHaveAttribute('aria-pressed', 'false'); // (the filters cleared)
+  await expect(page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any form' }) })).toHaveValue('');
+  await expect(page.getByTestId('protect-kids')).toHaveAttribute('aria-pressed', 'true'); // (the yard left as it was)
+  await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'true');
   await page.waitForTimeout(400); // (a save would have happened)
   expect(await planHousehold(page)).toEqual({ ...NONE, kids: true, dogs: 'hideToxic', answered: true });
   await page.getByTestId('protect-cats').click();
