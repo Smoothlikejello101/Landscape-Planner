@@ -153,6 +153,73 @@ export function viewMoved() {
 }
 /** The view changed by a button (zoom in or out). */
 function viewChanged() { viewMoved(); }
+/**
+ * The plan's <svg>: made once, kept on the page from one drawing of the app to the next (keepShell), so that what's
+ * drawn in it can be kept where it's the same (src/canvas.ts drawCanvas). Taken off the page and put back, as the app
+ * did with each drawing until Nov 6, every element of the plan was new to the browser again.
+ */
+let plan: SVGSVGElement | null = null;
+function planSvg(): SVGSVGElement {
+  if (plan) return plan;
+  const svg = svgEl('svg', { id: 'canvas-svg', width: state.canvasW, height: state.canvasH });
+  svg.addEventListener('pointerdown', onCanvasPointerDown);
+  // (Two fingers zoom the plan; but if the page itself is still zoomed in, they zoom the page back out: page-zoom.ts.)
+  svg.addEventListener('touchstart', e => { if (e.touches && e.touches.length === 2 && !pageZoomed()) e.preventDefault(); }, { passive: false });
+  svg.addEventListener('touchmove', e => { if (e.touches && e.touches.length === 2 && !pageZoomed()) e.preventDefault(); }, { passive: false });
+  svg.addEventListener('wheel', onWheel, { passive: false });
+  // (Ctrl-click adds to the selection; on a Mac it would also open the browser's menu.)
+  svg.addEventListener('contextmenu', (e) => { if (e.ctrlKey) e.preventDefault(); });
+  // (A tap target to the browser, so a tap on the plan near a button stays on the plan: Chrome moves a tap that's
+  // near a button onto it when nothing under the finger takes taps. Drawing still runs on pointer events.)
+  svg.addEventListener('click', () => { /* the plan takes its taps */ });
+  // With a mouse, the shape being drawn follows the pointer to the next click.
+  svg.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse' || planLookOnly()) return; // (behind the picker, nothing follows the pointer)
+    // (A drag pans the plan: the plant that followed the pointer is put away till it moves again, not left behind
+    // where the plan took it. Tom, Oct 30.)
+    if (e.buttons) { if (state.placing && hasPlaceHover()) { setPlaceHover(null); redrawHandles(); } return; }
+    if (state.placing) { setPlaceHover(screenToFeet(e.clientX, e.clientY)); redrawHandles(); return; }
+    if (!state.draw || state.draw.kind === 'measure') return;
+    setDrawHover(screenToFeet(e.clientX, e.clientY));
+    redrawHandles();
+  });
+  svg.addEventListener('pointerleave', () => {
+    if (state.draw) { setDrawHover(null); redrawHandles(); }
+    if (state.placing) { setPlaceHover(null); redrawHandles(); }
+  });
+  plan = svg;
+  return svg;
+}
+/** The app's shell around the plan on the page: the app, the plan's row, its wrap, the plan. */
+function liveShell(root: HTMLElement): { app: Element; row: Element; wrap: Element; svg: Element } | null {
+  const svg = plan;
+  const wrap = svg?.parentElement, row = wrap?.parentElement, app = row?.parentElement;
+  if (!svg || !wrap || !row || !app || app.parentElement !== root || wrap.id !== 'canvas-wrap' || !row.classList.contains('plan-row') || !app.classList.contains('app')) return null;
+  return { app, row, wrap, svg };
+}
+/** `live` given `next`'s attributes. */
+function syncAttrs(live: Element, next: Element) {
+  for (const a of [...live.attributes]) if (!next.hasAttribute(a.name)) live.removeAttribute(a.name);
+  for (const a of next.attributes) if (live.getAttribute(a.name) !== a.value) live.setAttribute(a.name, a.value);
+}
+/** `live` given `next`'s children, but `keep` (live's), left where it is, in the place of `slot` (next's). */
+function takeChildren(live: Element, next: Element, keep: Element, slot: ChildNode) {
+  const kids = [...next.childNodes], at = kids.indexOf(slot);
+  for (const c of kids.slice(0, at)) live.insertBefore(c, keep);
+  for (const c of kids.slice(at + 1)) live.appendChild(c);
+}
+/**
+ * The app as just built (`app`, its plan's row and wrap, the plan's place in it) put on the page: into the shell left
+ * there, the plan kept in it, or, the first time, as it is with the plan put in its place.
+ */
+function keepShell(root: HTMLElement, shell: ReturnType<typeof liveShell>, app: HTMLElement, row: HTMLElement, wrap: HTMLElement, slot: ChildNode) {
+  if (!shell) { wrap.replaceChild(planSvg(), slot); root.appendChild(app); return; }
+  syncAttrs(shell.app, app); syncAttrs(shell.row, row); syncAttrs(shell.wrap, wrap);
+  takeChildren(shell.wrap, wrap, shell.svg, slot);
+  takeChildren(shell.row, row, shell.wrap, wrap);
+  takeChildren(shell.app, app, shell.row, row);
+  // (Still first in root: what follows it, the open sheet, a menu, is put after it.)
+}
 export function render() {
   const root = document.getElementById('root')!;
   refreshWarnings(); // (the plan's warnings, worked out once for this drawing: src/ui/warnings-sheet.ts)
@@ -167,8 +234,14 @@ export function render() {
     ? root.querySelector<HTMLElement>('.overlay .sheet')?.scrollTop ?? 0 : 0;
   focusBeforeRender(root); // (with a keyboard: what has focus, found again after: src/ui/focus.ts)
   const updateBanner = document.getElementById('update-banner'); // (kept as it is, Updating… say: put back below)
-  // Clear root
-  while (root.firstChild) root.removeChild(root.firstChild);
+  // Clear root: all but the plan, which stays on the page, in the app's shell (keepShell, below).
+  const shell = liveShell(root);
+  for (const c of [...root.childNodes]) if (c !== shell?.app) c.remove();
+  if (shell) {
+    for (const c of [...shell.app.childNodes]) if (c !== shell.row) c.remove();
+    for (const c of [...shell.row.childNodes]) if (c !== shell.wrap) c.remove();
+    for (const c of [...shell.wrap.childNodes]) if (c !== shell.svg) c.remove();
+  }
   // (Checked on every redraw, so a selection changed and changed back by hand isn't "just placed" again.)
   const justPlaced = selectionJustPlaced();
 
@@ -279,34 +352,12 @@ export function render() {
 
   // ===== CANVAS WRAP =====
   const canvasWrap = el('div', { className: 'canvas-wrap', id: 'canvas-wrap' });
-  const svg = svgEl('svg', { id: 'canvas-svg', width: state.canvasW, height: state.canvasH });
+  const svg = planSvg();
   noteCounts(svg);
-  svg.addEventListener('pointerdown', onCanvasPointerDown);
-  // (Two fingers zoom the plan; but if the page itself is still zoomed in, they zoom the page back out: page-zoom.ts.)
-  svg.addEventListener('touchstart', e => { if (e.touches && e.touches.length === 2 && !pageZoomed()) e.preventDefault(); }, { passive: false });
-  svg.addEventListener('touchmove', e => { if (e.touches && e.touches.length === 2 && !pageZoomed()) e.preventDefault(); }, { passive: false });
-  svg.addEventListener('wheel', onWheel, { passive: false });
-  // (Ctrl-click adds to the selection; on a Mac it would also open the browser's menu.)
-  svg.addEventListener('contextmenu', (e) => { if (e.ctrlKey) e.preventDefault(); });
-  // (A tap target to the browser, so a tap on the plan near a button stays on the plan: Chrome moves a tap that's
-  // near a button onto it when nothing under the finger takes taps. Drawing still runs on pointer events.)
-  svg.addEventListener('click', () => { /* the plan takes its taps */ });
-  // With a mouse, the shape being drawn follows the pointer to the next click.
-  svg.addEventListener('pointermove', (e) => {
-    if (e.pointerType !== 'mouse' || planLookOnly()) return; // (behind the picker, nothing follows the pointer)
-    // (A drag pans the plan: the plant that followed the pointer is put away till it moves again, not left behind
-    // where the plan took it. Tom, Oct 30.)
-    if (e.buttons) { if (state.placing && hasPlaceHover()) { setPlaceHover(null); redrawHandles(); } return; }
-    if (state.placing) { setPlaceHover(screenToFeet(e.clientX, e.clientY)); redrawHandles(); return; }
-    if (!state.draw || state.draw.kind === 'measure') return;
-    setDrawHover(screenToFeet(e.clientX, e.clientY));
-    redrawHandles();
-  });
-  svg.addEventListener('pointerleave', () => {
-    if (state.draw) { setDrawHover(null); redrawHandles(); }
-    if (state.placing) { setPlaceHover(null); redrawHandles(); }
-  });
-  canvasWrap.appendChild(svg);
+  // (Where the plan goes in the wrap: the plan itself, kept on the page, is put there by keepShell.)
+  const planSlot = document.createComment('plan');
+  canvasWrap.appendChild(planSlot);
+
 
   // ===== MODE STRIP =====
   // What a mode asks for (drawing, adding doors, placing, setting a photo's scale or moving it, selecting several), on a
@@ -665,7 +716,8 @@ export function render() {
   if (pickerUp) for (const c of canvasWrap.children) if (c !== svg && c !== zoomBtns) (c as HTMLElement).inert = true;
   if (strip.childElementCount) app.appendChild(strip);
   // (On a computer, Warnings stays open beside the plan, and the plan makes room: src/ui/warnings-sheet.ts.)
-  app.appendChild(el('div', { className: 'plan-row' }, canvasWrap, renderWarningsSide()));
+  const planRow = el('div', { className: 'plan-row' }, canvasWrap, renderWarningsSide());
+  app.appendChild(planRow);
 
   // ===== BOTTOM TOOLBAR =====
   // Named by what gets added, not by shape: the three most common things, and Add for the rest.
@@ -687,7 +739,7 @@ export function render() {
   // (Through the year, the month's controls take the bar's place: src/ui/year-bar.ts.)
   app.appendChild(pickingBed() ? renderPickBedBar() : state.placing ? renderPlaceBar() : state.featurePlace ? renderFeatureBar() : drawing ? renderDrawBar() : state.month != null ? renderYearBar() : bottomBar);
 
-  root.appendChild(app);
+  keepShell(root, shell, app, planRow, canvasWrap, planSlot);
   placeTraceCard(root); // (above a selected shape's chip, now it's laid out)
 
   // ===== PANELS / MODALS / MENU =====

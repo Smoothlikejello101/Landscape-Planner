@@ -138,6 +138,16 @@ export function gridSteps(ppf: number): { minorEvery: number; majorEvery: number
 
 let lookClips = 0;
 /**
+ * A plant's picture's clip: a number for its shape, the same at every drawing (a fresh one each drawing, as until Nov 6,
+ * made every plant's group differ from the last drawing's, none of them kept: drawCanvas).
+ */
+const lookClipIds = new Map<string, number>();
+function lookClipOf(id: string): number {
+  let n = lookClipIds.get(id);
+  if (n == null) { n = ++lookClips; lookClipIds.set(id, n); }
+  return n;
+}
+/**
  * Whether what's drawn on the plan lets taps fall through to the canvas: placing plants or features, drawing, editing
  * points, the background's tools. Shapes, and the pins and names of the plants hidden under them (liftHidden): a name
  * lifted beside its pin took a tap meant to place a plant there (Nov 4, with tall plants solid: CI, e2e/my-plants.spec.ts).
@@ -163,6 +173,19 @@ function lookArt(markup: string): SVGGElement {
     lookParsed.set(markup, parsed);
   }
   return parsed.cloneNode(true) as SVGGElement;
+}
+/**
+ * A press on a part of a shape's drawing picks the shape (or its door, gate…: `feature`) as the plan has it when it's
+ * pressed, found by its id: a part is kept from one drawing to the next where it comes out the same (drawCanvas), and
+ * the plan's shape may be another copy of it by then (an undo puts back copies).
+ */
+function pressPicks(part: Element, s: Shape, feature?: string) {
+  const id = s.id;
+  part.addEventListener('pointerdown', (e) => {
+    const now = state.shapes.find((x) => x.id === id) ?? s;
+    if (feature === undefined) onShapePointerDown(e as PointerEvent, now);
+    else onFeaturePointerDown(e as PointerEvent, now, feature);
+  });
 }
 export function shapeGroup(s: Shape): SVGGElement {
   const ppf = pxPerFoot();
@@ -279,7 +302,7 @@ export function shapeGroup(s: Shape): SVGGElement {
     if (lookShown(s)) {
       const margin = Math.max(state.canvasW, state.canvasH) / 2;
       const seen = cx > -r - margin && cx < state.canvasW + r + margin && cy > -r - margin && cy < state.canvasH + r + margin;
-      const clipId = `look-clip-${++lookClips}`; // (a fresh id each drawing: any shape id is safe)
+      const clipId = `look-clip-${lookClipOf(s.id)}`; // (a number of its own: any shape id is safe)
       const outline = s.canopy
         ? svgEl('polygon', { points: s.canopy.map(([x, y]) => `${x * ppf},${y * ppf}`).join(' ') })
         : svgEl('circle', { cx: 0, cy: 0, r });
@@ -403,7 +426,7 @@ export function shapeGroup(s: Shape): SVGGElement {
     shapeEl.setAttribute('pointer-events', 'none');
   }
   const target = hitEl ?? shapeEl;
-  target.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
+  pressPicks(target, s);
   const g = svgEl('g', { 'data-shape-group': s.id, class: s.id === pulsing ? 'shape-pulse' : null }, ...(under ? [under] : []), shapeEl);
   if (hitEl) g.appendChild(hitEl);
   if (ring) g.appendChild(ring);
@@ -419,7 +442,7 @@ export function shapeGroup(s: Shape): SVGGElement {
       const hit = inert ? null : featureHitPart(s, f, toPx, ppf, hitBand(ppf));
       if (hit) {
         const h = svgEl(hit.tag, { ...hit.attrs, 'data-role': 'feature-hit', 'data-feature-of': s.id, style: `cursor:${sel || isLocked(s) ? 'grab' : 'move'};touch-action:none;`, 'pointer-events': hit.tag === 'line' ? 'stroke' : 'all' });
-        h.addEventListener('pointerdown', (e) => onFeaturePointerDown(e as PointerEvent, s, f.id));
+        pressPicks(h, s, f.id);
         fg.appendChild(h);
       }
       g.appendChild(fg);
@@ -667,7 +690,7 @@ function textGroup(s: TextShape, sel: boolean, inert: boolean, common: Attrs): S
     stroke: sel ? '#0f172a' : 'none', 'stroke-width': 1, 'stroke-dasharray': '4 3',
     style: common.style, 'pointer-events': inert ? 'none' : 'all', transform: rot,
   });
-  box.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
+  pressPicks(box, s);
   const text = svgEl('text', {
     'data-role': 'text-note', x: px, y: py, 'font-size': fs, fill: s.color, 'font-family': 'sans-serif', 'font-weight': 500,
     stroke: 'rgba(255,255,255,0.85)', 'stroke-width': Math.max(Math.min(1.5, fs * 0.3), fs * 0.12), 'paint-order': 'stroke', 'stroke-linejoin': 'round', // (thin with tiny text, far out)
@@ -1296,17 +1319,19 @@ function drawCanvas() {
   // (The view it's drawn at, the plan's top left in feet and the zoom, for the tests: e2e/helpers.ts planPoint.)
   svg.setAttribute('data-view', `${state.offsetX} ${state.offsetY} ${state.zoom}`);
   const w = state.canvasW, h = state.canvasH;
-  layer(svg, 'base').replaceChildren(svgEl('rect', { 'data-role': 'grid', x: 0, y: 0, width: w, height: h, fill: BG_COLOR }));
-  for (const name of SCENE_LAYERS) {
-    const g = layer(svg, name);
-    g.removeAttribute('transform');
-    g.replaceChildren();
-  }
-  renderBgImageInto(layer(svg, 'bg'));
-  const grid = layer(svg, 'grid');
-  grid.replaceChildren();
+  for (const name of SCENE_LAYERS) layer(svg, name).removeAttribute('transform');
+  // The plan drawn whole, apart from the page, then put on it where it changed: what comes out the same as it is on
+  // the page is kept as it is (Jason, Nov 6: a tap that selects a shape redraws only what that changes). Drawn anew
+  // each time, as until Nov 6, every element of the plan was new to the browser, styled, laid out and painted again,
+  // for a plan Jason's size most of what a tap took on a phone. (The photo and the handles as before: drawn again.)
+  const base = svgEl('g');
+  base.appendChild(svgEl('rect', { 'data-role': 'grid', x: 0, y: 0, width: w, height: h, fill: BG_COLOR }));
+  const bg = layer(svg, 'bg');
+  bg.replaceChildren();
+  renderBgImageInto(bg);
+  const grid = svgEl('g');
   renderGrid(grid);
-  const shapes = layer(svg, 'shapes');
+  const shapes = svgEl('g');
   for (const s of paintOrder(state.shapes)) shapes.appendChild(shapeGroup(s));
   placeSunHatch(shapes);
   liftPlantNames(shapes);
@@ -1316,8 +1341,79 @@ function drawCanvas() {
   liftTrunks(shapes);
   const mq = marqueeRect();
   if (mq) shapes.appendChild(mq);
-  renderHandles(layer(svg, 'handles'));
+  const whole = drawCheck() ? shapes.cloneNode(true) as Element : null;
+  keptParts = 0;
+  keepWhatsSame(layer(svg, 'base'), base);
+  keepWhatsSame(layer(svg, 'grid'), grid);
+  keepWhatsSame(layer(svg, 'shapes'), shapes);
+  if (whole) { checkDrawn(layer(svg, 'shapes'), whole); svg.setAttribute('data-parts-kept', String(keptParts)); }
+  const handles = layer(svg, 'handles');
+  handles.replaceChildren();
+  renderHandles(handles);
   drawnView = { offsetX: state.offsetX, offsetY: state.offsetY, zoom: state.zoom };
+}
+
+/** What a drawing's part is, to find it in the last drawing: a shape's group, a name or badges of a shape, a group. */
+function partKey(e: Element): string | null {
+  const a = (n: string) => e.getAttribute(n);
+  const id = a('data-shape-group');
+  if (id != null) return 's ' + id;
+  const of = a('data-name-of') ?? a('data-badges-of') ?? a('data-label-of') ?? a('data-trunk-of') ?? a('data-rim-of') ?? a('data-pin-of');
+  if (of != null) return `${e.tagName} ${a('data-role') ?? ''} ${of}`;
+  const role = a('data-role');
+  return role != null ? 'r ' + role : null;
+}
+/** The groups the plants' names, badges, hidden plants' marks and trees' trunks are lifted into, over the plants. */
+const LIFTED = new Set(['plant-names', 'area-names', 'badges-over', 'hidden-over', 'trunks']);
+/** Two elements the same, but for what's inside them: their parts are compared one by one (keepWhatsSame). */
+function sameShell(a: Element, b: Element): boolean {
+  if (a.tagName !== b.tagName || a.attributes.length !== b.attributes.length) return false;
+  for (const x of a.attributes) if (b.getAttribute(x.name) !== x.value) return false;
+  return true;
+}
+/** Parts the last drawing kept as they were (for the tests: e2e/draw-check.spec.ts, data-parts-kept on the plan). */
+let keptParts = 0;
+/**
+ * `live` (a layer on the page) made the same as `next` (the same layer, drawn apart from the page), part by part: a part
+ * that came out the same as before is left as it is on the page; a group of names or badges that changed is gone
+ * through name by name; anything else changed is put in place of what was there. The page ends up as if drawn whole.
+ */
+function keepWhatsSame(live: Element, next: Element) {
+  const was = new Map<string, Element>();
+  for (const c of live.children) { const k = partKey(c); if (k != null && !was.has(k)) was.set(k, c); }
+  const want: Element[] = [];
+  for (const n of [...next.children]) {
+    const k = partKey(n);
+    const old = k != null ? was.get(k) : undefined;
+    if (old) was.delete(k!);
+    if (old && old.isEqualNode(n)) { want.push(old); keptParts++; }
+    else if (old && LIFTED.has(old.getAttribute('data-role')!) && sameShell(old, n)) { keepWhatsSame(old, n); want.push(old); }
+    else want.push(n);
+  }
+  const kept = new Set(want);
+  for (const c of [...live.children]) if (!kept.has(c)) c.remove();
+  let at = live.firstElementChild;
+  for (const w of want) {
+    if (w === at) { at = at.nextElementSibling; continue; }
+    live.insertBefore(w, at);
+  }
+}
+/**
+ * The tests' check (localStorage lp-draw-check: on in every end-to-end test, playwright.config.ts): the plan as put on
+ * the page, part by part, the same as drawn whole. Where it isn't, said on the console and counted on the plan.
+ */
+function drawCheck(): boolean {
+  try { return localStorage.getItem('lp-draw-check') === 'on'; } catch { return false; }
+}
+function checkDrawn(live: Element, whole: Element) {
+  const a = [...live.children], b = [...whole.children];
+  const bad = a.length !== b.length ? -1 : a.findIndex((c, i) => !c.isEqualNode(b[i]));
+  if (bad === -1 && a.length === b.length) return;
+  const at = bad >= 0 ? bad : Math.min(a.length, b.length);
+  const said = `The plan as kept differs from the plan drawn whole, at part ${at} (${a[at] ? partKey(a[at]) : 'none'} / ${b[at] ? partKey(b[at]) : 'none'})`;
+  console.error(said);
+  const svg = canvasSvg();
+  svg?.setAttribute('data-draw-mismatch', String(Number(svg.getAttribute('data-draw-mismatch') ?? 0) + 1));
 }
 
 /**
@@ -1414,7 +1510,7 @@ function liftHidden(shapes: Element) {
     // it's back.)
     if (pin && !inert) {
       const pinHit = svgEl('circle', { 'data-pin-of': id, 'data-role': 'pin-hit', cx, cy, r: 12, fill: 'transparent', 'pointer-events': 'all' });
-      pinHit.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
+      pressPicks(pinHit, s);
       rims.push(pinHit);
     }
     const label = shapes.querySelector(`:scope > g[data-shape-group="${CSS.escape(id)}"] > [data-role=plant-label]`);
@@ -1425,7 +1521,7 @@ function liftHidden(shapes: Element) {
       // (Its name picks it too, as its pin does; not while taps fall through to the canvas, placing say.)
       if (!label.hasAttribute('data-tap')) {
         label.setAttribute('data-tap', '');
-        label.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
+        pressPicks(label, s);
       }
       label.setAttribute('pointer-events', inert ? 'none' : 'all');
       const by = hiddenShift.get(id);
