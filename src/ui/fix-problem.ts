@@ -94,6 +94,44 @@ export function nudgeNow(a: Shape, b: Shape | Shape[], prefer?: string): boolean
   if (n) n.dataset.about = m.id; // (gone with the plant; kept off it: src/ui/toast.ts)
   return true;
 }
+/**
+ * Nudge apart for several plants at once (Jason, Nov 5: three swapped for larger plants, and the notice's Nudge apart
+ * moved only one): each in turn clear of every plant it's close to then (those before it already moved; one cleared
+ * by them is left), as nudgeNow would move it alone. One step, one notice with its Undo, which says any that had no
+ * room and why. Whether any moved.
+ */
+export function nudgeEach(ids: string[]): boolean {
+  flushHistoryDebounce();
+  const start = new Map<string, { x: number; y: number }>();
+  const refused: string[] = [];
+  for (const id of ids) {
+    const s = state.shapes.find((x) => x.id === id);
+    if (!s) continue;
+    const list = nudgeList(s);
+    if (!list.length) continue;
+    const r = nudgeApart(s, list, shown(), plantsById, { ...crowdOptions(), prefer: s.id, all: state.shapes });
+    if (!r.ok) { if (r.why !== 'apart') refused.push(nudgeRefused(r)); continue; }
+    const m = state.shapes.find((x) => x.id === r.mover.id);
+    if (!m) continue;
+    if (!start.has(m.id)) start.set(m.id, shapeCenter(m));
+    setCenter(m, r.to);
+  }
+  const moved = [...start].flatMap(([id, p]) => {
+    const m = state.shapes.find((x) => x.id === id);
+    if (!m) return [];
+    const c = shapeCenter(m);
+    return [{ m, by: Math.hypot(c.x - p.x, c.y - p.y) }];
+  });
+  if (!moved.length) { toast(refused[0] ?? 'They’re far enough apart already.', 6000); return false; }
+  pushHistory(`nudge ${stepNamed(moved.map((x) => x.m))} apart`);
+  save();
+  render();
+  const bys = moved.map((x) => x.by), lo = Math.min(...bys), hi = Math.max(...bys);
+  const said = moved.length === 1 ? `Nudged ${nameOf(moved[0].m)} ${f1(moved[0].by)} ft.`
+    : `Nudged ${inWords(moved.length)} plants apart, ${f1(lo) === f1(hi) ? `${f1(lo)} ft` : `${f1(lo)} to ${f1(hi)} ft`} each.`;
+  undoNotice(refused.length ? `${said} ${refused.join(' ')}` : said, undefined, 'nudge-notice');
+  return true;
+}
 
 // ---------- Swap, filtered by what failed ----------
 /** What a Swap opened from a warning is filtered for, and why; too big for its spot, its smaller forms first. */
