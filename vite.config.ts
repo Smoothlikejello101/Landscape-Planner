@@ -9,7 +9,9 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 export default defineConfig({
   // Relative base so the build works under a GitHub Pages subpath.
   base: './',
-  build: { target: 'es2020', sourcemap: true },
+  // No source maps (Jason, Nov 6): published beside the app, they handed anyone the app's own source, comments and all.
+  // A stack trace from a tester's error log is read against a build of the same commit, made with --sourcemap.
+  build: { target: 'es2020', sourcemap: false },
   resolve: {
     alias: Object.fromEntries(['html2canvas', 'dompurify', 'canvg'].map((m) => [m, fileURLToPath(new URL('./src/stubs/unused.ts', import.meta.url))])),
   },
