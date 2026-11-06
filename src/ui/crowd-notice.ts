@@ -15,7 +15,7 @@ import type { Crowd } from '../crowding';
 import type { Shape } from '../types';
 import { I } from '../icons';
 import { render } from './render';
-import { nudgeList, nudgeNow } from './fix-problem';
+import { nudgeEach, nudgeList, nudgeNow } from './fix-problem';
 import { openWarningsAt } from './warnings-sheet';
 import { toast, toastAction } from './toast';
 
@@ -71,6 +71,9 @@ export function crowdLevelsOf(ids: string[]): Map<string, Map<string, Crowd['lev
  * Placed plants swapped for another: the notice, for the first now closer to another than it was (Jason, Oct 31, from
  * round 3: Dana's two yaupons swapped for 7 ft hollies sat on her boxwoods, and nothing said so; a swap too cold for the
  * garden did warn). `before`: their crowding before the swap (crowdLevelsOf). Undo takes the swap back.
+ *
+ * Several now closer (Jason, Nov 5: three swapped for larger plants, and Nudge apart moved only the one the notice
+ * named): one notice for them all, its Nudge apart moving each clear (nudgeEach), its Dismiss leaving each pair.
  */
 export function crowdNoticeAfterSwap(ids: string[], before: Map<string, Map<string, Crowd['level']>>) {
   dismissCrowdNotice();
@@ -78,13 +81,29 @@ export function crowdNoticeAfterSwap(ids: string[], before: Map<string, Map<stri
   const shapes = state.shapes.filter((x) => shownWith(x, state.viewFilter));
   const opts = { ...crowdOptions(), close: true };
   const worse = (id: string, c: Crowd) => { const was = before.get(id)?.get(c.other.id); return !was || (was === 'close' && c.level === 'crowded'); };
+  const hits: { shape: Shape; list: Crowd[]; crowded: boolean }[] = [];
   for (const id of ids) {
     const shape = state.shapes.find((x) => x.id === id);
     if (!shape) continue;
     const crowds = crowdingOf(shape, shapes, plantsById, opts).filter((c) => worse(id, c));
     if (!crowds.length) continue;
     const crowded = crowds.filter((c) => c.level === 'crowded');
-    const list = crowded.length ? crowded : crowds;
+    hits.push({ shape, list: crowded.length ? crowded : crowds, crowded: !!crowded.length });
+  }
+  if (hits.length > 1) {
+    const red = hits.some((h) => h.crowded);
+    // (Each in a line of its own words, as one alone would say it: "Holly: Too far over Boxwood (+1 more)".)
+    const each = hits.map((h) => `${nameOf(h.shape)}: ${crowdWords(h.shape, h.list[0], h.list.length - 1, h.crowded).line}.`);
+    toastAction(`${hits.length} swapped plants are now ${red ? 'crowding' : 'close to'} others`, [
+      { label: 'Nudge apart', run: () => { nudgeEach(hits.map((h) => h.shape.id)); } },
+      { label: 'Dismiss', run: () => leaveCloseAll(hits.map((h) => [h.shape.id, h.list.map((c) => c.other.id)])) },
+      { label: 'Undo', run: () => { undo(); render(); } },
+      { label: 'Settings', run: openCrowdingSettings, icon: I.settings },
+    ], 10000, TESTID, { detail: `${each.join(' ')} Nudge apart moves each clear of what it's close to, where there's room.`, tone: red ? 'red' : 'amber' });
+    return;
+  }
+  for (const { shape, list, crowded: isCrowded } of hits) {
+    const crowded = isCrowded ? list : [];
     const { line, detail } = crowdWords(shape, list[0], list.length - 1, !!crowded.length);
     toastAction(line, [
       { label: 'Nudge apart', run: () => { nudgeNow(shape, nudgeList(shape, list[0].other), shape.id); } },
@@ -131,6 +150,20 @@ export function leaveClose(id: string, others: string[]) {
   const copy = state.placing?.placed.find((x) => x.id === id)?.snap.shapes.find((x) => x.id === id);
   if (copy?.type === 'circle') copy.crowdOk = [...s.crowdOk];
   else pushHistory();
+  save();
+  render();
+}
+/** Dismiss for several plants at once (swapped together): each left close to those named, one step. */
+export function leaveCloseAll(pairs: [string, string[]][]) {
+  let changed = false;
+  for (const [id, others] of pairs) {
+    const s = state.shapes.find((x) => x.id === id);
+    if (!s || s.type !== 'circle') continue;
+    s.crowdOk = [...new Set([...(s.crowdOk ?? []), ...others])];
+    changed = true;
+  }
+  if (!changed) return;
+  pushHistory();
   save();
   render();
 }
