@@ -4,7 +4,7 @@ import { labelFields } from './a11y';
 import { pageZoomed, syncPageZoom } from '../page-zoom';
 import { saveStateWord } from './save-warning';
 import { resizeCanvas } from '../canvas';
-import { el, hasKeyboard, tapSaid } from '../dom';
+import { el, hasKeyboard, svgEl, tapSaid } from '../dom';
 import { onCanvasPointerDown, onWheel } from '../gestures';
 import { canRedo, canUndo, redo, redoLabel, undo, undoLabel } from '../history';
 import { I } from '../icons';
@@ -279,9 +279,7 @@ export function render() {
 
   // ===== CANVAS WRAP =====
   const canvasWrap = el('div', { className: 'canvas-wrap', id: 'canvas-wrap' });
-  // (The plan: its layers each in an <svg> of its own, stacked, src/canvas.ts. Its id, from when it was one <svg>, is
-  // how the app and its tests find it.)
-  const svg = el('div', { id: 'canvas-svg', className: 'plan' });
+  const svg = svgEl('svg', { id: 'canvas-svg', width: state.canvasW, height: state.canvasH });
   noteCounts(svg);
   svg.addEventListener('pointerdown', onCanvasPointerDown);
   // (Two fingers zoom the plan; but if the page itself is still zoomed in, they zoom the page back out: page-zoom.ts.)

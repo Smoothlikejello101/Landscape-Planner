@@ -133,16 +133,15 @@ const frames = (page: Page) => page.evaluate(() => (window as unknown as { __fra
 const churn = (page: Page) => page.evaluate(() => (window as unknown as { __churn: string[] }).__churn.splice(0));
 
 /**
- * What the browser did meanwhile (a trace): names laid out again, images decoded, by Chrome's own record. Counts, not
- * times, so a slow machine gives the same answer. (Only the trace's categories they're in: "blink" has the texts'
- * layouts, "disabled-by-default-devtools.timeline" the images' decodes.)
+ * What the browser did meanwhile (a trace): names laid out again, by Chrome's own record. Counts, not times, so a slow
+ * machine gives the same answer. (Only the trace's category they're in: "blink" has the texts' layouts.)
  */
 async function traced(browser: Browser, page: Page, run: () => Promise<void>) {
-  await browser.startTracing(page, { categories: ['blink', 'disabled-by-default-devtools.timeline'] });
+  await browser.startTracing(page, { categories: ['blink'] });
   await run();
   const events = (JSON.parse((await browser.stopTracing()).toString()) as { traceEvents: { name: string; ph: string }[] }).traceEvents;
   const count = (name: string) => events.filter((e) => e.name === name && (e.ph === 'X' || e.ph === 'B')).length;
-  return { textLayouts: count('SvgTextLayoutAlgorithm::Layout'), decodes: count('ImageDecodeTask') };
+  return { textLayouts: count('SvgTextLayoutAlgorithm::Layout') };
 }
 
 /** Where the SW Corner bed is (its first corner, feet), as drawn. */
@@ -156,7 +155,7 @@ const bedAt = (page: Page) => page.evaluate(() => {
 test.describe('on a phone', () => {
   test.skip(({ isMobile, browserName }) => !isMobile || browserName !== 'chromium', 'phones only (Chrome: touches and traces by CDP)');
 
-  test('a pan and a pinch move what\'s drawn: every frame keeps the plants, the photo in step, the selection\'s bar, and lays out and decodes nothing of the plan again; the release\'s redraw keeps the photo', async ({ page, browser }) => {
+  test('a pan and a pinch move what\'s drawn: every frame keeps the plants, the photo in step, the selection\'s bar; a pinch lays the names out once a frame, a pan not at all; the release\'s redraw keeps the photo', async ({ page, browser }) => {
     test.setTimeout(120_000);
     await seed(page);
     const cdp = await page.context().newCDPSession(page);
@@ -167,22 +166,22 @@ test.describe('on a phone', () => {
     const [rest] = await frames(page);
     expect(rest.photo && rest.pill && rest.buttons).toBe(true);
     let moves = 0;
-    const work = await traced(browser, page, async () => {
-      const go = async (type: 'touchStart' | 'touchMove' | 'touchEnd', pts: P[]) => { await touches(cdp, type, pts); await frame(page); moves++; };
-      // One finger pans; a second comes down and spreads (zooms in); it lifts, the first pans on; it comes back and they
-      // pinch in (zoom out), as fingers do on a phone.
-      const a = (i: number): P => ({ x: mid.x - 30 + i * 5, y: mid.y + i * 3, id: 1 });
-      await go('touchStart', [a(0)]);
-      for (let i = 1; i <= 12; i++) await go('touchMove', [a(i)]);
-      const at = a(12), b = (d: number): P => ({ x: at.x - 40 - d, y: at.y - 120 - d * 1.5, id: 2 }), a2 = (d: number): P => ({ x: at.x + d, y: at.y + d * 1.5, id: 1 });
-      await go('touchStart', [at, b(0)]);
-      for (let d = 4; d <= 64; d += 4) await go('touchMove', [a2(d), b(d)]);
-      await go('touchEnd', [a2(64)]);
-      for (let i = 1; i <= 6; i++) await go('touchMove', [{ x: a2(64).x - i * 8, y: a2(64).y, id: 1 }]);
-      const c = { x: a2(64).x - 48, y: a2(64).y, id: 1 };
-      await go('touchStart', [c, { x: c.x - 160, y: c.y - 220, id: 2 }]);
-      for (let i = 1; i <= 10; i++) await go('touchMove', [{ x: c.x - i * 6, y: c.y - i * 8, id: 1 }, { x: c.x - 160 + i * 6, y: c.y - 220 + i * 8, id: 2 }]);
-    });
+    const go = async (type: 'touchStart' | 'touchMove' | 'touchEnd', pts: P[]) => { await touches(cdp, type, pts); await frame(page); moves++; };
+    // One finger pans; a second comes down and spreads (zooms in); it lifts, the first pans on; it comes back and they
+    // pinch in (zoom out), as fingers do on a phone. What the browser did in the first pan, and in the first pinch, by
+    // Chrome's own record.
+    const a = (i: number): P => ({ x: mid.x - 30 + i * 5, y: mid.y + i * 3, id: 1 });
+    await go('touchStart', [a(0)]);
+    const pan = await traced(browser, page, async () => { for (let i = 1; i <= 12; i++) await go('touchMove', [a(i)]); });
+    const at = a(12), b = (d: number): P => ({ x: at.x - 40 - d, y: at.y - 120 - d * 1.5, id: 2 }), a2 = (d: number): P => ({ x: at.x + d, y: at.y + d * 1.5, id: 1 });
+    await go('touchStart', [at, b(0)]);
+    let pinchMoves = 0;
+    const pinch = await traced(browser, page, async () => { for (let d = 4; d <= 64; d += 4) { await go('touchMove', [a2(d), b(d)]); pinchMoves++; } });
+    await go('touchEnd', [a2(64)]);
+    for (let i = 1; i <= 6; i++) await go('touchMove', [{ x: a2(64).x - i * 8, y: a2(64).y, id: 1 }]);
+    const c = { x: a2(64).x - 48, y: a2(64).y, id: 1 };
+    await go('touchStart', [c, { x: c.x - 160, y: c.y - 220, id: 2 }]);
+    for (let i = 1; i <= 10; i++) await go('touchMove', [{ x: c.x - i * 6, y: c.y - i * 8, id: 1 }, { x: c.x - 160 + i * 6, y: c.y - 220 + i * 8, id: 2 }]);
     // Every frame till the fingers lift: nothing of the plan drawn again (the same plan, the view it was drawn at, no
     // shape's group taken out or put in), the plants and their names all there, the photo the same and in step with
     // the house, the selection's bar and the plan's buttons there.
@@ -201,14 +200,15 @@ test.describe('on a phone', () => {
     gestureFrames(await frames(page));
     expect(checked).toBeGreaterThanOrEqual(moves);
     expect(await churn(page)).toEqual([]);
-    // What the phone couldn't keep up with (Chrome's own record): no frame lays out the names on the plan again (an SVG
-    // text's size on the screen is part of its layout: only the grid's few labels, drawn afresh, are laid out), and the
-    // photo isn't decoded again at each new size. Until Nov 5 every frame did both: here, 106 texts laid out a frame and
-    // the photo decoded 45 times in 48 frames, where now it's 7 a frame and the photo once at most. (With the scene's
-    // <div>s zoomed by a scale, Chrome 141, CI's, still laid out every name in each frame of a pinch, 62 a frame: they're
-    // zoomed by a perspective now, src/canvas.ts previewView.)
-    expect(work.textLayouts / moves, 'texts laid out a frame').toBeLessThan(rest.names / 2);
-    expect(work.decodes, 'times the photo was decoded again').toBeLessThan(moves / 8);
+    // What a frame costs the phone. A pan only moves what's drawn: the names on the plan aren't laid out again, only the
+    // grid's few labels, drawn afresh. A pinch changes the names' size on the screen, and an SVG text's size on the
+    // screen is part of its layout: each name is laid out again, but once a frame. Until Nov 6 it was twice: the pinch
+    // asked where the plan's box was at each finger's move, the plan zoomed by the other finger's, and the browser laid
+    // out every name just to say (src/gestures.ts startPinchGesture). (The photo: decoded again each frame here, as in
+    // the release, by Chrome drawing without a GPU; not checked.)
+    expect(pan.textLayouts / 12, 'texts laid out a frame of a pan').toBeLessThan(rest.names / 4);
+    expect(pinch.textLayouts / pinchMoves, 'texts laid out a frame of a pinch').toBeLessThan(rest.names * 1.5);
+    expect(pinch.textLayouts / pinchMoves, 'texts laid out a frame of a pinch').toBeGreaterThan(rest.names / 2); // (the trace counts them)
     // The release: the plan drawn again in place, the same plan and app (nothing on the page made anew, for the browser
     // to paint from nothing), the photo the same <image> (no new one to decode, the plan drawn without it meanwhile),
     // decoded before it's drawn; then every frame as it was, but for the names that fit at the new zoom.

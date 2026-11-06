@@ -77,11 +77,16 @@ function startPinchGesture() {
   if (g?.type === 'bg-drag' && g.moved && state.bgImage) { state.bgImage.cx = g.startCenter.x; state.bgImage.cy = g.startCenter.y; redrawBackground(); }
   if (g?.type === 'bg-rot' && state.bgImage) { state.bgImage.rotation = g.startRotation; redrawBackground(); }
   forgetLastTap(); // (the plan moves: the same spot on screen will be another place)
+  // Where the fingers' midpoint is on the plan's box, measured once, now: measured at each move, the plan having been
+  // zoomed by the move before (the other finger's, in the same frame), the browser laid out every name on the plan
+  // again just to say where the box is, then again for the frame, twice the work each frame of a pinch (the audit of
+  // Nov 6). The box doesn't move while the fingers are down.
+  const rect = canvasRect();
   gesture.current = {
     type: 'pinch',
     startDist: info.dist,
     startZoom: state.zoom,
-    centerScreen: { x: info.cx, y: info.cy },
+    centerOnPlan: { x: info.cx - rect.left, y: info.cy - rect.top },
     centerFeetAtStart: screenToFeet(info.cx, info.cy)
   };
   state.marquee = null;
@@ -226,9 +231,8 @@ export function onCanvasPointerMove(e: PointerEvent) {
       if (!info) return; // a finger lifted; pointerup handles it
       const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, g.startZoom * (info.dist / g.startDist)));
       const newPxPerFoot = PX_PER_FOOT_BASE * newZoom;
-      const rect = canvasRect();
-      state.offsetX = g.centerFeetAtStart.x - (g.centerScreen.x - rect.left) / newPxPerFoot;
-      state.offsetY = g.centerFeetAtStart.y - (g.centerScreen.y - rect.top) / newPxPerFoot;
+      state.offsetX = g.centerFeetAtStart.x - g.centerOnPlan.x / newPxPerFoot;
+      state.offsetY = g.centerFeetAtStart.y - g.centerOnPlan.y / newPxPerFoot;
       state.zoom = newZoom;
       e.preventDefault();
       previewView();
