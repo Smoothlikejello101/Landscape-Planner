@@ -231,7 +231,8 @@ export function renderPropsPanelSingle(s: Shape) {
     ta.addEventListener('input', () => updateSelectedSilent({ label: ta.value }));
     body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Text'), ta));
   } else {
-    const labelInput = el('input', { type: 'text', value: s.label || '', placeholder: s.role === 'plant' ? "e.g. Hydrangea 'Limelight'" : s.role === 'bed' ? 'e.g. Front bed' : s.role === 'path' ? 'e.g. Stepping-stone path' : 'Name it' });
+    // (A label is a name, a plant's most often: spell checking off, Jason, Nov 5, as in the picker's search.)
+    const labelInput = el('input', { type: 'text', spellcheck: 'false', 'data-testid': 'label-input', value: s.label || '', placeholder: s.role === 'plant' ? "e.g. Hydrangea 'Limelight'" : s.role === 'bed' ? 'e.g. Front bed' : s.role === 'path' ? 'e.g. Stepping-stone path' : 'Name it' });
     labelInput.addEventListener('input', e => updateSelectedSilent({ label: (e.target as HTMLInputElement).value }));
     body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Label'), labelInput));
   }
