@@ -150,9 +150,10 @@ test('a sun area over a bed is the last a tap picks: the plant, then the bed, th
   expect((await sun.boundingBox())!.x).toBeCloseTo(sunBefore.x, 0);
 });
 
-test('a hidden plant\'s pin picks that plant, even inside the circle of the one selected; its own pin goes on down the stack (Jason, Nov 6)', async ({ page, isMobile }) => {
-  // Two lobelias under a milkweed, the second's pin inside the first's circle. Picked by its pin, the first; then the
-  // second's pin, pressed: the second, where it picked the bed under the first.
+/**
+ * Two lobelias under a milkweed in a bed, the second's pin inside the first's circle, and the first's inside the second's.
+ */
+async function lobelias(page: Page) {
   const base = { opacity: 0.65, locked: false, rotation: 0, color: '#16a34a', type: 'circle', role: 'plant', status: 'planned' };
   const shapes = [
     { ...base, type: 'rect', role: 'bed', kind: 'bed', id: 'bed', x: -12, y: -10, width: 24, height: 20, color: '#92400e', opacity: 0.3, label: 'SW Corner' },
@@ -170,6 +171,11 @@ test('a hidden plant\'s pin picks that plant, even inside the circle of the one 
   await page.goto('./');
   await expect(page.locator('#canvas-svg [data-pin-of=lob1]')).toHaveCount(1);
   await expect(page.locator('#canvas-svg [data-pin-of=lob2]')).toHaveCount(1);
+}
+
+test('a hidden plant\'s pin picks that plant, even inside the circle of the one selected; its own pin goes on down the stack (Jason, Nov 6)', async ({ page, isMobile }) => {
+  // Picked by its pin, the first; then the second's pin, pressed: the second, where it picked the bed under the first.
+  await lobelias(page);
   const ring = (id: string) => page.locator(`#canvas-svg [data-rim-of="${id}"]`);
   const press = async (id: string) => {
     await page.waitForTimeout(450); // (not a double tap)
@@ -187,4 +193,30 @@ test('a hidden plant\'s pin picks that plant, even inside the circle of the one 
   await press('lob2');
   await expect(ring('lob2')).toHaveAttribute('data-mark', 'selected');
   await expect(page.locator('.overlay .sheet')).toHaveCount(0); // (never taken for a double tap: no pane opened)
+});
+
+test('taps again on one spot, a plant\'s pin, go on down the stack to the bed and round (Jason, Nov 6, his second recording)', async ({ page, isMobile }) => {
+  // (They went lobelia, the one under it, lobelia, the one under it…: each tap on the pin was taken as a press on a hidden
+  // plant's pin, and picked it again.)
+  await lobelias(page);
+  const b = (await page.locator('#canvas-svg [data-pin-of=lob1]').boundingBox())!;
+  const spot = await planFeet(page, { x: b.x + b.width / 2, y: b.y + b.height / 2 });
+  /** The plant selected (its id), or the bed's name. */
+  const picked = () => page.evaluate(() => document.querySelector('#canvas-svg [data-rim-of][data-mark=selected]')?.getAttribute('data-rim-of')
+    ?? document.querySelector('.sel-pill .name')?.textContent ?? null);
+  const picks: (string | null)[] = [];
+  for (let i = 0; i < 5; i++) {
+    await page.waitForTimeout(450); // (not a double tap)
+    const before = await picked();
+    const p = await planPoint(page, spot.x, spot.y);
+    if (isMobile) await page.touchscreen.tap(p.x, p.y); else await page.mouse.click(p.x, p.y);
+    await expect.poll(picked).not.toBe(before);
+    picks.push(await picked());
+  }
+  // The pin's plant, the other two plants there, the bed, and round to the pin's plant again.
+  expect(picks[0]).toBe('lob1');
+  expect(new Set(picks.slice(1, 3))).toEqual(new Set(['lob2', 'mw']));
+  expect(picks[3]).toBe('SW Corner');
+  expect(picks[4]).toBe('lob1');
+  await expect(page.locator('.overlay .sheet')).toHaveCount(0); // (never taken for a double tap)
 });
