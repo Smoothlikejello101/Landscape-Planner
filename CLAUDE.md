@@ -20,6 +20,13 @@
   pinch, the wheel, a zoom button): then the plan alone is drawn again, in
   place (`viewMoved`), as a full render there blanked the screen for a few
   frames on Android (Jason, Nov 5).
+- Phones (Jason, Nov 6): every feature has to run well on a cheap, older phone.
+  Don't add work per frame, per keystroke or per tap that grows with the plan
+  or the catalog when it can be done once and kept. The plan's `<svg>` stays
+  on the page across `render()`, and `drawCanvas` keeps what came out the same
+  (`keepWhatsSame`); e2e/draw-check.spec.ts and the `lp-draw-check` check in
+  every e2e test hold it to the plan drawn whole. Shape listeners find their
+  shape by id (`pressPicks`), as a kept element can outlive its shape object.
 - Storage changes need a migration path, a test in tests/storage.test.ts,
   and a pull request of their own.
 - Service worker updates are user-confirmed (src/pwa.ts); don't add
