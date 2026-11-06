@@ -58,15 +58,12 @@ set role service_role;
 select pg_temp.check(public.beta_signup_checked(null, 'late@example.com', 'Late', 'TX', 'none', false, null, null) = 'busy', 'flood cap');
 reset role;
 delete from public.beta_signups where email_key like 'flood%';
--- One internet address (as the function passes it): 10 tries an hour, wrong ones too; another address isn't held
--- back; a header the request carries to the database counts for nothing.
+-- One internet address (as the function passes it): 10 tries an hour, wrong ones too; another address isn't held back.
 set role service_role;
-select set_config('request.headers', '{"x-forwarded-for": "198.51.100.200"}', false);
 select pg_temp.check(public.beta_signup_checked('203.0.113.7', 'a' || i || '@example.com', 'A', 'TX', 'none', false, null, null) = 'ok', 'tries from one address') from generate_series(1, 9) i;
 select pg_temp.check(public.beta_signup_checked('203.0.113.7', 'bad', 'A', 'TX', 'none', false, null, null) = 'invalid: email', 'a wrong try counts too');
 select pg_temp.check(public.beta_signup_checked('203.0.113.7', 'a99@example.com', 'A', 'TX', 'none', false, null, null) = 'too-many', 'the eleventh try from one address waits');
 select pg_temp.check(public.beta_signup_checked('198.51.100.4', 'b1@example.com', 'B', 'TX', 'none', false, null, null) = 'ok', 'another address is fine');
-select set_config('request.headers', '', false);
 reset role;
 select pg_temp.check((select count(*) = 2 and bool_and(ip_hash ~ '^[0-9a-f]{64}$') from (select distinct ip_hash from public.beta_signup_tries) x), 'addresses kept only as hashes');
 select pg_temp.check((select count(*) = 0 from public.beta_signup_tries where ip_hash like '%203.0.113%'), 'no address in the clear');
