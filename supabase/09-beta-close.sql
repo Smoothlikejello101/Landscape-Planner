@@ -1,0 +1,11 @@
+-- FullGrown: beta sign-ups only through the form's check that a person is filling it in (Jason, Nov 5).
+--
+-- Paste LAST: after 08-beta-check.sql, after the server function (supabase/functions/beta-signup) is deployed and
+-- tried, and after the website's pull request is merged, so the form on fullgrown.garden/beta goes through the
+-- function. Pasted before then, the live form stops working. Supabase → SQL Editor → New query → paste → Run.
+-- Safe to run again. Run it again after running 06-beta.sql again, which gives the old way in back.
+--
+-- The form's old way in, beta_signup, called straight from the web page with the public key: nobody may now, only
+-- beta_signup_checked through the server function. (To undo, the form back on the old way in:
+--   grant execute on function public.beta_signup(text, text, text, text, boolean, text, text) to anon, authenticated;)
+revoke all on function public.beta_signup(text, text, text, text, boolean, text, text) from public, anon, authenticated;

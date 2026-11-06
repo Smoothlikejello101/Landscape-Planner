@@ -24,5 +24,12 @@ begin
     raise exception 'FAILED: the API can make codes';
   end if;
   if has_function_privilege('anon', 'public.redeem_beta_code(text)', 'execute') then raise exception 'FAILED: anon can use a code'; end if;
+  -- (The form only through its server function, which checks with Cloudflare first: 08-beta-check.sql, 09-beta-close.sql.)
+  foreach r in array array['anon', 'authenticated'] loop
+    if has_function_privilege(r, 'public.beta_signup(text, text, text, text, boolean, text, text)', 'execute')
+      or has_function_privilege(r, 'public.beta_signup_checked(text, text, text, text, text, boolean, text, text)', 'execute') then
+      raise exception 'FAILED: % can sign up without the check', r;
+    end if;
+  end loop;
 end $$;
 select 'wide-grant checks passed' as result;
