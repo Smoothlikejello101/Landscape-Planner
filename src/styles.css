@@ -63,6 +63,9 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .plan > .plan-move, .plan > .plan-veil { position: absolute; left: -25%; top: -25%; width: 150%; height: 150%; overflow: hidden;
   pointer-events: none; will-change: transform; transform-origin: 16.6667% 16.6667%; }
 .plan > .plan-move > svg, .plan > .plan-veil > svg { position: absolute; left: 16.6667%; top: 16.6667%; }
+/* The whole plan, small and plain, under the layers: what a pan or a pinch brings in past their reach shows at once,
+   soft (src/canvas.ts drawBackdrop). Placed and sized as it's drawn; moved with them. */
+.plan > .plan-backdrop { position: absolute; pointer-events: none; will-change: transform; }
 /* (The veil: the shapes as a touch's pan or pinch left them, over the plan drawn anew a moment, as painted, taking no
    taps: src/canvas.ts redrawCanvasVeiled.) */
 .plan-veil g[data-layer] { pointer-events: none; }

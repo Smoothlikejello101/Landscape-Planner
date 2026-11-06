@@ -52,8 +52,11 @@ function yard(): object[] {
   return shapes;
 }
 /** His plan, at 100%, the SW Corner bed selected; with a photo 2000 × 1600 px, as busy as one taken from above. */
-async function seed(page: Page) {
+async function seed(page: Page, holdMs = 600_000) {
   const shapes = yard();
+  // (A pan or a pinch held still fills in, src/gestures.ts heldStill: never, here, unless a test asks, so that a slow
+  // machine's pause mid-gesture doesn't count as one.)
+  await page.addInitScript((ms) => localStorage.setItem('lp-hold-fill-ms', String(ms)), holdMs);
   await page.addInitScript((s) => {
     if (sessionStorage.getItem('seeded')) return;
     sessionStorage.setItem('seeded', '1');
@@ -264,6 +267,75 @@ test.describe('on a phone', () => {
     expect(made, 'the plan, the app or the selection\'s bar made anew at the release').toEqual([]);
     await expect(page.locator('#canvas-svg image')).toHaveAttribute('decoding', 'sync');
     expect(Number(await page.locator('#canvas-svg').getAttribute('data-zoom'))).not.toBe(100);
+  });
+
+  test('the whole plan, small and plain, under the layers: a pan shows at once what it brings in past their reach (Jason, Nov 5)', async ({ page }) => {
+    await seed(page);
+    const cdp = await page.context().newCDPSession(page);
+    // Drawn: over every shape and the photo, at most 2048 px across, with a hole where the layers are drawn.
+    const at = (sel: string) => page.evaluate((q) => {
+      const c = document.querySelector<HTMLCanvasElement>('#canvas-svg > canvas.plan-backdrop')!;
+      const r = c.getBoundingClientRect(), t = document.querySelector(q)!.getBoundingClientRect();
+      const ctx = c.getContext('2d')!;
+      const px = (x: number, y: number) => ctx.getImageData(Math.floor(((x - r.left) / r.width) * c.width), Math.floor(((y - r.top) / r.height) * c.height), 1, 1).data[3];
+      return { size: [c.width, c.height], covers: r.left <= t.left && r.top <= t.top && r.right >= t.right && r.bottom >= t.bottom, alpha: px(t.left + t.width / 2, t.top + t.height / 2), hidden: c.hidden };
+    }, sel);
+    const far = await at('[data-shape-id=p70]'); // (a plant of the side bed, past the layers' reach)
+    expect(far.hidden).toBe(false);
+    expect(Math.max(...far.size)).toBeLessThanOrEqual(2048);
+    expect(far.covers).toBe(true);
+    expect(far.alpha, 'a plant past the layers\' reach, on the backdrop').toBeGreaterThan(0);
+    expect((await at('[data-shape-id=house]')).covers).toBe(true);
+    const near = await at('[data-shape-id=p20]'); // (one in view: under the layers, the hole)
+    expect(near.alpha, 'nothing on the backdrop under the layers').toBe(0);
+    // A pan: the backdrop moves with the layers, frame by frame.
+    const box = (await page.locator('#canvas-svg').boundingBox())!;
+    const start = { x: box.x + box.width * 0.8, y: box.y + box.height / 2, id: 1 };
+    await touches(cdp, 'touchStart', [start]);
+    for (let i = 1; i <= 8; i++) {
+      await touches(cdp, 'touchMove', [{ ...start, x: start.x - i * 40 }]);
+      await frame(page);
+      const [mover, backdrop] = await page.evaluate(() => [
+        document.querySelector<HTMLElement>('#canvas-svg > .plan-move')!.style.transform,
+        document.querySelector<HTMLElement>('#canvas-svg > .plan-backdrop')!.style.transform]);
+      expect(backdrop, `move ${i}: the backdrop with the layers`).toBe(mover);
+      expect(mover).not.toBe('');
+    }
+    await touches(cdp, 'touchEnd', []);
+    await expect.poll(() => page.evaluate(() => document.querySelector<HTMLElement>('#canvas-svg > .plan-backdrop')!.style.transform)).toBe('');
+  });
+
+  test('a pan or a pinch held still fills in where it is, the fingers still down; the shapes as they were stay over it, moving on with it (Jason, Nov 5)', async ({ page }) => {
+    await seed(page, 200);
+    const cdp = await page.context().newCDPSession(page);
+    const view = () => page.locator('#canvas-svg').getAttribute('data-view');
+    const before = await view();
+    const box = (await page.locator('#canvas-svg').boundingBox())!;
+    const start = { x: box.x + box.width * 0.8, y: box.y + box.height / 2, id: 1 };
+    await touches(cdp, 'touchStart', [start]);
+    for (let i = 1; i <= 6; i++) { await touches(cdp, 'touchMove', [{ ...start, x: start.x - i * 40 }]); await frame(page); }
+    expect(await view(), 'moving: not drawn again').toBe(before);
+    // (Whether a veil goes up: it's up a moment only, 150 ms.)
+    await page.evaluate(() => {
+      const w = window as unknown as { __veiled: number };
+      w.__veiled = 0;
+      new MutationObserver((list) => { if (list.some((m) => (m.target as Element).classList?.contains('plan-veil'))) w.__veiled++; })
+        .observe(document.getElementById('canvas-svg')!, { attributes: true, subtree: true, attributeFilter: ['class'] });
+    });
+    // Held: drawn again where it is, the finger still down, a veil over the new drawing.
+    await expect.poll(view).not.toBe(before);
+    const held = await view();
+    expect(await page.evaluate(() => (window as unknown as { __veiled: number }).__veiled), 'a veil over the drawing').toBe(1);
+    // It moves on from there: the veil with it, from the view it was drawn at; nothing drawn again while it moves.
+    await touches(cdp, 'touchMove', [{ ...start, x: start.x - 280 }]);
+    await frame(page);
+    const moved = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>('#canvas-svg > .plan-move, #canvas-svg > .plan-veil')].map((m) => m.style.transform !== ''));
+    if (moved.length === 3) expect(moved).toEqual([true, true, true]); // (the veil, if still up, moved on too)
+    else expect(moved).toEqual([true, true]);
+    expect(await view()).toBe(held);
+    await touches(cdp, 'touchEnd', []);
+    await expect.poll(view).not.toBe(held);
+    await expect(page.locator('#canvas-svg > .plan-veil')).toHaveCount(0);
   });
 
   test('a pinch begun with a finger on the selected bed zooms the plan and leaves the bed, and its plants, where they were', async ({ page }) => {

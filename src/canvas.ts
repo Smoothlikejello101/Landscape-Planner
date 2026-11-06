@@ -1,7 +1,7 @@
-import { renderBgHandles, renderBgImageInto } from './background';
+import { bgSizeFt, imagePxToWorld, renderBgHandles, renderBgImageInto } from './background';
 import { AXIS_LABEL, BG_COLOR, GRID_MAJOR, GRID_MINOR, PX_PER_FOOT_BASE } from './constants';
 import { el, svgEl, type Attrs } from './dom';
-import { alongLabel, boxLabelAngle, boxSize, shapeBBox, shapeCenter, displayLabel, LINE_HEIGHT, pathLabelPoint, pxPerFoot, textLines, textSize, trianglePoints, unionBounds, worldPoints } from './geometry';
+import { alongLabel, boxLabelAngle, boxSize, pointsBounds, shapeBBox, shapeCenter, displayLabel, LINE_HEIGHT, pathLabelPoint, pxPerFoot, textLines, textSize, trianglePoints, unionBounds, worldPoints } from './geometry';
 import { renderPathOverlay } from './draw';
 import { fullRingRadius } from './my-plants';
 import { bandOf, crowdLevels, type CrowdLevel } from './crowding';
@@ -84,9 +84,10 @@ function layer(plan: HTMLElement, name: Layer): SVGGElement {
 const movers = (plan: HTMLElement) => plan.querySelectorAll<HTMLElement>(':scope > .plan-move');
 /** Whether the plan's layers are there, each in its <svg>, as ensureLayers makes them. */
 function layersReady(plan: HTMLElement): boolean {
-  // (The veil, the shapes as they were for a moment after a touch moved the view, isn't one of them: see redrawCanvasVeiled.)
-  const layers = plan.querySelectorAll<SVGGElement>(':scope > :not(.plan-veil) g[data-layer]');
-  const sheets = plan.childElementCount - plan.querySelectorAll(':scope > .plan-veil').length;
+  // (The veil, the shapes as they were for a moment after a touch moved the view, isn't one of them: see
+  // redrawCanvasVeiled; nor the backdrop, the whole plan drawn small under them: drawBackdrop.)
+  const layers = plan.querySelectorAll<SVGGElement>(':scope > :not(.plan-veil):not(.plan-backdrop) g[data-layer]');
+  const sheets = plan.childElementCount - plan.querySelectorAll(':scope > .plan-veil, :scope > .plan-backdrop').length;
   return sheets === SHEETS.length && layers.length === LAYERS.length && LAYERS.every((name, i) => layers[i].dataset.layer === name);
 }
 function ensureLayers(plan: HTMLElement) {
@@ -1330,6 +1331,8 @@ export function redrawCanvasVeiled() {
   for (const e of sheet.querySelectorAll('[data-shape-id], [data-shape-group], [data-role]')) {
     e.removeAttribute('data-shape-id'); e.removeAttribute('data-shape-group'); e.removeAttribute('data-role');
   }
+  // (The view it was drawn at: while it's up, a pan or a pinch moves it on as it moves the new sheet, from there.)
+  sheet.dataset.view = JSON.stringify(drawnView);
   keepingVeil = true;
   try { redrawCanvas(); } finally { keepingVeil = false; }
   veilTimer = setTimeout(dropVeil, VEIL_MS);
@@ -1366,10 +1369,142 @@ function drawCanvas() {
   if (mq) shapes.appendChild(mq);
   renderHandles(layer(plan, 'handles'));
   drawnView = { offsetX: state.offsetX, offsetY: state.offsetY, zoom: state.zoom };
+  drawBackdrop(plan);
 }
+
+// ---------- The backdrop: the whole plan, small and plain, under what's drawn ----------
+/**
+ * Jason, Nov 5, once fast pans and pinches stopped flashing (each layer of the plan holding only a quarter of it out on
+ * each side, styles.css): "I don't love the blank canvas at the edges when I move around." Under the plan's layers, a
+ * picture of the whole plan, drawn plainly into a <canvas>: the photo as it's shown (off, faded or not), each shape in
+ * its colors, the plants in their leaves' color with a dot of their flowers', no names, nothing selected. At most
+ * BACKDROP_PX across whatever the zoom, so the phone never holds more of it than that (soft when zoomed in: it's what
+ * a pan or a pinch brings in past the layers' edge, sharp once the fingers lift). A hole where the layers are drawn,
+ * so it never shows through them. Drawn again with every drawing of the plan, at its view; moved by a pan or a pinch
+ * as the layers are (previewView).
+ */
+const BACKDROP_PX = 2048;
+/** How far the plan's layers reach past each edge, as a share of its width and height (styles.css: .plan-move). */
+const REACH = 0.25;
+function backdropOf(plan: HTMLElement): HTMLCanvasElement {
+  let c = plan.querySelector<HTMLCanvasElement>(':scope > canvas.plan-backdrop');
+  if (!c) {
+    c = el('canvas', { className: 'plan-backdrop', 'aria-hidden': 'true' });
+    plan.firstElementChild?.after(c); // (over the plan's ground, under the photo, the grid and the shapes)
+  }
+  return c;
+}
+/** The photo's own image, for the backdrop (the same file the <image> shows: decoded once by the browser). */
+let backdropPhoto: HTMLImageElement | null = null;
+function backdropPhotoFor(url: string): HTMLImageElement | null {
+  if (backdropPhoto?.src !== url) {
+    backdropPhoto = new Image();
+    backdropPhoto.decoding = 'async';
+    backdropPhoto.addEventListener('load', () => {
+      // (Loaded after the backdrop was drawn without it: drawn again, unless a pan or a pinch is moving it now.)
+      const plan = planEl();
+      if (plan && !viewPreviewed()) drawBackdrop(plan);
+    }, { once: true });
+    backdropPhoto.src = url;
+  }
+  return backdropPhoto.complete && backdropPhoto.naturalWidth ? backdropPhoto : null;
+}
+/** A shape as the backdrop draws it, in feet (the canvas set to feet); `px`, one canvas pixel in feet. */
+function drawPlainly(ctx: CanvasRenderingContext2D, s: Shape, px: number) {
+  let alpha = s.opacity ?? 0.65;
+  if (s.status === 'planned') alpha *= 0.5;
+  if (s.status === 'gone') alpha *= 0.35;
+  if (s.type === 'circle') {
+    const look = lookShown(s) ? lookFor(s) : null;
+    const r = groundcoverRadius(s) ?? s.radius;
+    ctx.beginPath();
+    if (s.canopy) s.canopy.forEach(([x, y], i) => (i ? ctx.lineTo(s.x + x, s.y + y) : ctx.moveTo(s.x + x, s.y + y)));
+    else ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.fillStyle = look ? look.pal.base : s.color;
+    ctx.globalAlpha = look ? (s.status === 'gone' ? 0.35 : s.status === 'planned' ? 0.85 : 1) : alpha;
+    ctx.fill();
+    if (look?.pal.fl && !s.canopy) {
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, r * 0.4, 0, Math.PI * 2);
+      ctx.fillStyle = look.pal.fl;
+      ctx.globalAlpha *= 0.7;
+      ctx.fill();
+    }
+    return;
+  }
+  const o = drawnOutline(s);
+  if (!o || o.pts.length < 2) return;
+  ctx.beginPath();
+  o.pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+  if (o.closed) ctx.closePath();
+  const outline = s.type === 'line' || (s.role ? !!roleDef(s.role).outline : false);
+  if (s.type === 'line' && s.pathWidth) {
+    ctx.lineWidth = Math.max(s.pathWidth, 2 * px); ctx.lineJoin = 'round'; ctx.lineCap = 'butt';
+    ctx.strokeStyle = s.color; ctx.globalAlpha = alpha; ctx.stroke();
+  } else if (outline) {
+    ctx.lineWidth = 2 * px; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.strokeStyle = s.color; ctx.globalAlpha = 0.9; ctx.stroke();
+  } else {
+    ctx.fillStyle = s.color; ctx.globalAlpha = alpha; ctx.fill();
+  }
+}
+/** The backdrop drawn again, at the view the plan's layers were just drawn at (drawnView). */
+function drawBackdrop(plan: HTMLElement) {
+  const c = backdropOf(plan);
+  const shapes = paintOrder(state.shapes).filter((s) => s.type !== 'text');
+  const bg = state.bgImage?.visible ? state.bgImage : null;
+  const boxes = shapes.map(shapeBBox);
+  if (bg) {
+    const { naturalWidth: w, naturalHeight: h } = bg;
+    boxes.push(pointsBounds([{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }].map((p) => imagePxToWorld(bg, p))));
+  }
+  const b = unionBounds(boxes);
+  c.style.transform = '';
+  if (!b) { c.hidden = true; return; }
+  const v = drawnView, ppf = PX_PER_FOOT_BASE * v.zoom, dpr = window.devicePixelRatio || 1;
+  const wFt = Math.max(b.maxX - b.minX, 1), hFt = Math.max(b.maxY - b.minY, 1);
+  const k = Math.min(ppf * dpr, BACKDROP_PX / wFt, BACKDROP_PX / hFt); // (canvas pixels a foot)
+  c.width = Math.max(1, Math.ceil(wFt * k)); // (setting it clears it)
+  c.height = Math.max(1, Math.ceil(hFt * k));
+  const left = (b.minX - v.offsetX) * ppf, top = (b.minY - v.offsetY) * ppf;
+  Object.assign(c.style, { left: `${left}px`, top: `${top}px`, width: `${wFt * ppf}px`, height: `${hFt * ppf}px`, transformOrigin: `${-left}px ${-top}px` });
+  c.hidden = false;
+  const ctx = c.getContext('2d');
+  if (!ctx) return;
+  ctx.setTransform(k, 0, 0, k, -b.minX * k, -b.minY * k); // (feet)
+  const photo = bg ? backdropPhotoFor(bg.dataUrl) : null;
+  if (bg && photo) {
+    const { w, h } = bgSizeFt(bg);
+    ctx.save();
+    ctx.translate(bg.cx, bg.cy);
+    ctx.rotate((bg.rotation * Math.PI) / 180);
+    ctx.globalAlpha = bg.opacity;
+    ctx.drawImage(photo, -w / 2, -h / 2, w, h);
+    ctx.restore();
+  }
+  for (const s of shapes) drawPlainly(ctx, s, 1 / k);
+  ctx.globalAlpha = 1;
+  // (The hole: where the plan's layers are drawn, the plan and a quarter of it out on each side; a pixel and a half of
+  // the backdrop's in from their edge all round, so the backdrop, drawn larger and smoothed, fades out under them: cut
+  // to the edge, the fade showed as a pale line along it, mid-pan.)
+  const vw = state.canvasW / ppf, vh = state.canvasH / ppf, inset = 1.5 / k;
+  ctx.clearRect(v.offsetX - vw * REACH + inset, v.offsetY - vh * REACH + inset, vw * (1 + 2 * REACH) - 2 * inset, vh * (1 + 2 * REACH) - 2 * inset);
+}
+/** Whether the view has moved since the plan was drawn (a pan or a pinch under way, its preview shown). */
+export const viewPreviewed = (): boolean =>
+  drawnView.offsetX !== state.offsetX || drawnView.offsetY !== state.offsetY || drawnView.zoom !== state.zoom;
 
 /** How far off (px) the perspective is that previewView zooms the scene in. Any distance gives the same picture. */
 const PREVIEW_DEPTH = 1000;
+/** What moves a layer drawn at `view` to show the view now (previewView). */
+function previewTransform(view: { offsetX: number; offsetY: number; zoom: number }): string {
+  const k = state.zoom / view.zoom;
+  const ppf = PX_PER_FOOT_BASE * state.zoom;
+  const tx = (view.offsetX - state.offsetX) * ppf, ty = (view.offsetY - state.offsetY) * ppf;
+  const d = PREVIEW_DEPTH;
+  return `perspective(${d}px) translate3d(${tx / k}px, ${ty / k}px, ${d * (1 - 1 / k)}px)`;
+}
 /**
  * Show the current pan/zoom by moving the already-drawn scene (the photo, the shapes and their handles, by the <div>s
  * around them: a CSS transform, which the browser does without laying out or drawing any of it again) and redrawing
@@ -1383,16 +1518,17 @@ const PREVIEW_DEPTH = 1000;
  * (CI, Chrome 141, PR #241: e2e/flash.spec.ts).
  */
 export function previewView() {
-  dropVeil();
   const plan = planEl();
   if (!plan || !layersReady(plan)) { redrawCanvas(); return; }
-  const k = state.zoom / drawnView.zoom;
-  const ppf = PX_PER_FOOT_BASE * state.zoom;
-  const tx = (drawnView.offsetX - state.offsetX) * ppf;
-  const ty = (drawnView.offsetY - state.offsetY) * ppf;
-  const d = PREVIEW_DEPTH;
-  const transform = `perspective(${d}px) translate3d(${tx / k}px, ${ty / k}px, ${d * (1 - 1 / k)}px)`;
+  const transform = previewTransform(drawnView);
   for (const m of movers(plan)) m.style.transform = transform;
+  const backdrop = plan.querySelector<HTMLElement>(':scope > .plan-backdrop');
+  if (backdrop) backdrop.style.transform = transform;
+  // (A veil still up, from the last drawing a moment ago (a release, or a hold mid-gesture): moved on too, from the
+  // view it was drawn at, till its time is up. Taken away here, it left the new sheet showing before it was painted.)
+  for (const v of plan.querySelectorAll<HTMLElement>(':scope > .plan-veil')) {
+    try { v.style.transform = previewTransform(JSON.parse(v.dataset.view ?? '')); } catch { v.remove(); }
+  }
   const grid = layer(plan, 'grid');
   grid.replaceChildren();
   renderGrid(grid);
