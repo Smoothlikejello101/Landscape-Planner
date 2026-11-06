@@ -238,8 +238,12 @@ test('a photo added over a plan drawn before it: setting its scale asks nothing,
   await page.locator('.sheet input[type=file]').setInputFiles({ name: 'yard.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(PHOTO.split(',')[1], 'base64') });
   await expect.poll(async () => !!(await stored(page)).bgImage).toBe(true); // (saved, for where its points are)
   await setScale(page, 104, { start: false });
-  await expect(page.getByTestId('trace-card')).toBeVisible();
+  // (Not asked: the photo's sheet, with its scale, as when there's nothing over the photo. No "Now trace" either: the
+  // yard has all it lists.)
+  await expect(page.locator('.sheet')).toContainText('Current scale:');
   await expect(card(page)).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.sheet')).toHaveCount(0);
   expect(plain((await stored(page)).shapes)).toEqual(before);
   // A bed moved over the photo: drawn over it now. Its scale set again: asked.
   const island = YARD.find((s) => s.id === 'island') as { x: number; y: number };
