@@ -105,9 +105,15 @@ describe('where the phone\'s picker settles when its handle is let go', () => {
     expect(settleSheet(rest, rest - SETTLE_PX, rest, full)).toBe('closed');
     expect(settleSheet(rest, rest - 200, rest, full)).toBe('closed');
     expect(settleSheet(rest, rest - SETTLE_PX + 1, rest, full)).toBe('rest');
-    // From full height: down to rest, or on past it, closed.
+    // From full height: down to rest, and a good way past it (a third of its height at rest), still at rest (Jason,
+    // Nov 6: a swipe from the top went past rest and closed it); further, closed.
     expect(settleSheet(full, rest + 5, rest, full)).toBe('rest');
-    expect(settleSheet(full, rest - SETTLE_PX - 5, rest, full)).toBe('closed');
+    expect(settleSheet(full, rest - SETTLE_PX - 5, rest, full)).toBe('rest');
+    expect(settleSheet(full, rest - 167, rest, full)).toBe('rest');
+    expect(settleSheet(full, rest - 168, rest, full)).toBe('closed');
+    expect(settleSheet(full, 0, rest, full)).toBe('closed');
+    // (From rest, as before: a short swipe down closes it.)
+    expect(settleSheet(rest, rest - SETTLE_PX, rest, full)).toBe('closed');
   });
   it('its heights: 60% of the layer it\'s on at rest (Jason, Nov 4); full as it always was, 85% of the screen less the keyboard', () => {
     expect(REST).toBe(0.6);
