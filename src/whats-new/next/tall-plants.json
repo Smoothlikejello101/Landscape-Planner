@@ -1,5 +1,0 @@
-[
-  "Tall plants are drawn solid now, like every other plant, rather than see-through from 5 ft up. A plant under a taller one keeps its pin, with its name on it or just beside it. Select that plant, from its pin, its name in a list or the plan itself, and whatever covers it turns see-through for as long as it stays selected. Trees keep their see-through crowns.",
-  "Layers has a new switch, See through tall plants, to see through every plant 3, 5 or 10 ft tall or taller at once, the way tall plants used to be drawn.",
-  "On a printed plan, and on a picture of it, a tall plant is faded only where it covers a shorter one, so that one still shows. To print it as the plan looks on screen instead, choose As on screen under Plants under taller ones, in Print or Export: the plants under taller ones become numbered dots, listed with their names."
-]
