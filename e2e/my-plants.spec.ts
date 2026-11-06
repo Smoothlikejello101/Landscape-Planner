@@ -9,11 +9,14 @@ test('add a plant from its tag, place it, and switch to full size', async ({ pag
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Limelight');
+  await expect(page.getByTestId('plant-search')).toHaveAttribute('spellcheck', 'false');
   const add = page.getByTestId('add-own-plant');
   await expect(add).toHaveText('Add “Limelight” as my plant');
   await add.click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Add a plant');
   await expect(page.getByTestId('pf-name')).toHaveValue('Limelight');
+  // (Spell checking off where a plant's name is typed, Jason, Nov 5: its menu hid the keyboard and moved the sheet.)
+  for (const id of ['pf-name', 'pf-botanical', 'pf-from']) await expect(page.getByTestId(id)).toHaveAttribute('spellcheck', 'false');
   await page.getByTestId('pf-name').fill("Hydrangea 'Limelight'");
   const spread = page.getByTestId('pf-spread');
   const spreadLabel = page.locator('.field', { has: spread }).locator('label');

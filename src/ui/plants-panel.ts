@@ -925,7 +925,9 @@ export function renderPlantsPanel() {
   }
 
   // --- Filter controls (all update the list in place; no full render) ---
-  const search = el('input', { type: 'text', value: plantFilter.q, placeholder: 'Search plants or butterflies\u2026', 'data-testid': 'plant-search', 'aria-label': 'Search plants, or a butterfly whose caterpillars eat them' });
+  // (Spell checking off, as in every field a plant's name is typed in: Jason, Nov 5. Botanical names are nearly always
+  // "misspelled" to it, and a tap in one opened Chrome's spelling menu, which hid the keyboard and dropped the sheet.)
+  const search = el('input', { type: 'text', spellcheck: 'false', value: plantFilter.q, placeholder: 'Search plants or butterflies\u2026', 'data-testid': 'plant-search', 'aria-label': 'Search plants, or a butterfly whose caterpillars eat them' });
   // Clear (×): the search emptied in one tap, the keyboard kept (the list redraws, nothing else).
   const clearSearch = el('button', { className: 'search-clear', html: I.x, 'aria-label': 'Clear the search', 'data-testid': 'clear-search' });
   clearSearch.hidden = !plantFilter.q;

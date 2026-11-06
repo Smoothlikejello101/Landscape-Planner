@@ -59,7 +59,7 @@ export function renderPlantForm() {
   }
   // A new plant: start from another, found by name (its fields filled in; what's typed in the name stays).
   if (!editing) {
-    const find = el('input', { type: 'text', enterkeyhint: 'search', placeholder: 'e.g. panicle hydrangea', 'data-testid': 'pf-from', autocomplete: 'off', id: 'pf-from' }) as HTMLInputElement;
+    const find = el('input', { type: 'text', spellcheck: 'false', enterkeyhint: 'search', placeholder: 'e.g. panicle hydrangea', 'data-testid': 'pf-from', autocomplete: 'off', id: 'pf-from' }) as HTMLInputElement;
     const hits = el('div', { className: 'from-hits', 'data-testid': 'pf-from-hits' });
     find.addEventListener('input', () => {
       hits.replaceChildren();
@@ -104,8 +104,9 @@ export function renderPlantForm() {
     input.addEventListener('input', clear);
     return { node, need, clear };
   };
+  // (Names and zones: spell checking off, Jason, Nov 5: src/ui/plants-panel.ts, the search. Notes and bloom color keep it.)
   const text = (label: string, value: string, placeholder: string, testid: string) => {
-    const input = el('input', { type: 'text', value, placeholder, 'data-testid': testid }) as HTMLInputElement;
+    const input = el('input', { type: 'text', spellcheck: 'false', value, placeholder, 'data-testid': testid }) as HTMLInputElement;
     const hint = el('div', { className: 'hint' });
     const { node, need } = fieldLabel(label, input, testid, label.endsWith(', required'));
     body.appendChild(el('div', { className: 'field' }, node, input, hint));

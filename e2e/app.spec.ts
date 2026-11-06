@@ -31,6 +31,7 @@ test.describe('core editing', () => {
     await openFresh(page);
     await addShape(page, 'circle');
     const label = field(page, 'Label');
+    await expect(label).toHaveAttribute('spellcheck', 'false'); // (a name: Jason, Nov 5)
     await label.click();
     const handle = await label.elementHandle();
     await page.keyboard.type('Red Oak', { delay: 20 });
