@@ -246,7 +246,9 @@ test('Swap from the table, when the comparison started from Swap', async ({ page
   await expect(page.getByTestId('compare-use')).toHaveText(['Swap', 'Swap']);
   await page.getByRole('button', { name: 'Swap for Buttonbush' }).click();
   await expect(page.locator('#toast, [data-testid=crowd-notice]').filter({ hasText: 'Buttonbush' })).toHaveCount(1);
-  await expect(page.locator('.sheet .title')).toContainText('Buttonbush');
+  // (Swapped: the sheet closes, the plant swapped in selected. Jason, Nov 5.)
+  await expect(page.locator('.sheet')).toHaveCount(0);
+  await expect(page.locator('.sel-pill')).toContainText('Buttonbush');
   await expect(page.getByTestId('compare')).toHaveCount(0);
 });
 

@@ -130,7 +130,10 @@ function pick(p: Plant) {
     const before = swapping ? crowdLevelsOf(ids) : null;
     linkFromPicker(p);
     if (before) crowdNoticeAfterSwap(ids, before);
-    state.panel = 'props';
+    // (Swapped: the sheet closes, the plant swapped in selected, its toast or crowding notice saying so. Jason, Nov 5:
+    // "I would expect it to close upon successful selection". Linked: back on its sheet, which may offer to link the
+    // other circles labeled the same.)
+    state.panel = swapping ? null : 'props';
   } else if (state.pickerForTree) {
     startTreeDraw(p.id);
   } else if (state.placing) {

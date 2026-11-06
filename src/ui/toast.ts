@@ -7,7 +7,13 @@ let timer: ReturnType<typeof setTimeout> | null = null;
 /** When the plain notice last went up. */
 let shownAt = 0;
 
-export function toast(message: string, ms = 3000) {
+let keptUntil = 0;
+/**
+ * A plain notice. `keep`: not to be covered by a passing hint while it shows (`keptToastUp`), as a swap's "Swapped for
+ * …" isn't by the ring's hint when its sheet closes (Jason, Nov 5).
+ */
+export function toast(message: string, ms = 3000, { keep = false }: { keep?: boolean } = {}) {
+  keptUntil = keep ? Date.now() + ms : 0;
   let node = document.getElementById('toast');
   if (!node) {
     node = document.createElement('div');
@@ -28,6 +34,9 @@ export function toast(message: string, ms = 3000) {
   // (Its words go with it: a screen reader, and the page's text, kept reading old notices long after: round 2, Oct 30.)
   timer = setTimeout(() => { n.classList.remove('show'); timer = setTimeout(() => { if (!n.classList.contains('show')) n.textContent = ''; }, 400); }, ms);
 }
+
+/** A notice raised with `keep` is still up. */
+export const keptToastUp = (): boolean => Date.now() < keptUntil && !!document.getElementById('toast')?.classList.contains('show');
 
 /**
  * A plain notice raised before what just opened (a sheet, the ⋮ menu): put away, not left over its title or its rows

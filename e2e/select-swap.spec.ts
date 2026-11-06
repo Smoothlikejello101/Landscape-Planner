@@ -43,7 +43,9 @@ test('the selection pill deselects; a plant selects all of it on view, and swaps
   await row.getByTestId('plant-place').click();
   // (Bigger, and now crowding each other: the crowding notice says so in place of the toast. Jason, Oct 31.)
   await expect(page.locator('#toast, [data-testid=crowd-notice]').filter({ hasText: /3 swapped for Buttonbush\.|Buttonbush/ })).toHaveCount(1);
-  await page.locator('.sheet .iconbtn[aria-label=Close]').click();
+  // (Swapped: the sheet closes, the three still selected. Jason, Nov 5.)
+  await expect(page.locator('.sheet')).toHaveCount(0);
+  await expect(page.locator('.multi-bar .count')).toHaveText('3 selected');
   await page.locator('button[title=Layers]').click();
   await expect(layerRows(page, 'Buttonbush')).toHaveCount(3);
   await expect(layerRows(page, 'Turkey corn')).toHaveCount(0);
@@ -58,7 +60,9 @@ test('the selection pill deselects; a plant selects all of it on view, and swaps
   await page.getByTestId('plant-search').fill('Turkey corn');
   await page.locator('.sheet .proj-row', { hasText: 'Turkey corn' }).first().getByTestId('plant-place').click();
   await expect(page.locator('#toast')).toContainText('Swapped for Turkey Corn.');
-  await expect(page.locator('.sheet .title')).toContainText('Turkey Corn');
+  // (Swapped: the sheet closes, the plant swapped in selected.)
+  await expect(page.locator('.sheet')).toHaveCount(0);
+  await expect(page.locator('.sel-pill')).toContainText('Turkey Corn');
 });
 
 test('closing the swap picker goes back to the plant\'s sheet; the plant swapped in is in "In this plan" (the UI review; Recent went Nov 4)', async ({ page }) => {
@@ -78,7 +82,7 @@ test('closing the swap picker goes back to the plant\'s sheet; the plant swapped
   await page.getByTestId('plant-search').fill('Buttonbush');
   await page.locator('.sheet .proj-row', { hasText: 'Buttonbush' }).first().getByTestId('plant-place').click();
   await expect(page.locator('#toast, [data-testid=crowd-notice]').filter({ hasText: 'Buttonbush' })).toHaveCount(1);
-  await page.locator('.sheet .iconbtn[aria-label=Close]').click();
+  await expect(page.locator('.sheet')).toHaveCount(0); // (swapped: the sheet closes. Jason, Nov 5)
   await page.locator('.tool-btn.plants').click();
   await expect(page.getByTestId('recent-plants')).toHaveCount(0);
   await page.getByTestId('in-plan').click();
