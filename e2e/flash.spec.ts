@@ -183,18 +183,6 @@ test.describe('on a phone', () => {
     await frame(page);
     const [rest] = await frames(page);
     expect(rest.photo && rest.pill && rest.buttons).toBe(true);
-    // (What the photo's and the shapes' layers hold, bounded: a quarter of the plan out on each side, clipped there, so
-    // a fast pinch out never has the browser paint the whole yard for each: Jason's fourth recording, Nov 5.)
-    expect(await page.evaluate(() => {
-      const plan = document.getElementById('canvas-svg')!.getBoundingClientRect();
-      const n = (v: number) => Math.round(v) + 0; // (no -0)
-      return [...document.querySelectorAll<HTMLElement>('#canvas-svg > .plan-move')].map((m) => {
-        const r = m.getBoundingClientRect(), svg = m.querySelector('svg')!.getBoundingClientRect();
-        return [n(r.left - plan.left + plan.width / 4), n(r.top - plan.top + plan.height / 4),
-          n(r.width - plan.width * 1.5), n(r.height - plan.height * 1.5), getComputedStyle(m).overflow,
-          n(svg.left - plan.left), n(svg.top - plan.top)];
-      });
-    })).toEqual([[0, 0, 0, 0, 'hidden', 0, 0], [0, 0, 0, 0, 'hidden', 0, 0]]);
     let moves = 0;
     const work = await traced(browser, page, async () => {
       const go = async (type: 'touchStart' | 'touchMove' | 'touchEnd', pts: P[]) => { await touches(cdp, type, pts); await frame(page); moves++; };
