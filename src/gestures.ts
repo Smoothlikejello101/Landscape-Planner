@@ -10,7 +10,7 @@ import { clearSelection, isSelected, selectOnly, toggleSelect } from './selectio
 import { gesture, state, tapTracker } from './state';
 import { save, saveView } from './storage';
 import type { Gesture, Point, Shape } from './types';
-import { drawnBySize, isHidden, isSeeThrough, previewView, redrawBackground, redrawHandles, redrawMarquee, redrawShapes, viewPreviewed } from './canvas';
+import { drawnBySize, isHidden, isSeeThrough, previewView, redrawBackground, redrawHandles, redrawMarquee, redrawShapes } from './canvas';
 import { drawTap, editedShape, forgetLastTap, insertVertex, moveVertex, notePointer } from './draw';
 import { notJustPlaced, placeTap, selectionJustPlaced } from './place';
 import { afterMove, freeStrandedVines, saidFreed } from './ui/vine-offers';
@@ -77,11 +77,16 @@ function startPinchGesture() {
   if (g?.type === 'bg-drag' && g.moved && state.bgImage) { state.bgImage.cx = g.startCenter.x; state.bgImage.cy = g.startCenter.y; redrawBackground(); }
   if (g?.type === 'bg-rot' && state.bgImage) { state.bgImage.rotation = g.startRotation; redrawBackground(); }
   forgetLastTap(); // (the plan moves: the same spot on screen will be another place)
+  // Where the fingers' midpoint is on the plan's box, measured once, now: measured at each move, the plan having been
+  // zoomed by the move before (the other finger's, in the same frame), the browser laid out every name on the plan
+  // again just to say where the box is, then again for the frame, twice the work each frame of a pinch (the audit of
+  // Nov 6). The box doesn't move while the fingers are down.
+  const rect = canvasRect();
   gesture.current = {
     type: 'pinch',
     startDist: info.dist,
     startZoom: state.zoom,
-    centerScreen: { x: info.cx, y: info.cy },
+    centerOnPlan: { x: info.cx - rect.left, y: info.cy - rect.top },
     centerFeetAtStart: screenToFeet(info.cx, info.cy)
   };
   state.marquee = null;
@@ -104,34 +109,14 @@ export function normalizeDeg(d: number): number {
  * viewMoved), never the whole app: behind the plant picker, the picker as it is (its search, its scroll, the rows opened
  * in it: src/ui/picker-view.ts); anywhere, no blank frames as the fingers lift (Jason, Nov 5).
  */
-function viewSettled(touch = byTouch) { stopHoldFill(); viewMoved(touch); }
-/**
- * A pan or a pinch held still a moment, fingers still down: the plan drawn again where it is, so what came into view
- * past its layers' edge fills in without lifting (Jason, Nov 5, his answer #3 to "blank canvas at the edges"). By
- * touch, the shapes as they were stay over the new drawing till it's painted, and move on with the gesture
- * (src/canvas.ts redrawCanvasVeiled). The gesture carries on from the new drawing.
- */
-function heldStill() {
-  holdTimer = null;
-  const g = gesture.current;
-  if (!g || !(g.type === 'pinch' || (g.type === 'pan' && g.moved)) || !viewPreviewed()) return;
-  viewMoved(byTouch);
-}
-/** How long a pan or a pinch is held still before the plan's drawn again (ms). The tests set it for themselves. */
-const holdMs = (): number => { try { return Number(localStorage.getItem('lp-hold-fill-ms')) || 250; } catch { return 250; } };
-let holdTimer: ReturnType<typeof setTimeout> | null = null;
-/** The view moved by a pan or a pinch: its hold, timed from now. */
-function holdFill() { if (holdTimer) clearTimeout(holdTimer); holdTimer = setTimeout(heldStill, holdMs()); }
-function stopHoldFill() { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } }
-/** Whether the last press on the plan was a finger's: a pan or pinch by touch ends with the shapes veiled (src/canvas.ts). */
-let byTouch = false;
+function viewSettled() { viewMoved(); }
 
 /** Shift, Ctrl or Cmd held: add to the selection or take from it, as in most desktop apps. */
 const adding = (e: PointerEvent) => e.shiftKey || e.ctrlKey || e.metaKey;
 
 export function onCanvasPointerDown(e: PointerEvent) {
   notePointer(e.pointerType);
-  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY }); byTouch = e.pointerType === 'touch';
+  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
   if (activePointers.size === 2) { startPinchGesture(); return; }
   if (activePointers.size > 2) return; // palm rejection
   // Behind the plant picker, the plan is there to look at: a drag pans it and two fingers zoom it, wherever they press;
@@ -235,7 +220,7 @@ export function onCanvasPointerMove(e: PointerEvent) {
   // Only fingers that went down on the canvas drive gestures (not, say, a
   // second finger resting on the toolbar).
   if (!activePointers.has(e.pointerId)) return;
-  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY }); byTouch = e.pointerType === 'touch';
+  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
   const g = gesture.current;
   if (!g) return;
   const clientX = e.clientX, clientY = e.clientY;
@@ -246,13 +231,11 @@ export function onCanvasPointerMove(e: PointerEvent) {
       if (!info) return; // a finger lifted; pointerup handles it
       const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, g.startZoom * (info.dist / g.startDist)));
       const newPxPerFoot = PX_PER_FOOT_BASE * newZoom;
-      const rect = canvasRect();
-      state.offsetX = g.centerFeetAtStart.x - (g.centerScreen.x - rect.left) / newPxPerFoot;
-      state.offsetY = g.centerFeetAtStart.y - (g.centerScreen.y - rect.top) / newPxPerFoot;
+      state.offsetX = g.centerFeetAtStart.x - g.centerOnPlan.x / newPxPerFoot;
+      state.offsetY = g.centerFeetAtStart.y - g.centerOnPlan.y / newPxPerFoot;
       state.zoom = newZoom;
       e.preventDefault();
       previewView();
-      holdFill();
       updateStatusReadout();
       return;
     }
@@ -288,7 +271,6 @@ export function onCanvasPointerMove(e: PointerEvent) {
       state.offsetX = g.startOffset.x - (clientX - g.startX) / pxPerFoot();
       state.offsetY = g.startOffset.y - (clientY - g.startY) / pxPerFoot();
       previewView();
-      if (g.moved) holdFill();
       return;
     case 'marquee': {
       movedPastThreshold(g, e);
@@ -445,7 +427,6 @@ function handleShapeTap(shape: Shape, at?: { x: number; y: number }) {
 
 export function onCanvasPointerUp(e: PointerEvent) {
   if (!activePointers.delete(e.pointerId)) return; // not a canvas pointer
-  stopHoldFill(); // (a finger lifted: what happens next is the release's, or a new gesture's)
   const g = gesture.current;
   if (!g) return;
 
@@ -599,7 +580,7 @@ export function onShapePointerDown(e: PointerEvent, shape: Shape) {
     return;
   }
   e.stopPropagation();
-  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY }); byTouch = e.pointerType === 'touch';
+  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
   if (activePointers.size === 2) { startPinchGesture(); return; }
   if (activePointers.size > 2) return;
 
@@ -708,7 +689,7 @@ export function onFeaturePointerDown(e: PointerEvent, shape: Shape, featureId: s
   const spot = f && featureSpot(shape, f);
   if (!own || !spot || shape.type === 'circle' || shape.type === 'text') { onShapePointerDown(e, shape); return; }
   e.stopPropagation();
-  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY }); byTouch = e.pointerType === 'touch';
+  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
   if (activePointers.size === 2) { startPinchGesture(); return; }
   if (activePointers.size > 2) return;
   flushHistoryDebounce();
@@ -729,7 +710,6 @@ function featureDragChanged(g: Extract<Gesture, { type: 'drag-feature' }>): bool
 /** Forget all pointers (window lost focus or page hidden mid-gesture). */
 export function cancelGestures() {
   activePointers.clear();
-  stopHoldFill();
   const g = gesture.current;
   // (A handle's drag cut short keeps what it did so far, undoably.)
   if ((g?.type === 'shape-resize' || g?.type === 'shape-rotate') && g.moved && handleDragChanged(g, state.shapes)) { flushHistoryDebounce(); pushHistory(); save(); }
@@ -782,5 +762,5 @@ export function onWheel(e: WheelEvent) {
   }
   previewView();
   if (wheelSettle) clearTimeout(wheelSettle);
-  wheelSettle = setTimeout(() => { wheelSettle = null; viewSettled(false); }, 150);
+  wheelSettle = setTimeout(() => { wheelSettle = null; viewSettled(); }, 150);
 }

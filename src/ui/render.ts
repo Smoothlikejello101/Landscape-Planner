@@ -4,7 +4,7 @@ import { labelFields } from './a11y';
 import { pageZoomed, syncPageZoom } from '../page-zoom';
 import { saveStateWord } from './save-warning';
 import { resizeCanvas } from '../canvas';
-import { el, hasKeyboard, tapSaid } from '../dom';
+import { el, hasKeyboard, svgEl, tapSaid } from '../dom';
 import { onCanvasPointerDown, onWheel } from '../gestures';
 import { canRedo, canUndo, redo, redoLabel, undo, undoLabel } from '../history';
 import { I } from '../icons';
@@ -15,7 +15,7 @@ import { state } from '../state';
 import { fmtFeet, screenToFeet, shapeCenter } from '../geometry';
 import { measuredFeet, openAtHouseScale, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, drawPathWidth, editedShape, finishDraw, finishEditPoints, finishTypedRect, finishesItself, lastSnap, setDrawHover, setDrawKind, setDrawPathWidth, setTypedLength, shapeName, typedApplies, typedKind, typedLabel, startEditPoints, startKind, undoDrawPoint, unsnapLast, unsnapVertex, vertexSnap } from '../draw';
 import type { SubFeatureKind, TapSnap } from '../types';
-import { redrawCanvas, redrawCanvasVeiled, redrawHandles } from '../canvas';
+import { redrawCanvas, redrawHandles } from '../canvas';
 import { parseTypedLength } from '../draw-numbers';
 import { kindDef, METHOD_LABELS, nextTapPrompt, type KindKey } from '../kinds';
 import { methodIcon, renderAddSheet, renderShortcutsPanel, withKey } from './add-sheet';
@@ -146,9 +146,8 @@ let shownPlan: string | null | undefined;
  * the zoom's badge, the top bar gone too, while Chrome painted everything anew; behind the plant picker it was already
  * only the plan, the picker as it is: src/ui/picker-view.ts).
  */
-export function viewMoved(byTouch = false) {
-  // (After a touch's pan or pinch, the shapes as they were left over it a moment, till it's painted: src/canvas.ts.)
-  if (byTouch) redrawCanvasVeiled(); else redrawCanvas();
+export function viewMoved() {
+  redrawCanvas();
   noteView();
   if (!planLookOnly()) placeNotice();
 }
@@ -280,9 +279,7 @@ export function render() {
 
   // ===== CANVAS WRAP =====
   const canvasWrap = el('div', { className: 'canvas-wrap', id: 'canvas-wrap' });
-  // (The plan: its layers each in an <svg> of its own, stacked, src/canvas.ts. Its id, from when it was one <svg>, is
-  // how the app and its tests find it.)
-  const svg = el('div', { id: 'canvas-svg', className: 'plan' });
+  const svg = svgEl('svg', { id: 'canvas-svg', width: state.canvasW, height: state.canvasH });
   noteCounts(svg);
   svg.addEventListener('pointerdown', onCanvasPointerDown);
   // (Two fingers zoom the plan; but if the page itself is still zoomed in, they zoom the page back out: page-zoom.ts.)
