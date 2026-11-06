@@ -92,6 +92,7 @@ test('the plan drawn by what changed is the plan drawn whole, through the usual 
   // moves the plant as the plan has it now.
   await tapShape('c2');
   await selected('c2');
+  await page.waitForTimeout(600);
   const before = await drawnAt(page, 'c2');
   const drag = async () => {
     const from = await planPoint(page, -9, -5), to = await planPoint(page, -9, -3);
@@ -105,7 +106,11 @@ test('the plan drawn by what changed is the plan drawn whole, through the usual 
   await undo.click();
   await expect.poll(() => drawnAt(page, 'c2')).toEqual(before);
   await same(page, 'undone');
-  await tap(-9, -5);
+  // (Selected again if the undo let it go: a tap on it while it's selected would pick what's under it instead. Then a
+  // moment, so the press isn't the end of a double tap.)
+  if ((await outline('c2').getAttribute('stroke')) !== '#0f172a') await tapShape('c2');
+  await selected('c2');
+  await page.waitForTimeout(600);
   await drag();
   await expect.poll(() => drawnAt(page, 'c2')).not.toEqual(before);
   await same(page, 'moved again, after the undo');
