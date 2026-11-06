@@ -1314,10 +1314,19 @@ function drawCanvas() {
   drawnView = { offsetX: state.offsetX, offsetY: state.offsetY, zoom: state.zoom };
 }
 
+/** How far off (px) the perspective is that previewView zooms the scene in. Any distance gives the same picture. */
+const PREVIEW_DEPTH = 1000;
 /**
  * Show the current pan/zoom by moving the already-drawn scene (the photo, the shapes and their handles, by the <div>s
  * around them: a CSS transform, which the browser does without laying out or drawing any of it again) and redrawing
  * only the grid. Cheap enough to run on every pointer move.
+ *
+ * Its zoom is by bringing it nearer or further under a perspective, not by a scale: on the screen the same, each point
+ * where translate(tx, ty) scale(k) would put it (at depth z, under perspective d, everything is d / (d − z) the size),
+ * but no scale for the browser to see. Chrome lays out each SVG text again when the scale of anything around it
+ * changes, to fit its letters to their size on the screen: up to Chrome 141 at least, even through a <div> moved as
+ * these are (153 doesn't), and a pinch then laid out every name on the plan again each frame, as it had before Nov 5
+ * (CI, Chrome 141, PR #241: e2e/flash.spec.ts).
  */
 export function previewView() {
   const plan = planEl();
@@ -1326,7 +1335,8 @@ export function previewView() {
   const ppf = PX_PER_FOOT_BASE * state.zoom;
   const tx = (drawnView.offsetX - state.offsetX) * ppf;
   const ty = (drawnView.offsetY - state.offsetY) * ppf;
-  const transform = `translate(${tx}px, ${ty}px) scale(${k})`;
+  const d = PREVIEW_DEPTH;
+  const transform = `perspective(${d}px) translate3d(${tx / k}px, ${ty / k}px, ${d * (1 - 1 / k)}px)`;
   for (const m of movers(plan)) m.style.transform = transform;
   const grid = layer(plan, 'grid');
   grid.replaceChildren();

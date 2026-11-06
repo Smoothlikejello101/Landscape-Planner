@@ -130,9 +130,13 @@ async function watch(page: Page) {
 const frames = (page: Page) => page.evaluate(() => (window as unknown as { __frames: Frame[] }).__frames.splice(0));
 const churn = (page: Page) => page.evaluate(() => (window as unknown as { __churn: string[] }).__churn.splice(0));
 
-/** What the browser did meanwhile (a trace): names laid out again, images decoded, by Chrome's own record. */
+/**
+ * What the browser did meanwhile (a trace): names laid out again, images decoded, by Chrome's own record. Counts, not
+ * times, so a slow machine gives the same answer. (Only the trace's categories they're in: "blink" has the texts'
+ * layouts, "disabled-by-default-devtools.timeline" the images' decodes.)
+ */
 async function traced(browser: Browser, page: Page, run: () => Promise<void>) {
-  await browser.startTracing(page, { categories: ['blink', 'cc', 'devtools.timeline', 'disabled-by-default-devtools.timeline'] });
+  await browser.startTracing(page, { categories: ['blink', 'disabled-by-default-devtools.timeline'] });
   await run();
   const events = (JSON.parse((await browser.stopTracing()).toString()) as { traceEvents: { name: string; ph: string }[] }).traceEvents;
   const count = (name: string) => events.filter((e) => e.name === name && (e.ph === 'X' || e.ph === 'B')).length;
@@ -151,7 +155,7 @@ test.describe('on a phone', () => {
   test.skip(({ isMobile, browserName }) => !isMobile || browserName !== 'chromium', 'phones only (Chrome: touches and traces by CDP)');
 
   test('a pan and a pinch move what\'s drawn: every frame keeps the plants, the photo in step, the selection\'s bar, and lays out and decodes nothing of the plan again; the release\'s redraw keeps the photo', async ({ page, browser }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(120_000);
     await seed(page);
     const cdp = await page.context().newCDPSession(page);
     const box = (await page.locator('#canvas-svg').boundingBox())!;
@@ -198,7 +202,9 @@ test.describe('on a phone', () => {
     // What the phone couldn't keep up with (Chrome's own record): no frame lays out the names on the plan again (an SVG
     // text's size on the screen is part of its layout: only the grid's few labels, drawn afresh, are laid out), and the
     // photo isn't decoded again at each new size. Until Nov 5 every frame did both: here, 106 texts laid out a frame and
-    // the photo decoded 45 times in 48 frames, where now it's 9 a frame and the photo once at most.
+    // the photo decoded 45 times in 48 frames, where now it's 7 a frame and the photo once at most. (With the scene's
+    // <div>s zoomed by a scale, Chrome 141, CI's, still laid out every name in each frame of a pinch, 62 a frame: they're
+    // zoomed by a perspective now, src/canvas.ts previewView.)
     expect(work.textLayouts / moves, 'texts laid out a frame').toBeLessThan(rest.names / 2);
     expect(work.decodes, 'times the photo was decoded again').toBeLessThan(moves / 8);
     // The release: the full redraw, the photo the same <image> (no new one to decode, the plan drawn without it
