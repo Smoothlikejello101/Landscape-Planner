@@ -147,6 +147,23 @@ const shapesInert = (): boolean => state.bgEditMode || !!state.bgCalibrate || !!
 let pulsing: string | null = null;
 export function pulseShape(id: string | null) { pulsing = id; }
 /** A shape and its label, wrapped in a group so it can be redrawn alone. */
+/**
+ * A plant's picture as drawn: its markup (src/plant-looks.ts lookMarkup) read into the page once, then copied for each
+ * drawing of the plan. Read again each time, as it was until Nov 6, the browser parsed every plant's picture anew at
+ * every full drawing (a tap selecting a shape, a drag let go, an undo): on a plan Jason's size, most of what such a
+ * drawing took (the audit of Nov 6). A copy is the same elements, made far faster.
+ */
+const lookParsed = new Map<string, SVGGElement>();
+function lookArt(markup: string): SVGGElement {
+  let parsed = lookParsed.get(markup);
+  if (!parsed) {
+    if (lookParsed.size > 3000) lookParsed.clear(); // (as many as the markups kept: plant-looks.ts)
+    parsed = svgEl('g');
+    parsed.innerHTML = markup;
+    lookParsed.set(markup, parsed);
+  }
+  return parsed.cloneNode(true) as SVGGElement;
+}
 export function shapeGroup(s: Shape): SVGGElement {
   const ppf = pxPerFoot();
   const sel = isSelected(s.id);
@@ -266,8 +283,8 @@ export function shapeGroup(s: Shape): SVGGElement {
       const outline = s.canopy
         ? svgEl('polygon', { points: s.canopy.map(([x, y]) => `${x * ppf},${y * ppf}`).join(' ') })
         : svgEl('circle', { cx: 0, cy: 0, r });
-      const art = svgEl('g', { 'clip-path': `url(#${clipId})` });
-      art.innerHTML = lookMarkup(s, r, seen ? levelOf(r) : 'yard');
+      const art = lookArt(lookMarkup(s, r, seen ? levelOf(r) : 'yard'));
+      art.setAttribute('clip-path', `url(#${clipId})`);
       // (See-through over a plant growing under it: Jason, Oct 30.)
       const thin = seeThrough.has(s.id) ? 0.55 : 1;
       const base = s.status === 'gone' ? 0.35 : s.status === 'planned' || isTree(s) ? 0.85 : 1;
