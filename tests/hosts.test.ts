@@ -82,6 +82,26 @@ describe('hosts where the garden is', () => {
     // (Field-guide capitals on the earlier list's names too.)
     expect(hostMatchText({ ...old, host: 'Viceroy, mourning cloak (willow genus)' }, readQuery('cloak')!)).toBe('Its leaves feed the caterpillars of: Viceroy, Mourning Cloak (willow genus)');
   });
+  it('a search reads a plant again when its names, or the records where the garden is, change; the same answer while neither does', async () => {
+    const p = { ...milkweed };
+    const monarch = readQuery('monarch')!;
+    const first = matchPlant(p, monarch, false);
+    expect(first).toMatchObject({ rank: 3 });
+    expect(matchPlant(p, monarch, false)).toBe(first); // (kept: the plant and the search the same)
+    resetWild(); // (no records where the garden is: its genus's butterflies aren't known)
+    expect(matchPlant(p, monarch, false)).toBeNull();
+    await loadWild(undefined, fetcher);
+    expect(matchPlant(p, monarch, false)).toMatchObject({ rank: 3 });
+    state.location = { zip: '10001', zone: '7b' }; // (another place: the records read are another's, till loaded)
+    expect(matchPlant(p, monarch, false)).toBeNull();
+    state.location = { zip: '71923', zone: '8a' };
+    const swamp = readQuery('swamp')!;
+    expect(matchPlant(p, swamp, false)).toBeNull();
+    p.common = 'Swamp milkweed'; // (a plant of mine renamed)
+    expect(matchPlant(p, swamp, false)).toMatchObject({ rank: 0 });
+    p.synonyms = ['Pleurisy root'];
+    expect(matchPlant(p, readQuery('pleurisy')!, false)).toMatchObject({ rank: 1, also: 'Pleurisy root' });
+  });
   it('gives butterfly and moth names field-guide capitals; descriptions, notes and binomials stay as written', () => {
     expect(butterflyCaps('Monarch, queen')).toBe('Monarch, Queen');
     expect(butterflyCaps('Viceroy, mourning cloak, many moths')).toBe('Viceroy, Mourning Cloak, many moths');

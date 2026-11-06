@@ -1,5 +1,5 @@
 import type { Plant } from './plants';
-import { hostsHere } from './wild';
+import { hostsHere, hostsSource } from './wild';
 
 // Plant search: the picker's search box, for the catalog and "My plants".
 //
@@ -68,7 +68,13 @@ function plurals(w: string): Word {
  * A plant's names as words, read once (and again if they change: a plant of mine edited). `base`: its name without
  * a cultivar or a note in brackets ("Black-eyed Susan 'Goldsturm'" → "black eyed susan").
  */
-interface Indexed { key: string; name: string[]; bot: string[]; host: string; nameText: string; base: string; baseWords: string[]; botBase: string; also: string[][]; was: string[][] }
+interface Indexed {
+  /** What it was read from, compared as they are (the same strings and lists, the same local records): read again when any isn't. */
+  from: unknown[];
+  name: string[]; bot: string[]; host: string; nameText: string; base: string; baseWords: string[]; botBase: string; also: string[][]; was: string[][];
+  /** The last searches it was matched against, and how: matchPlant's answers kept while neither changes. */
+  hits: { q: Query; near: boolean; hit: Hit | null }[];
+}
 /**
  * The caterpillars a plant feeds, as searched: those its sources name, the earlier list's sentence, and, where the
  * garden is, the butterflies recorded on its genus there ("monarch" finds milkweed).
@@ -78,17 +84,28 @@ export function hostWords(p: Plant): string {
 }
 const index = new WeakMap<Plant, Indexed>();
 const baseOf = (s: string | undefined) => (s ? searchText(s.replace(/['‘’][^'‘’]*['‘’]|\([^)]*\)/g, ' ')) : '');
+/**
+ * What a plant's index is read from: its names, its hosts, and the records where the garden is (wild.ts hostsSource).
+ * Compared as they are, not joined into a key to compare, as until Nov 6: the plant picker matches every plant in the
+ * catalog against the search several times for each letter typed, and making that key was most of it (the audit).
+ */
+const sourcesOf = (p: Plant): unknown[] => [p.common, p.botanical, p.host, p.hosts, p.synonyms, p.botanical_synonyms, p.host_genus?.genus, hostsSource()];
+function fresh(x: Indexed, p: Plant): boolean {
+  const f = x.from;
+  return f[0] === p.common && f[1] === p.botanical && f[2] === p.host && f[3] === p.hosts && f[4] === p.synonyms && f[5] === p.botanical_synonyms
+    && f[6] === p.host_genus?.genus && f[7] === hostsSource();
+}
 function indexed(p: Plant): Indexed {
-  const hosts = hostWords(p);
-  const key = p.common + '\n' + (p.botanical ?? '') + '\n' + hosts + '\n' + (p.synonyms ?? []).join('\n') + '\n' + (p.botanical_synonyms ?? []).join('\n');
   const had = index.get(p);
-  if (had && had.key === key) return had;
+  if (had && fresh(had, p)) return had;
+  const hosts = hostWords(p);
   const name = wordsOf(p.common);
-  const made = {
-    key, name, bot: wordsOf(p.botanical), host: hosts ? searchText(hosts) : '', nameText: name.join(' '),
+  const made: Indexed = {
+    from: sourcesOf(p), name, bot: wordsOf(p.botanical), host: hosts ? searchText(hosts) : '', nameText: name.join(' '),
     base: baseOf(p.common), baseWords: baseOf(p.common).split(' '), botBase: baseOf(p.botanical),
     also: (p.synonyms ?? []).map((n) => wordsOf(n)),
     was: (p.botanical_synonyms ?? []).map((n) => wordsOf(n)),
+    hits: [],
   };
   index.set(p, made);
   return made;
@@ -153,6 +170,15 @@ function nearIn(q: string, ws: string[]): number | null {
 export interface Hit { rank: number; order: number; /** Found by another name it goes by: that name. */ also?: string; /** Found by an older botanical name: that name. */ was?: string }
 export function matchPlant(p: Plant, q: Query, near: boolean): Hit | null {
   const x = indexed(p);
+  // (Asked again, for the same search, the plant read the same: the same answer, as worked out the first time. A search
+  // read is kept as one object while it's typed: readQuery.)
+  for (const h of x.hits) if (h.q === q && h.near === near) return h.hit;
+  const hit = matchIndexed(p, x, q, near);
+  if (x.hits.length >= 4) x.hits.shift();
+  x.hits.push({ q, near, hit });
+  return hit;
+}
+function matchIndexed(p: Plant, x: Indexed, q: Query, near: boolean): Hit | null {
   const orderFor = (t: string) => (x.nameText === t || x.base === t || x.botBase === t ? 0 : x.base.endsWith(' ' + t) ? 1
     : x.base.startsWith(t + ' ') || x.nameText.startsWith(t + ' ') ? 2 : (' ' + x.nameText + ' ').includes(' ' + t + ' ') ? 3 : 4);
   const order = Math.min(...q.texts.map(orderFor));

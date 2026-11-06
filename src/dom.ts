@@ -38,6 +38,25 @@ function appendChildren(e: Element, children: Child[]) {
   }
 }
 
+/**
+ * An element's markup (`html`: an icon, a plant's spot), read into the page once and copied after: the same few icons
+ * and spots, parsed anew for every row each time the plant picker's list was built (each letter typed in its search),
+ * were a good part of the work (the audit of Nov 6). Markup with no tag in it is set as it was.
+ */
+const htmlParsed = new Map<string, DocumentFragment>();
+function setHtml(e: HTMLElement, html: string) {
+  if (!html.includes('<') || html.length > 20000) { e.innerHTML = html; return; }
+  let parsed = htmlParsed.get(html);
+  if (!parsed) {
+    if (htmlParsed.size > 1000) htmlParsed.clear();
+    const t = document.createElement('template');
+    t.innerHTML = html;
+    parsed = t.content;
+    htmlParsed.set(html, parsed);
+  }
+  e.replaceChildren(document.importNode(parsed, true));
+}
+
 export function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs?: Attrs | null, ...children: Child[]): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
   if (attrs) {
@@ -45,7 +64,7 @@ export function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs?: Attrs 
       const v = attrs[k];
       if (k === 'className') e.className = String(v);
       else if (k === 'style' && typeof v === 'object' && v) Object.assign(e.style, v);
-      else if (k === 'html') e.innerHTML = String(v);
+      else if (k === 'html') setHtml(e, String(v));
       else if (k.startsWith('on') && typeof v === 'function') e.addEventListener(k.slice(2).toLowerCase(), v as EventListener);
       else if (v === false || v === null || v === undefined) continue;
       else if (v === true) e.setAttribute(k, '');
