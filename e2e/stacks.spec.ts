@@ -149,3 +149,42 @@ test('a sun area over a bed is the last a tap picks: the plant, then the bed, th
   await expect.poll(async () => (await plant.boundingBox())!.x).toBeCloseTo(before.x + 4 * ppf, -1);
   expect((await sun.boundingBox())!.x).toBeCloseTo(sunBefore.x, 0);
 });
+
+test('a hidden plant\'s pin picks that plant, even inside the circle of the one selected; its own pin goes on down the stack (Jason, Nov 6)', async ({ page, isMobile }) => {
+  // Two lobelias under a milkweed, the second's pin inside the first's circle. Picked by its pin, the first; then the
+  // second's pin, pressed: the second, where it picked the bed under the first.
+  const base = { opacity: 0.65, locked: false, rotation: 0, color: '#16a34a', type: 'circle', role: 'plant', status: 'planned' };
+  const shapes = [
+    { ...base, type: 'rect', role: 'bed', kind: 'bed', id: 'bed', x: -12, y: -10, width: 24, height: 20, color: '#92400e', opacity: 0.3, label: 'SW Corner' },
+    { ...base, id: 'mw', x: -3, y: 0, plantId: 'asclepias-incarnata', label: 'Swamp Milkweed', radius: 3.5 },
+    { ...base, id: 'lob1', x: -2.2, y: 0.1, plantId: 'lobelia-siphilitica', label: 'Great Blue Lobelia', radius: 0.8 },
+    { ...base, id: 'lob2', x: -1.5, y: 0, plantId: 'lobelia-siphilitica', label: 'Great Blue Lobelia', radius: 0.8 },
+  ];
+  const { width, height } = page.viewportSize()!;
+  await page.addInitScript(([s, w, h]) => {
+    if (sessionStorage.getItem('seeded')) return;
+    sessionStorage.setItem('seeded', '1');
+    const zoom = 1.4, ppf = 24 * zoom;
+    localStorage.setItem('landscape-planner-v1', JSON.stringify({ shapes: s, zoom, offsetX: -2 - w / 2 / ppf, offsetY: -(h - 160) / 2 / ppf }));
+  }, [shapes, width, height] as const);
+  await page.goto('./');
+  await expect(page.locator('#canvas-svg [data-pin-of=lob1]')).toHaveCount(1);
+  await expect(page.locator('#canvas-svg [data-pin-of=lob2]')).toHaveCount(1);
+  const ring = (id: string) => page.locator(`#canvas-svg [data-rim-of="${id}"]`);
+  const press = async (id: string) => {
+    await page.waitForTimeout(450); // (not a double tap)
+    const b = (await page.locator(`#canvas-svg [data-pin-of="${id}"]`).boundingBox())!;
+    const x = b.x + b.width / 2, y = b.y + b.height / 2;
+    if (isMobile) await page.touchscreen.tap(x, y); else await page.mouse.click(x, y);
+  };
+  await press('lob2');
+  await expect(ring('lob2')).toHaveAttribute('data-mark', 'selected');
+  await press('lob1');
+  await expect(ring('lob1')).toHaveAttribute('data-mark', 'selected');
+  await expect(page.locator('.sel-pill .name')).toHaveText('Great Blue Lobelia');
+  await expect(ring('lob2')).toHaveAttribute('data-mark', 'pin');
+  // And back: the first again, by its pin.
+  await press('lob2');
+  await expect(ring('lob2')).toHaveAttribute('data-mark', 'selected');
+  await expect(page.locator('.overlay .sheet')).toHaveCount(0); // (never taken for a double tap: no pane opened)
+});

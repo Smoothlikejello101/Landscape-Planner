@@ -382,6 +382,11 @@ function sunAreasLast(stack: Shape[]): Shape[] {
   const after = rest.findLastIndex((s) => s.role === 'plant' || !isLocked(s));
   return [...rest.slice(0, after + 1), ...sun, ...rest.slice(after + 1)];
 }
+/** Whether the topmost thing at `at` (client px) is a hidden plant's pin or name, for the plant `id`. */
+function aimedAt(at: { x: number; y: number }, id: string): boolean {
+  const top = document.elementFromPoint(at.x, at.y)?.closest<SVGElement>('[data-pin-of],[data-label-of]');
+  return !!top && (top.dataset.pinOf ?? top.dataset.labelOf) === id;
+}
 /** What the last tap moved down the stack from, if it did: a quick second tap (a double tap) opens that one's pane. */
 let cycledFrom: string | null = null;
 /**
@@ -396,6 +401,12 @@ function handleShapeTap(shape: Shape, at?: { x: number; y: number }) {
   // picked under another, the next tap went on down to the bed before the plant over it: round 3, Dana, Grace, Hank.)
   const under = at ? shapesAt(at.x, at.y).filter((s) => s.id !== shape.id && shownWith(s, state.viewFilter)) : [];
   const stack = sunAreasLast([shape, ...under.filter((s) => s.role === 'plant'), ...under.filter((s) => s.role !== 'plant')]);
+  // A hidden plant's pin or name, pressed: that plant, whatever's selected around it. (Jason, Nov 6, his recording: a
+  // lobelia picked by its pin, then the pin of the one beside it, inside the first one's circle, picked the bed: the tap
+  // was taken for a second tap on the first, and went on down the stack under it.) Its own pin, when it's the one
+  // selected, goes on down the stack as before.
+  const aimed = !!at && aimedAt(at, shape.id);
+  if (aimed && shape.id !== state.selectedIds[0] && shape.id !== tapTracker.id) { tapTracker.id = null; cycledFrom = null; }
   if (tapTracker.id && stack.some((s) => s.id === tapTracker.id) && t - tapTracker.time < DOUBLE_TAP_MS) {
     // (A double tap on the one selected: its pane, though its first tap went on down the stack.)
     selectOnly(cycledFrom ?? tapTracker.id);
@@ -410,7 +421,8 @@ function handleShapeTap(shape: Shape, at?: { x: number; y: number }) {
   // (Nor were the plants a Warnings row chose: the first press on one keeps them, and the walk through the warnings goes
   // on. The warnings bug hunt, Nov 1: it picked the bed or the sun area under the plant, and ended the walk.)
   const walked = walkKeepsPress(shape.id);
-  const sel = state.selectedIds.length === 1 && !placedNow && !walked ? stack.findIndex((s) => s.id === state.selectedIds[0]) : -1;
+  const sel = state.selectedIds.length === 1 && !placedNow && !walked && !(aimed && shape.id !== state.selectedIds[0])
+    ? stack.findIndex((s) => s.id === state.selectedIds[0]) : -1;
   const pick = sel >= 0 ? stack[(sel + 1) % stack.length] : stack[0];
   // (Gone down the stack: "Tap again for … under it" is done with. Round 3, Grace: it stayed over what it named.)
   if (sel >= 0) hideToastSaying(/^(Tap|Click) again for /);
