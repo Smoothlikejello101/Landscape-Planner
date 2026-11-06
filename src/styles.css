@@ -330,10 +330,16 @@ a { color: inherit; }
 /* Placing: above the place bar, the words and ✕ on one line, the buttons on one under it (src/ui/toast.ts placeNotice). */
 #toast-action.at-bottom > span, #toast-action.at-bottom > .notice-line { order: 1; }
 #toast-action.at-bottom > .notice-detail { order: 3; }
-/* On one row where they fit, on two where they don't (a small phone, large text): kept to one, the row was wider than the
-   notice and ran off the screen's left edge, "Nudge apart" cut to "part" (the bug hunt, Nov 6). */
-#toast-action.at-bottom > .notice-buttons { order: 4; flex: 1 1 100%; flex-wrap: wrap; margin-left: 0; min-width: 0; }
-#toast-action.at-bottom > .notice-buttons button { flex: 1 1 auto; min-width: 0; padding: 10px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#toast-action.at-bottom > .notice-buttons { order: 4; flex: 1 1 100%; flex-wrap: nowrap; margin-left: 0; min-width: 0; }
+#toast-action.at-bottom > .notice-buttons button { flex: 1 1 0; min-width: 0; padding: 10px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Never wider than the notice (min-width above: it ran off the screen's left edge, "Nudge apart" cut to "part"); and on
+   a small phone or at large text, on two rows where one won't hold them, rather than cut short (the bug hunt, Nov 6). */
+@media (max-width: 380px) {
+  #toast-action.at-bottom > .notice-buttons { flex-wrap: wrap; }
+  #toast-action.at-bottom > .notice-buttons button:not(.notice-icon) { flex: 1 1 auto; }
+}
+:root[data-text="large"] #toast-action.at-bottom > .notice-buttons, :root[data-text="xlarge"] #toast-action.at-bottom > .notice-buttons { flex-wrap: wrap; }
+:root[data-text="large"] #toast-action.at-bottom > .notice-buttons button:not(.notice-icon), :root[data-text="xlarge"] #toast-action.at-bottom > .notice-buttons button:not(.notice-icon) { flex: 1 1 auto; }
 /* An icon in place of a word (the crowding notice's Settings, since Nudge apart joined it: Jason's UI review, Nov 2): its
    own width, and the words beside it as wide as they need, so the four keep to one row by the place bar (Bea, round 3). */
 #toast-action .notice-buttons button.notice-icon { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; padding: 10px; }
