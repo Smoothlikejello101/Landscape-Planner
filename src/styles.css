@@ -332,8 +332,10 @@ a { color: inherit; }
 #toast-action.at-bottom > .notice-detail { order: 3; }
 #toast-action.at-bottom > .notice-buttons { order: 4; flex: 1 1 100%; flex-wrap: nowrap; margin-left: 0; min-width: 0; }
 #toast-action.at-bottom > .notice-buttons button { flex: 1 1 0; min-width: 0; padding: 10px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* Never wider than the notice (min-width above: it ran off the screen's left edge, "Nudge apart" cut to "part"); and on
-   a small phone or at large text, on two rows where one won't hold them, rather than cut short (the bug hunt, Nov 6). */
+/* Never wider than the notice (min-width above: it ran off the screen's left edge, "Nudge apart" cut to "part"); under a
+   line that opens (the crowding notice's, a button as tall as the ✕), out under the ✕'s corner too, for room; and on a
+   small phone or at large text, on two rows where one won't hold them, rather than cut short (the bug hunt, Nov 6). */
+#toast-action.at-bottom:has(> .notice-line) > .notice-buttons { margin-right: -38px; }
 @media (max-width: 380px) {
   #toast-action.at-bottom > .notice-buttons { flex-wrap: wrap; }
   #toast-action.at-bottom > .notice-buttons button:not(.notice-icon) { flex: 1 1 auto; }
