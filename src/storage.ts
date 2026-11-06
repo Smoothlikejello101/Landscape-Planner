@@ -106,6 +106,32 @@ const JOURNAL_PREFIX = 'lp-journal:';
 /** This page, for its journals and the plans it saves: new each time the app opens. */
 let PAGE = newPageId();
 function newPageId(): string { return (globalThis.crypto?.randomUUID?.() ?? uid() + uid() + uid()).replace(/[^A-Za-z0-9]/g, '').slice(0, 20); }
+/** This page's id (src/tabs.ts: its messages to the other tabs and windows). */
+export const pageId = (): string => PAGE;
+
+// ---- Other tabs and windows of this version (Jason, Nov 6, from the bug hunt: a bed drawn in one tab was lost when the
+// tab opened first saved its older copy of the plan over it, as every version before did) ----
+/**
+ * When each plan's record was saved (its savedAt), as this page last read or wrote it. A record another page has saved
+ * since (another tab or window of this version, or the installed app beside a browser tab: the same plans) is newer
+ * than what this page has: never saved over (writeCurrentKnowing), but taken in (takeNewer), this page's own changes
+ * kept beside it as a plan of their own.
+ */
+const seenAt = new Map<string, Seen>();
+/** A plan record's stamp: the page that saved it, when, and that page's edit count then (none, from before they were kept). */
+interface Seen { page?: string; at?: number; seq?: number }
+const stampOf = (r: StoredProject): Seen => ({ page: r.savedByPage, at: r.savedAt, seq: r.savedSeq });
+/** Told after this page wrote a plan (its id) or the list of plans (null): src/tabs.ts tells the other pages. */
+let onSavedHere: ((id: string | null) => void) | null = null;
+export function setSavedHereListener(fn: ((id: string | null) => void) | null) { onSavedHere = fn; }
+/**
+ * What happened when the open plan was found saved by another page since this page read it, or deleted there: `kept`,
+ * the name of the plan this page's changes were kept as (null: there were none); `gone`: deleted there, so another plan
+ * is open now. Said by src/main.ts.
+ */
+export interface TabChange { name: string; kept: string | null; gone: boolean }
+let onTabChange: ((c: TabChange) => void) | null = null;
+export function setTabChangeListener(fn: ((c: TabChange) => void) | null) { onTabChange = fn; }
 const journalKey = (projectId: string, page = PAGE) => `${JOURNAL_PREFIX}${projectId}@${page}`;
 /**
  * `dbVersion`: the database version of the app that wrote it (src/db.ts DB_VERSION); none: 1, from before it was kept.
@@ -580,7 +606,8 @@ async function writeCurrentKnowing(known: Set<string>): Promise<boolean> {
   const hadEdits = seq !== savedSeq; // (a flush with nothing new still writes; sync only hears of real edits)
   // Snapshot synchronously so later edits don't race with this write.
   const data = currentProjectData();
-  const ops = projectWriteOps(id, data, known, { dbVersion: DB_VERSION, page: PAGE, at: now(), seq });
+  const at = now();
+  const ops = projectWriteOps(id, data, known, { dbVersion: DB_VERSION, page: PAGE, at, seq });
   const meta = metaFor(id);
   if (meta) {
     // (Only an edit makes it "last modified": opening a plan and leaving it moved it to the top of the list, under
@@ -590,7 +617,14 @@ async function writeCurrentKnowing(known: Set<string>): Promise<boolean> {
     ops.push(put('meta', id, { ...meta }));
   }
   try {
-    await kv.write(ops);
+    // (Not over the plan as another tab or window has saved it since this page read it, nor once it's deleted there:
+    // checked in the write's own transaction, so nothing can come in between.)
+    const seen = seenAt.get(id);
+    if (!(await kv.writeIf({ store: 'projects', key: id, ok: (rec) => !savedElsewhere(rec, seen) }, ops))) {
+      for (const op of ops) if (op.store === 'images') storedImageKeys.delete(op.key);
+      return await keepApartAndTakeNewer(id);
+    }
+    seenAt.set(id, { page: PAGE, at, seq });
     for (const op of ops) if (op.store === 'images') committedImageKeys.add(op.key);
     savedSeq = Math.max(savedSeq, seq);
     savedPlanSeq = Math.max(savedPlanSeq, plan);
@@ -599,6 +633,7 @@ async function writeCurrentKnowing(known: Set<string>): Promise<boolean> {
     setSaveFailing(false);
     quotaWarned = false;
     if (hadEdits) afterSave?.();
+    onSavedHere?.(id);
     return true;
   } catch (e) {
     // The write didn't happen; forget image keys from this batch so they're retried.
@@ -905,10 +940,14 @@ async function keepJournalApart(k: KV, key: string, fromId: string, fromName: st
 export function currentProject(): ProjectMeta | null {
   return state.projects.find((p) => p.id === state.currentProjectId) || null;
 }
-/** Read a project's full data (including background image bytes). */
-export async function readProject(id: string): Promise<ProjectData | null> {
+/**
+ * Read a project's full data (including background image bytes). `stamp`, if given, is told who saved its record, when,
+ * at what edit count (for the plan open here: seenAt).
+ */
+export async function readProject(id: string, stamp?: Seen): Promise<ProjectData | null> {
   const stored = await db().get<StoredProject>('projects', id);
   if (!stored) return null;
+  if (stamp) Object.assign(stamp, stampOf(stored));
   let bgImage: BgImage | null = null;
   if (stored.bgImage) {
     const img = await db().get<ImageRecord>('images', imageKey(id, stored.bgImage.imageId));
@@ -937,12 +976,13 @@ export async function readProject(id: string): Promise<ProjectData | null> {
 const undoKept = new Map<string, { history: typeof state.history; index: number; token: number }>();
 export async function switchProject(id: string): Promise<boolean> {
   let data: ProjectData | null;
+  const stamp: Seen = {};
   // Edits can land while we read, and sync can replace or delete the project; read again until nothing moved.
   for (;;) {
     const seq = editSeq;
     const token = changeToken(id);
     if (!(await flushSave())) return false;
-    data = await readProject(id);
+    data = await readProject(id, stamp);
     if (seq === editSeq && token === changeToken(id)) break;
   }
   if (!metaFor(id)) return false;
@@ -990,11 +1030,128 @@ export async function switchProject(id: string): Promise<boolean> {
   committedImageKeys = new Set(storedImageKeys);
   savedSeq = editSeq;
   savedPlanSeq = planSeq;
+  seenAt.set(id, stamp);
   try { await db().write([put('kv', 'current', id)]); } catch (e) { console.warn('could not remember open project', e); }
   void collectImageGarbage(id, storedImageKeys);
   onHousehold?.();
   return true;
 }
+// ---- Saved by another tab or window ----
+/**
+ * Whether a plan's record as stored now (`rec`) was saved by another page since this page read or wrote it (`seen`, its
+ * stamp then: any other stamp is a later write), or deleted there: either way, not to be saved over. Never for a plan
+ * this page hasn't read (`seen` undefined).
+ */
+function savedElsewhere(rec: unknown, seen: Seen | undefined): boolean {
+  if (!seen) return false;
+  const r = rec as StoredProject | undefined;
+  if (!r) return true;
+  if (typeof r.savedByPage !== 'string' || r.savedByPage === PAGE) return false;
+  return r.savedByPage !== seen.page || r.savedAt !== seen.at || r.savedSeq !== seen.seq;
+}
+/** The plans' list as stored (another page may have added, renamed or deleted one). */
+async function refreshMetas(): Promise<void> {
+  state.projects = (await db().getAll<ProjectMeta>('meta')).sort((a, b) => b.lastModified - a.lastModified);
+}
+/** This page's copy of a plan (`data`), kept as a plan of its own: "<name> (from another tab)", "(2)" and on. Its name. */
+async function keepFromTab(name: string, data: ProjectData): Promise<string> {
+  const taken = new Set(state.projects.map((p) => p.name));
+  const base = `${name} (from another tab)`;
+  let kept = base;
+  for (let i = 2; taken.has(kept); i++) kept = `${base} (${i})`;
+  await createProject(kept, data);
+  return kept;
+}
+/**
+ * The open plan as another page has saved it, taken in here: what it holds (this page's view of it kept: zoom, where it's
+ * looked at from, the Layers filter), with no undo steps, which would put back this page's older copy. Deleted there:
+ * another plan opened ('gone'). Not while this page has changes to it not saved yet ('waits'): its save keeps them apart
+ * first (keepApartAndTakeNewer), unless `edits`, said by that.
+ */
+async function takeNewer(id: string, edits = false): Promise<'taken' | 'gone' | 'waits'> {
+  await refreshMetas();
+  const stamp: Seen = {};
+  const data = metaFor(id) ? await readProject(id, stamp) : null;
+  if (state.currentProjectId !== id) return 'taken'; // (another plan opened meanwhile)
+  if (!edits && planSeq !== savedPlanSeq) return 'waits';
+  if (!data) {
+    // (Nothing of it saved again here: it's no longer open. Another plan opens next: openAnother.)
+    state.currentProjectId = null;
+    savedSeq = editSeq; savedPlanSeq = planSeq;
+    seenAt.delete(id);
+    undoKept.delete(id);
+    clearJournal(id);
+    return 'gone';
+  }
+  cancelHistoryDebounce();
+  undoKept.delete(id);
+  state.shapes = data.shapes;
+  state.roleViews = data.roleViews ?? {};
+  state.print = data.print ?? { ...DEFAULT_PRINT };
+  state.sizeMode = data.sizeMode ?? 'typical';
+  state.sunWarnings = data.sunWarnings !== false;
+  state.dismissed = data.dismissed;
+  state.bought = data.bought;
+  state.household = data.household ?? takenHousehold();
+  applySwitches(data.switches, takenSwitches());
+  state.phases = data.phases ?? [];
+  state.location = data.location;
+  if (state.bgImage !== data.bgImage) { state.bgImage = data.bgImage ?? null; if (!state.bgImage) state.bgEditMode = false; }
+  state.photoElsewhere = data.photoElsewhere ?? null;
+  state.selectedIds = state.selectedIds.filter((sid) => data.shapes.some((x) => x.id === sid));
+  if (state.editPoints && !data.shapes.some((x) => x.id === state.editPoints!.id)) state.editPoints = null;
+  state.history = [];
+  state.historyIndex = -1;
+  storedImageKeys = new Set(data.bgImage?.imageId ? [imageKey(id, data.bgImage.imageId)] : []);
+  committedImageKeys = new Set(storedImageKeys);
+  savedSeq = editSeq; savedPlanSeq = planSeq;
+  seenAt.set(id, stamp);
+  bumpChange(id);
+  clearJournal(id); // (this page's changes to it are kept apart, or there were none)
+  onHousehold?.();
+  return 'taken';
+}
+/**
+ * A save of the open plan found it saved by another page since this page read it, or deleted there: nothing saved over
+ * it. This page's changes to the plan, if any, kept as a plan of their own; then the plan as saved there taken in (or,
+ * deleted there, another opened), and said. True: nothing of this page's is left unsaved.
+ */
+async function keepApartAndTakeNewer(id: string): Promise<boolean> {
+  const name = metaFor(id)?.name ?? 'My Garden';
+  await refreshMetas();
+  const kept = planSeq !== savedPlanSeq ? await keepFromTab(name, currentProjectData()) : null;
+  const how = await takeNewer(id, true);
+  // (Deleted there: another plan opened once this save is done, as opening one saves first and waits for it.)
+  if (how === 'gone') void openAnother().then(() => onTabChange?.({ name, kept, gone: true }));
+  else onTabChange?.({ name, kept, gone: false });
+  return true;
+}
+/** The open plan deleted in another tab or window: the first in the list opened in its place (a new one if none). */
+async function openAnother(): Promise<void> {
+  if (state.currentProjectId) return;
+  if (!state.projects.length) await createProject('My Garden');
+  await switchProject(state.projects[0].id);
+}
+/**
+ * Another page saved a plan or changed the list (src/tabs.ts heard it), or this page is in view again: the list as stored,
+ * and the open plan, if another page saved it since this page read it, taken in; with changes here not saved yet, their
+ * save keeps them apart first. Whether anything changed here (to draw again).
+ */
+export async function catchUpWithOtherTabs(): Promise<boolean> {
+  if (!kv || superseded) return false;
+  const before = JSON.stringify(state.projects);
+  await refreshMetas();
+  const listed = JSON.stringify(state.projects) !== before;
+  const id = state.currentProjectId;
+  if (!id) return listed;
+  if (!savedElsewhere(await db().get<StoredProject>('projects', id), seenAt.get(id))) return listed;
+  const name = metaFor(id)?.name ?? 'My Garden';
+  const how = planSeq !== savedPlanSeq ? 'waits' : await takeNewer(id);
+  if (how === 'waits') await flushSave(); // (its save finds the newer copy: keepApartAndTakeNewer)
+  else if (how === 'gone') { await openAnother(); onTabChange?.({ name, kept: null, gone: true }); }
+  return true;
+}
+
 let onHousehold: (() => void) | null = null;
 /** Called when the open plan's household is put in place from storage (another plan opened, or sync's copy): the picker's filters follow it. */
 export function setHouseholdListener(fn: () => void) { onHousehold = fn; }
@@ -1029,6 +1186,7 @@ export async function createProject(name: string, data?: ProjectData, id = uid()
   await db().write([...projectWriteOps(id, projectData), put('meta', id, meta)]);
   state.projects.unshift(meta);
   afterProjectsChange?.();
+  onSavedHere?.(null);
   return id;
 }
 /**
@@ -1055,10 +1213,12 @@ export async function deleteProject(id: string, bySync = false, token?: number):
     ops.push(put('kv', 'syncRecords', syncRecords), put('kv', 'syncTombstones', syncTombstones), put('kv', 'syncDeleted', syncDeleted));
   }
   bumpChange(id);
+  seenAt.delete(id);
   state.projects = state.projects.filter((p) => p.id !== id);
   const written = db().write(ops);
   afterProjectsChange?.();
   await written;
+  onSavedHere?.(null);
   return true;
 }
 export async function renameProject(id: string, name: string) {
@@ -1069,6 +1229,7 @@ export async function renameProject(id: string, name: string) {
   bumpChange(id);
   await db().write([put('meta', id, { ...meta })]);
   afterProjectsChange?.();
+  onSavedHere?.(null);
 }
 
 // ---------- Sync support (see src/sync) ----------
@@ -1241,6 +1402,7 @@ export async function replaceProjectContent(
   }
   try {
     await written;
+    onSavedHere?.(id);
   } catch (e) {
     // The plan on screen already shows the server's version (so later edits land on top of it);
     // keep it as unsaved so the next save writes it (image bytes included).
@@ -1676,7 +1838,7 @@ export function _resetStorageForTests() {
   kv = null; clipboardCache = null; storedImageKeys = new Set(); committedImageKeys = new Set(); cleared.clear();
   quotaWarned = false; lastBackupAt = null; myPlantsRaw = []; lastSizeMode = 'typical'; editSeq = 0; savedSeq = 0; planSeq = 0; savedPlanSeq = 0; saveFailing = false;
   lastFailureJournalAt = 0; PAGE = newPageId(); syncRecords = {}; syncTombstones = {}; syncDeleted = {}; syncUserId = null; changeCounts.clear(); plantSync = { records: {}, edited: {} };
-  fromDevice = null; superseded = false;
+  fromDevice = null; superseded = false; seenAt.clear(); onSavedHere = null; onTabChange = null;
   saveChain = Promise.resolve(true);
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = null;

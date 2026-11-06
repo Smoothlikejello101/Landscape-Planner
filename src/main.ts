@@ -31,10 +31,12 @@ import { applyTextSize } from './text-size';
 import { updateSaveWarning, updateSaveState } from './ui/save-warning';
 import {
   currentProject, flushSave, getLastBackupAt, initStorage, refreshClipboard, requestPersistence, saveIsFailing, saveView, setHouseholdListener,
-  setNewerVersionListener, setSaveStateListener, setSaveStatusListener, StorageUnavailableError, storageIsDurable, supersededByNewer, writeJournalIfDirty,
+  setNewerVersionListener, setSaveStateListener, setSaveStatusListener, setTabChangeListener, StorageUnavailableError, storageIsDurable, supersededByNewer,
+  writeJournalIfDirty, type TabChange,
 } from './storage';
+import { installTabs } from './tabs';
 import { flashZoom, placeFirstCard, render } from './ui/render';
-import { dismissToastAction, toast } from './ui/toast';
+import { dismissToastAction, noticeUp, toast, toastAction } from './ui/toast';
 import { closeYear, stepMonth } from './ui/year-bar';
 import { closeWarningsSide, warningsSideOpen } from './ui/warnings-sheet';
 import { lastVisitAt, noteVisit, visitedBefore } from './hints';
@@ -314,6 +316,30 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', () => { writeJournalIfDirty(); void flushSave(); });
 
 // ============================================================
+// OTHER TABS AND WINDOWS (src/tabs.ts)
+// ============================================================
+/**
+ * The open plan was saved in another tab or window since this page read it, or deleted there (src/storage.ts
+ * keepApartAndTakeNewer): its newer copy is open here now, and what this page had changed is kept as a plan of its own.
+ */
+function saidTabChange(c: TabChange) {
+  if (!state.history.length) pushHistory(); // (the copy taken in: where Undo starts from)
+  render();
+  if (!c.kept && !c.gone) return; // (nothing of this page's to say: the newer copy just shows)
+  const kept = c.kept ? ` What you changed here is kept as a plan of its own, “${c.kept}”. Compare, and delete what you don’t need.` : '';
+  void tell(c.gone ? `“${c.name}” was deleted in another tab or window.${kept}` : `“${c.name}” was changed in another tab or window, so that copy is open here now.${kept}`, { testid: 'tab-change' });
+}
+/**
+ * Once, in a page opened while another is open (Jason, Nov 6): after the notices of the start, not over them. A change
+ * taken in from the other can't be undone here (src/storage.ts takeNewer).
+ */
+function sayAlsoOpen(tries = 0) {
+  if ((noticeUp() || asking()) && tries < 40) { setTimeout(() => sayAlsoOpen(tries + 1), 1500); return; }
+  toastAction('FullGrown is open in another tab or window on this device too. Both stay up to date, but a change made in one can’t be undone in the other. We suggest closing one.',
+    [{ label: 'OK', run: () => {} }], 0, 'also-open', { untilAction: true });
+}
+
+// ============================================================
 // INIT
 // ============================================================
 function showStorageError() {
@@ -457,6 +483,10 @@ async function start() {
   setSaveStatusListener(updateSaveWarning);
   setSaveStateListener(updateSaveState);
   pushHistory(); // seed undo history with the loaded state
+  // Other tabs and windows of FullGrown on this device: each takes in the plans as the others save them, and never saves
+  // over a newer copy (src/tabs.ts, src/storage.ts).
+  setTabChangeListener(saidTabChange);
+  installTabs({ changed: () => { if (!state.history.length) pushHistory(); refreshAfterSync(); }, alsoOpen: () => sayAlsoOpen() });
   // Back after a gap or an update: the whole plan, and a small card; the second visit, once, "Saved on this phone"
   // (src/welcome.ts has the order). Up before the first drawing, so the photo's "not to scale yet" waits for it to go.
   const lastBackup = getLastBackupAt();

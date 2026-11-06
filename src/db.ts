@@ -68,6 +68,11 @@ export interface KV {
   /** Apply several puts/deletes, across stores, all-or-nothing. */
   write(ops: WriteOp[]): Promise<void>;
   /**
+   * The same, only if `check.ok` says yes to the record at `check.store`/`check.key` as it is now, read in the same
+   * transaction, so nothing another tab writes can come in between the check and the write. Whether it was written.
+   */
+  writeIf(check: { store: StoreName; key: string; ok: (current: unknown) => boolean }, ops: WriteOp[]): Promise<boolean>;
+  /**
    * Once: unless kv/`flag` is set already, `change` each record of `store` (a new value, or undefined to leave it) and
    * set the flag to `value`, in one transaction, so nothing written meanwhile (another tab) is put back as it was read.
    * The flag's value if it was set already (and nothing changed), else undefined.
@@ -146,6 +151,22 @@ class IdbKV implements KV {
     }
     await done(tx);
   }
+  async writeIf(check: { store: StoreName; key: string; ok: (current: unknown) => boolean }, ops: WriteOp[]) {
+    const tx = this.tx([...new Set([check.store, ...ops.map((o) => o.store)])], 'readwrite');
+    const finished = done(tx);
+    let refused = false;
+    const r = tx.objectStore(check.store).get(check.key);
+    r.onsuccess = () => {
+      if (!check.ok(r.result)) { refused = true; tx.abort(); return; }
+      for (const o of ops) {
+        const os = tx.objectStore(o.store);
+        if (o.value === undefined) os.delete(o.key);
+        else os.put(o.value, o.key);
+      }
+    };
+    try { await finished; } catch (e) { if (refused) return false; throw e; }
+    return true;
+  }
   async changeAllOnce(flag: string, value: unknown, store: StoreName, change: (v: unknown) => unknown) {
     const tx = this.tx([store, 'kv'], 'readwrite');
     const finished = done(tx);
@@ -182,6 +203,11 @@ export class MemoryKV implements KV {
       if (o.value === undefined) m.delete(o.key);
       else m.set(o.key, structuredClone(o.value));
     }
+  }
+  async writeIf(check: { store: StoreName; key: string; ok: (current: unknown) => boolean }, ops: WriteOp[]) {
+    if (!check.ok(structuredClone(this.data.get(check.store)!.get(check.key)))) return false;
+    await this.write(ops);
+    return true;
   }
   async changeAllOnce(flag: string, value: unknown, store: StoreName, change: (v: unknown) => unknown) {
     const kv = this.data.get('kv')!, m = this.data.get(store)!;
