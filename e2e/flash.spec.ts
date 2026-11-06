@@ -90,6 +90,10 @@ const touches = (cdp: CDPSession, type: 'touchStart' | 'touchMove' | 'touchEnd',
 
 interface Frame {
   plan: boolean; view: string; groups: number; looks: number; names: number; photo: boolean; pill: boolean; buttons: boolean;
+  /** The veil over the plan (after a touch's pan or pinch), and how see-through the shapes drawn anew under it are. */
+  veil: number; under: string;
+  /** The veil, if up: moved as the gesture left it, what in it the app or a test would find, whether it takes taps. */
+  veilIs: [boolean, number, string] | null;
   /** Where the photo and the house are on the screen, as the plan has them: (house − photo) / photo's width, across and down. */
   step: [number, number];
 }
@@ -115,6 +119,8 @@ async function watch(page: Page) {
         names: shapes?.querySelectorAll('text').length ?? 0,
         photo: plan?.querySelector('image') === w.__photo,
         pill: !!document.querySelector('.sel-pill'), buttons: !!document.querySelector('.zoombtns'),
+        veil: plan?.querySelectorAll(':scope > .plan-veil').length ?? 0, under: (shapes?.closest('.plan-move') as HTMLElement | null)?.style.opacity ?? '',
+        veilIs: (() => { const v = plan?.querySelector<HTMLElement>(':scope > .plan-veil'); return v ? [!!v.style.transform, v.querySelectorAll('[data-shape-id], [data-role], g[data-layer=shapes]').length, getComputedStyle(v).pointerEvents] : null; })(),
         step: photo && house ? [Math.round(((house.left - photo.left) / photo.width) * 1e4) / 1e4, Math.round(((house.top - photo.top) / photo.width) * 1e4) / 1e4] : [NaN, NaN],
       } as Frame);
       requestAnimationFrame(sample);
@@ -129,6 +135,17 @@ async function watch(page: Page) {
     }).observe(document.body, { childList: true, subtree: true });
   });
 }
+/** The veil over the plan after a touch's pan or pinch (src/canvas.ts redrawCanvasVeiled), and the new sheet under it. */
+const veilNow = () => {
+  const plan = document.getElementById('canvas-svg')!;
+  const veil = plan.querySelector<HTMLElement>(':scope > .plan-veil');
+  const sheet = plan.querySelector('g[data-layer=shapes]')!.closest<HTMLElement>('.plan-move')!;
+  return {
+    veils: plan.querySelectorAll(':scope > .plan-veil').length, moved: !!veil?.style.transform,
+    ids: veil ? veil.querySelectorAll('[data-shape-id], [data-role], g[data-layer=shapes]').length : 0,
+    taps: veil ? getComputedStyle(veil).pointerEvents : '', under: sheet.style.opacity,
+  };
+};
 const frames = (page: Page) => page.evaluate(() => (window as unknown as { __frames: Frame[] }).__frames.splice(0));
 const churn = (page: Page) => page.evaluate(() => (window as unknown as { __churn: string[] }).__churn.splice(0));
 
@@ -224,6 +241,13 @@ test.describe('on a phone', () => {
     const names = await page.locator('#canvas-svg g[data-layer=shapes] text').count();
     expect(release.textLayouts, 'the release redraws the plan (and the trace counts what it lays out)').toBeGreaterThanOrEqual(names);
     for (const f of after) expect([f.plan, f.groups, f.looks, f.names, f.photo, f.pill, f.buttons]).toEqual([true, rest.groups, rest.looks, names, true, true, true]);
+    // (Jason's third recording, Nov 5: on his phone the plants' layer, drawn anew, showed half painted a frame or three.
+    // The shapes as the pinch left them stay on top a moment, a veil taking no taps, with nothing in it the app or a test
+    // would find, over the new drawing, nearly see-through till it's had time to paint; then it shows and the veil goes.
+    // Headless Chrome paints it all before showing it, so these are the veil's steps, not the painting: src/canvas.ts.)
+    expect([after[0].veil, after[0].under], 'the first frame drawn anew: the veil over it, it nearly see-through').toEqual([1, '0.01']);
+    expect(after[0].veilIs, 'the veil: as the pinch left it, nothing in it found, no taps').toEqual([true, 0, 'none']);
+    await expect.poll(() => page.evaluate(veilNow)).toEqual({ veils: 0, moved: false, ids: 0, taps: '', under: '' });
     const made = (await churn(page)).filter((x) => typeof x === 'string' && /^(canvas-svg|app\b|sel-pill)/.test(x));
     expect(made, 'the plan, the app or the selection\'s bar made anew at the release').toEqual([]);
     await expect(page.locator('#canvas-svg image')).toHaveAttribute('decoding', 'sync');

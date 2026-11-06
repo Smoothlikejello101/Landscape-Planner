@@ -56,6 +56,10 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .plan svg { display: block; overflow: visible; pointer-events: none; }
 .plan g[data-layer] { pointer-events: visiblePainted; }
 .plan-move { will-change: transform; transform-origin: 0 0; }
+/* (The veil: the shapes as a touch's pan or pinch left them, over the plan drawn anew a moment, as painted, taking no
+   taps: src/canvas.ts redrawCanvasVeiled.) */
+.plan > .plan-veil { position: absolute; left: 0; top: 0; will-change: transform; transform-origin: 0 0; pointer-events: none; }
+.plan-veil g[data-layer] { pointer-events: none; }
 /* (The page still zoomed in with nothing open: a pinch on the plan zooms the page back out. src/page-zoom.ts) */
 .page-zoomed .canvas-wrap, .page-zoomed .canvas-wrap > .plan { touch-action: pinch-zoom; }
 .zoombtns { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 4px; z-index: 5; }
