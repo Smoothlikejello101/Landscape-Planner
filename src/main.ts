@@ -36,7 +36,7 @@ import {
 } from './storage';
 import { installTabs } from './tabs';
 import { flashZoom, placeFirstCard, render } from './ui/render';
-import { dismissToastAction, noticeUp, toast, toastAction } from './ui/toast';
+import { dismissToastAction, noticeUp, toast } from './ui/toast';
 import { closeYear, stepMonth } from './ui/year-bar';
 import { closeWarningsSide, warningsSideOpen } from './ui/warnings-sheet';
 import { lastVisitAt, noteVisit, visitedBefore } from './hints';
@@ -330,13 +330,13 @@ function saidTabChange(c: TabChange) {
   void tell(c.gone ? `“${c.name}” was deleted in another tab or window.${kept}` : `“${c.name}” was changed in another tab or window, so that copy is open here now.${kept}`, { testid: 'tab-change' });
 }
 /**
- * Once, in a page opened while another is open (Jason, Nov 6): after the notices of the start, not over them. A change
- * taken in from the other can't be undone here (src/storage.ts takeNewer).
+ * Once, in a page opened while another is open (Jason, Nov 6): after the notices of the start, not over them, and a
+ * plain one, so it never keeps a start card from coming (the install card waits while a notice with buttons is up). A
+ * change taken in from the other can't be undone here (src/storage.ts takeNewer).
  */
 function sayAlsoOpen(tries = 0) {
   if ((noticeUp() || asking()) && tries < 40) { setTimeout(() => sayAlsoOpen(tries + 1), 1500); return; }
-  toastAction('FullGrown is open in another tab or window on this device too. Both stay up to date, but a change made in one can’t be undone in the other. We suggest closing one.',
-    [{ label: 'OK', run: () => {} }], 0, 'also-open', { untilAction: true });
+  toast('FullGrown is open in another tab or window on this device too. Both stay up to date, but a change made in one can’t be undone in the other. We suggest closing one.', 10000);
 }
 
 // ============================================================

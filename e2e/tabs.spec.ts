@@ -50,11 +50,9 @@ test("two tabs on one plan: each shows the other's changes as they're saved, the
   // The second is told, once, after the notices of the start (its second visit's "saved here" card, put away); the first
   // isn't.
   await second.getByTestId('saved-here').getByTestId('notice-close').click();
-  const told = second.getByTestId('also-open');
-  await expect(told).toContainText('FullGrown is open in another tab or window on this device too.');
-  await expect(page.getByTestId('also-open')).toHaveCount(0);
-  await told.getByRole('button', { name: 'OK' }).click();
-  await expect(told).toHaveCount(0);
+  const said = 'FullGrown is open in another tab or window on this device too.';
+  await expect(second.locator('#toast')).toContainText(said);
+  await expect(page.getByText(said)).toHaveCount(0);
   // A plant deleted in the second: gone from the first too, without a reload.
   await deletePlant(second, 'p0', isMobile);
   await expect.poll(() => shapeCount(second)).toBe(SHAPES.length - 1);
