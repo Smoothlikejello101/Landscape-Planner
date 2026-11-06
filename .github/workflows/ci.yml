@@ -2,7 +2,9 @@ name: Test and deploy
 
 # Three places a commit can go (docs/releasing.md):
 # - a pull request: tested as it would merge (GitHub's merge of it into its base);
-# - main (each merged pull request): tested, then built as Next, the preview copy at next.fullgrown.garden;
+# - main (each merged pull request): type-checked, unit-tested and built (its end-to-end tests ran on its pull request,
+#   as it would merge), then built as Next, the preview copy at next.fullgrown.garden (Jason, Nov 6: CI minutes, should
+#   the repo go private; the end-to-end tests were nine tenths of every run);
 # - release (a release pull request from main, merged by Jason): tested, then deployed to app.fullgrown.garden, the
 #   app testers use.
 # A branch's own pushes aren't tested apart from its pull request's: that run covers them, merged with main (2026-11-01;
@@ -76,7 +78,9 @@ jobs:
 
   e2e:
     # The end-to-end tests in four parts at once, each a quarter of them (Playwright's --shard, which splits them
-    # test by test) against its own build of the app: about a quarter of the time one runner took.
+    # test by test) against its own build of the app: about a quarter of the time one runner took. Not again for a
+    # merge into main (above): a pull request's run, and a release's, and a run started by hand.
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     # Pinned: ubuntu-latest moves to 26.04 by Nov 19, 2026, where Playwright 1.56 can't install a browser. Move
     # on purpose, with a Playwright upgrade.
     runs-on: ubuntu-24.04
@@ -140,11 +144,11 @@ jobs:
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
 
   next:
-    # Next, the preview copy at next.fullgrown.garden: main as of each merge, once its tests pass, built as Next
+    # Next, the preview copy at next.fullgrown.garden: main as of each merge, once its checks pass, built as Next
     # (src/channel.ts: its own name, an amber stripe, no sign-in) and pushed to the fullgrown-next repo's gh-pages
     # branch, which GitHub Pages serves. Its own web address, so its plans never mix with the real app's.
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [test, e2e]
+    needs: [test]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

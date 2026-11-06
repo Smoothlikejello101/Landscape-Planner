@@ -6,7 +6,9 @@
   `npm test`, and the end-to-end specs that cover the change. CI is the full
   check (Jason, Nov 1): it runs every test on the pull request as it would
   merge, in about 3 minutes; `npm run check` takes 20–35 minutes on this
-  workspace's 2 cores. Never ask Jason to merge before CI passes. Never run
+  workspace's 2 cores. A merge into `main` runs only the type check, unit
+  tests and build before Next (CI minutes, Jason, Nov 6); a release runs
+  everything. Never ask Jason to merge before CI passes. Never run
   a full check while another test run is going: the load makes tests time
   out.
 - Keyboard safety (Android): text/number/range/color inputs must update via
