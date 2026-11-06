@@ -440,11 +440,30 @@ The windows left, both only while one of the account's devices is on the release
 A rule for later versions: a third way of drawing them would be dropped by this version (anything but the two words is
 none), and its next upload would lose it everywhere; it needs a guard of its own.
 
-## Two tabs on the same version
+## Two tabs on the same version (Nov 6)
 
-Both can edit the same plan, and the last save wins: there's no check that the plan changed since a page read it. A
-fix would compare, at each save, the stored plan's change count (or `lastModified`) with the one the page read, and keep
-the page's copy apart (as journals are) or merge, when another page saved in between.
+Until Nov 6, both could edit the same plan and the last save won: the bug hunt's tablet tester lost a bed drawn in one
+tab when the tab opened first saved its older copy over it (release 3 did the same). Two tabs here means any two pages
+on the same plans: browser tabs or windows, or the installed app and a tab of it in the browser.
+
+- **The check at each save** (`writeCurrentKnowing`): each page keeps, for the plan it has open, the stamp of its record
+  as it last read or wrote it (`seenAt`: `savedByPage`, `savedAt`, `savedSeq`). The save goes through `KV.writeIf`,
+  which reads the record in the write's own transaction: written by another page since (any other stamp), or deleted,
+  and nothing is written. Instead (`keepApartAndTakeNewer`) the page's changes to the plan, if it has any (`planSeq`,
+  not a view alone), become a plan of their own, "<name> (from another tab)", the newer copy is taken in (`takeNewer`:
+  its view, zoom and Layers filter stay this page's; undo steps go, since one would put the older copy back), and the
+  page says so (`TabChange`, src/main.ts). Deleted there: another plan opens, after the save.
+- **Keeping up** (src/tabs.ts): after each write a page posts on the `fullgrown-tabs` BroadcastChannel, `saved` with the
+  plan's id or `plans` for the list. A page showing that plan, with nothing unsaved, takes the newer copy in at once
+  (`catchUpWithOtherTabs`); with something unsaved, its save keeps it apart as above. A page back in view checks too,
+  since one frozen in the background hears nothing. So the check above is for what slips between: two pages saving
+  within a quarter second, or one that was asleep.
+- **Said once**: a page opened while another is open hears its `here` (an answer to its `hello`) and says, once, that
+  FullGrown is open in another tab or window too, and suggests closing one.
+
+Nothing stored changed (no new record or field; `savedByPage`, `savedAt` and `savedSeq` were kept already), so no
+database version. Older versions don't check, but can't write a plan this version has written (the database version
+rule). Tests: tests/storage.test.ts ("two tabs or windows of this version on one plan"), e2e/tabs.spec.ts.
 
 ## Versions before Oct 11
 

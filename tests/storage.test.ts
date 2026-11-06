@@ -3107,3 +3107,124 @@ describe('an older version never saves over a newer one (src/db.ts DB_VERSION)',
     expect((await indexedDB.databases()).map((d) => d.name)).not.toContain('nothing-here');
   });
 });
+
+describe("two tabs or windows of this version on one plan (Jason, Nov 6: the bug hunt's tablet tester lost a bed drawn in one, saved over by the other)", () => {
+  /** A page: its own copy of the app's code and state, on the database `name`, open on its last plan. */
+  async function page(name: string) {
+    vi.resetModules();
+    const storage = await import('../src/storage');
+    const db = await import('../src/db');
+    const { state: st } = await import('../src/state');
+    await storage.initStorage(await db.openKV(name));
+    const said: { name: string; kept: string | null; gone: boolean }[] = [];
+    storage.setTabChangeListener((c) => said.push(c));
+    const heard: (string | null)[] = [];
+    storage.setSavedHereListener((id) => heard.push(id));
+    /** An edit, as the app makes one: the shapes changed, then saved. */
+    const edit = async (...l: string[]) => { st.shapes = storage.sanitizeProjectData({ shapes: l.map(circle) }).shapes; storage.save(); await storage.flushSave(); };
+    return { storage, state: st, said, heard, edit, shapes: () => st.shapes.map((x) => x.label) };
+  }
+  const storedNow = async (name: string, id: string) => ((await (await openKV(name)).get<{ shapes: { label: string }[] }>('projects', id))?.shapes ?? []).map((x) => x.label);
+  const names = async (name: string) => (await (await openKV(name)).getAll<{ name: string }>('meta')).map((m) => m.name).sort();
+
+  it("the tab opened first, behind, never saves over the other's newer copy: its change is kept as a plan of its own, and the newer copy opens there", async () => {
+    const name = 'test-' + ++dbCount;
+    const a = await page(name);
+    await a.edit('house', 'bed');
+    const b = await page(name);
+    const id = b.state.currentProjectId!;
+    expect(b.shapes()).toEqual(['house', 'bed']);
+    await b.edit('house', 'bed', 'new bed'); // (drawn in the second tab)
+    // The first, not told (a frozen page hears nothing), deletes a plant there: its save finds the newer copy.
+    await a.edit('house');
+    expect(await storedNow(name, id)).toEqual(['house', 'bed', 'new bed']);
+    expect(a.shapes()).toEqual(['house', 'bed', 'new bed']);
+    expect(a.state.history).toEqual([]); // (an undo would put the older copy back)
+    expect(await names(name)).toEqual(['My Garden', 'My Garden (from another tab)']);
+    const kept = a.state.projects.find((p) => p.name === 'My Garden (from another tab)')!;
+    expect(await storedNow(name, kept.id)).toEqual(['house']);
+    expect(a.said).toEqual([{ name: 'My Garden', kept: 'My Garden (from another tab)', gone: false }]);
+    // And from then on, it saves as usual: over the copy it took in, nothing kept apart.
+    await a.edit('house', 'bed', 'new bed', 'path');
+    expect(await storedNow(name, id)).toEqual(['house', 'bed', 'new bed', 'path']);
+    expect(await names(name)).toHaveLength(2);
+  });
+
+  it('told of the save, a tab with nothing unsaved takes the newer copy in; then its own changes save over it, nothing kept apart', async () => {
+    const name = 'test-' + ++dbCount;
+    const a = await page(name);
+    await a.edit('house');
+    const b = await page(name);
+    const id = b.state.currentProjectId!;
+    await b.edit('house', 'bed');
+    expect(b.heard).toContain(id); // (what src/tabs.ts passes on to the others)
+    expect(await a.storage.catchUpWithOtherTabs()).toBe(true);
+    expect(a.shapes()).toEqual(['house', 'bed']);
+    expect(a.said).toEqual([]); // (nothing of its own to say)
+    expect(await a.storage.catchUpWithOtherTabs()).toBe(false); // (nothing newer now)
+    await a.edit('house', 'bed', 'path');
+    expect(await b.storage.catchUpWithOtherTabs()).toBe(true);
+    expect(b.shapes()).toEqual(['house', 'bed', 'path']);
+    expect(await names(name)).toEqual(['My Garden']);
+  });
+
+  it('told of the save with a change of its own not saved yet: that change is kept apart, not lost and not saved over the newer copy', async () => {
+    const name = 'test-' + ++dbCount;
+    const a = await page(name);
+    await a.edit('house');
+    const b = await page(name);
+    const id = b.state.currentProjectId!;
+    await b.edit('house', 'bed');
+    a.state.shapes = a.storage.sanitizeProjectData({ shapes: [circle('house'), circle('tree')] }).shapes; a.storage.save(); // (not yet saved)
+    await a.storage.catchUpWithOtherTabs();
+    expect(await storedNow(name, id)).toEqual(['house', 'bed']);
+    expect(a.shapes()).toEqual(['house', 'bed']);
+    const kept = (await (await openKV(name)).getAll<{ id: string; name: string }>('meta')).find((m) => m.name === 'My Garden (from another tab)')!;
+    expect(await storedNow(name, kept.id)).toEqual(['house', 'tree']);
+    expect(a.storage.hasUnsavedChanges()).toBe(false);
+  });
+
+  it("only where it looks at the plan from changed here (a pan): the newer copy is taken in, nothing kept apart", async () => {
+    const name = 'test-' + ++dbCount;
+    const a = await page(name);
+    await a.edit('house');
+    const b = await page(name);
+    await b.edit('house', 'bed');
+    a.state.offsetX = 40; a.storage.saveView(); await a.storage.flushSave();
+    expect(a.shapes()).toEqual(['house', 'bed']);
+    expect(a.state.offsetX).toBe(40); // (its own view kept)
+    expect(await names(name)).toEqual(['My Garden']);
+    expect(a.said).toEqual([{ name: 'My Garden', kept: null, gone: false }]);
+  });
+
+  it('the open plan deleted in another tab: not made again by a save here; a change here is kept as a plan of its own, and another plan opens', async () => {
+    const name = 'test-' + ++dbCount;
+    const a = await page(name);
+    await a.edit('house');
+    const gone = a.state.currentProjectId!;
+    const b = await page(name);
+    const other = await b.storage.createProject('Front yard');
+    await b.storage.switchProject(other);
+    await b.storage.deleteProject(gone);
+    await a.edit('house', 'tree');
+    await vi.waitFor(() => expect(a.said).toHaveLength(1)); // (another plan opened after the save)
+    await a.storage.flushSave();
+    expect(await (await openKV(name)).get('projects', gone)).toBeUndefined();
+    expect(await names(name)).toEqual(['Front yard', 'My Garden (from another tab)']);
+    expect(a.state.currentProjectId).not.toBe(gone);
+    expect(a.said).toEqual([{ name: 'My Garden', kept: 'My Garden (from another tab)', gone: true }]);
+  });
+
+  it('two tabs saving turn about, each told of the other, never keep anything apart', async () => {
+    const name = 'test-' + ++dbCount;
+    const a = await page(name);
+    const b = await page(name);
+    for (let i = 0; i < 4; i++) {
+      const [me, them] = i % 2 ? [b, a] : [a, b];
+      await me.edit(...Array.from({ length: i + 1 }, (_, k) => `s${k}`));
+      await them.storage.catchUpWithOtherTabs();
+      expect(them.shapes()).toHaveLength(i + 1);
+    }
+    expect(await names(name)).toEqual(['My Garden']);
+  });
+});
