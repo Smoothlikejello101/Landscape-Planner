@@ -1,5 +1,26 @@
 [
   {
+    "id": 4,
+    "date": "next",
+    "items": [
+      "Your plan stays in view while you choose plants: on a phone the plant list opens across the lower part of the screen (drag its handle up for the full list); on a computer it’s a panel beside the plan.",
+      "Plant this bed: select a bed and plant it. Its Conditions work out its sun from your sun areas and ask its soil (clay, loam, sandy or rocky), moisture and drip; the list then shows only plants whose facts fit.",
+      "Compare two or three plants side by side, each fact with where it comes from.",
+      "“Hide plants rated toxic to:” People, Dogs, Cats or Horses, in one line at the top of the plant list. A plant not rated yet still shows: not rated isn’t the same as safe.",
+      "Warnings: badges sit on the plant itself; Nudge apart moves plants that would grow into each other; Swap opens the plant list already filtered for what went wrong; “Dismiss all” is at the top of each kind.",
+      "Tall plants are drawn solid. A plant under one keeps its pin, and selecting it makes what covers it see-through. A selected plant is ringed in white and black. Layers can see through every tall plant at once.",
+      "Sun areas are colored by their hours, pale gold for full sun to slate blue for shade, with a key in Layers. Parts of a bed with no sun recorded are faintly hatched.",
+      "Getting your yard in: set a photo’s scale (a rough guess is fine), and “Now trace over the photo” lists the house, driveway, trees, lot line and beds. Set its scale again, or move it, after tracing, and the app asks whether to move your plan with it.",
+      "Drawing: outlines are squared more readily, a corner holds square while you edit points, and the bar at the bottom keeps its buttons still.",
+      "Print or export the whole plan, what’s on the screen, or one bed, as big as fits the page, with the plant list numbered to match.",
+      "The Plant list counts how many of each you’ve bought, shows your own labels, and Mark planted records the day.",
+      "Help answers “How do I…”, and Guided start, the step-by-step introduction, is in it.",
+      "Plant facts: nearly twice as many plants say how far apart to plant them, plant laws for 26 more states and DC, and facts from the earlier list are marked Unverified.",
+      "Lighter on your phone: zooming, panning, selecting, undoing and searching take less work on a big plan.",
+      "FullGrown open in two tabs or windows on one device, or the installed app beside a browser tab, no longer saves one over the other: each shows the other’s changes as they’re saved, and opening a second says so."
+    ]
+  },
+  {
     "id": 3,
     "date": "2026-11-01",
     "items": [

@@ -1,7 +1,0 @@
-[
-  "Plant this bed: a selected bed's chip opens the plant list for that bed, in place of \"Another bed\" (the Bed button still starts a new one). A row at the top of the list says which bed it's for: Anywhere, any of your beds, or one you pick on the plan.",
-  "A bed's new Conditions section works out its sun from the sun areas over it, and asks its soil and moisture (Not sure is fine) and whether it's drip irrigated.",
-  "For a bed, the plant list shows only plants whose facts fit its sun, soil and moisture, and says how many fit. Nothing is ranked, and your own filters stay as you left them for Anywhere. A plant that takes only part of a bed's sun says which end; in a clay bed, plants no source rates for clay are listed below the rest.",
-  "Placing plants for a bed, the bed is outlined, and a plant placed outside it is ringed in red, with Undo.",
-  "Water needs has a new choice: Low or moderate."
-]

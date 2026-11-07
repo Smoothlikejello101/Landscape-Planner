@@ -1,4 +1,0 @@
-[
-  "The plant picker's poison filters are now one line, “Hide plants rated toxic to:”, with People, Dogs, Cats and Horses. It takes the place of “Anyone you need to protect?” and the Poison & pets filters, and People takes the place of Kids in Warnings and the guided start too.",
-  "Each one hides only the plants rated toxic to them. A plant not rated yet now shows, People included, and the line says how many have no rating: not rated toxic isn't the same as safe. The “only plants rated safe for dogs” choice is gone, since those ratings came from an unverified list."
-]
