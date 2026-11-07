@@ -1,38 +1,50 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, closeSheet, openFresh, tapFromCenter } from './helpers';
+import { addKind, closeSheet, openFresh, planFeet, planMiddle, planPoint, tapFromCenter, zoomBackIn, middleOf } from './helpers';
 
 // Shapes stacked under a finger (Jason's testing notes, Oct 29): a second, separate tap picks the next one under it,
 // round the stack; a tree's trunk is over everything, so a tap on it always picks the tree; a press on a locked shape
 // goes to what's on it.
 
 const name = (page: Page) => page.locator('.sel-pill .name');
+/**
+ * A plant placed `dx`, `dy` ft from the middle of the plan as it was before the picker opened: opened with something
+ * selected (the bed just drawn, the plant just placed), the picker moves the plan on a phone to show it above it (Jason,
+ * Nov 2, the plan in view while choosing).
+ */
 async function place(page: Page, plant: string, dx: number, dy: number) {
+  const mid = await planMiddle(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill(plant);
   await page.locator('.sheet .proj-row', { hasText: plant }).first().locator('[data-testid=plant-place]').click();
-  await tapFromCenter(page, dx, dy);
+  const p = await planPoint(page, mid.x + dx, mid.y + dy);
+  await page.mouse.click(p.x, p.y);
   await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
 }
-/** A separate tap: past a double tap's time. */
-const slowTap = async (page: Page, dx: number, dy: number) => { await page.waitForTimeout(450); await tapFromCenter(page, dx, dy); };
+/** A separate tap (past a double tap's time) at a spot on the plan (feet): it may have moved since (place, above). */
+const slowTap = async (page: Page, at: { x: number; y: number }) => {
+  await page.waitForTimeout(450);
+  const p = await planPoint(page, at.x, at.y);
+  await page.mouse.click(p.x, p.y);
+};
 
 test('a second tap picks what\'s under it, round the stack, said the first time; a double tap opens the one selected', async ({ page }) => {
   await openFresh(page);
+  const mid = await planMiddle(page);
   await addKind(page, 'bed', 'rect');
   for (const [x, y] of [[-6, -4], [6, -4], [6, 4]]) await tapFromCenter(page, x, y);
   await place(page, 'Buttonbush', 0, 0);
   await page.keyboard.press('Escape');
-  await slowTap(page, 0, 0);
+  await slowTap(page, mid);
   await expect(name(page)).toHaveText('Buttonbush');
   await expect(page.locator('#toast')).toContainText(/(Tap|Click) again for the bed under it\./);
-  await slowTap(page, 0, 0);
+  await slowTap(page, mid);
   await expect(name(page)).toHaveText('Bed');
-  await slowTap(page, 0, 0);
+  await slowTap(page, mid);
   await expect(name(page)).toHaveText('Buttonbush');
   // A double tap on it: its own pane, not the bed's.
   await page.waitForTimeout(450);
-  const box = (await page.locator('#canvas-svg').boundingBox())!;
-  await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
+  const it = await planPoint(page, mid.x, mid.y);
+  await page.mouse.dblclick(it.x, it.y);
   await expect(page.locator('.sheet .title')).toContainText('Buttonbush');
 });
 
@@ -44,13 +56,15 @@ test('a tree\'s trunk is over a groundcover patch around it: a tap on it picks t
   const trunk = (await page.locator('#canvas-svg [data-role=trunk-hit]').boundingBox())!;
   await page.waitForTimeout(450);
   await page.mouse.click(trunk.x + trunk.width / 2, trunk.y + trunk.height / 2);
-  await expect(name(page)).toHaveText('Eastern redbud');
+  await expect(name(page)).toHaveText('Eastern Redbud');
 });
 
 test('a press on a locked house goes to the bed drawn on it: a tap picks the bed, a drag moves it', async ({ page }) => {
   await openFresh(page);
   await addKind(page, 'building', 'rect');
   for (const [x, y] of [[-6, -4], [6, -4], [6, 3]]) await tapFromCenter(page, x, y);
+  // (The first building opened where a house fits: the bed in it is 4 ft across.)
+  await zoomBackIn(page, await middleOf(page, '#canvas-svg rect[data-shape-id]'));
   await addKind(page, 'bed', 'rect');
   for (const [x, y] of [[-2, -1.5], [2, -1.5], [2, 1.5]]) await tapFromCenter(page, x, y);
   // (Where they are now: the plan grows taller once the drawing bar goes. The bed is drawn first, under the house.)
@@ -94,10 +108,13 @@ test('a sun area over a bed is the last a tap picks: the plant, then the bed, th
   await closeSheet(page); // (its sun record: the sheet a new sun area opens)
   await expect(page.locator('#canvas-svg polygon[data-shape-id]')).toHaveCount(1);
   const middle = (await bed.boundingBox())!;
-  const at = { x: middle.x + middle.width / 2, y: middle.y + middle.height / 2 };
+  // (The bed's middle as a spot on the plan: the picker, opened with the sun area just drawn still selected, moves the
+  // plan on a phone to show it above it. Jason, Nov 2, the plan in view while choosing.)
+  const spot = await planFeet(page, { x: middle.x + middle.width / 2, y: middle.y + middle.height / 2 });
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Buttonbush');
   await page.locator('.sheet .proj-row', { hasText: 'Buttonbush' }).first().locator('[data-testid=plant-place]').click();
+  const at = await planPoint(page, spot.x, spot.y);
   await page.mouse.click(at.x, at.y);
   await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
   const tap = async (p: { x: number; y: number }) => { await page.waitForTimeout(450); await page.mouse.click(p.x, p.y); };
@@ -107,7 +124,7 @@ test('a sun area over a bed is the last a tap picks: the plant, then the bed, th
   await tap(at);
   await expect(name(page)).toHaveText('Bed');
   await tap(at);
-  await expect(name(page)).toHaveText('Sun exposure');
+  await expect(name(page)).toHaveText('Sun Exposure');
   // Beside the plant, on the bed: the bed first, the sun area next.
   const m = (await bed.boundingBox())!;
   const beside = { x: m.x + m.width * 0.1, y: m.y + m.height * 0.85 };
@@ -116,7 +133,7 @@ test('a sun area over a bed is the last a tap picks: the plant, then the bed, th
   await expect(name(page)).toHaveText('Bed');
   await expect(page.locator('#toast')).toContainText(/(Tap|Click) again for the sun exposure under it\./);
   await tap(beside);
-  await expect(name(page)).toHaveText('Sun exposure');
+  await expect(name(page)).toHaveText('Sun Exposure');
   // With the bed selected, a drag there moves the bed, its plant with it; the sun area stays.
   await page.keyboard.press('Escape');
   await tap(beside);
@@ -131,4 +148,75 @@ test('a sun area over a bed is the last a tap picks: the plant, then the bed, th
   await page.mouse.up();
   await expect.poll(async () => (await plant.boundingBox())!.x).toBeCloseTo(before.x + 4 * ppf, -1);
   expect((await sun.boundingBox())!.x).toBeCloseTo(sunBefore.x, 0);
+});
+
+/**
+ * Two lobelias under a milkweed in a bed, the second's pin inside the first's circle, and the first's inside the second's.
+ */
+async function lobelias(page: Page) {
+  const base = { opacity: 0.65, locked: false, rotation: 0, color: '#16a34a', type: 'circle', role: 'plant', status: 'planned' };
+  const shapes = [
+    { ...base, type: 'rect', role: 'bed', kind: 'bed', id: 'bed', x: -12, y: -10, width: 24, height: 20, color: '#92400e', opacity: 0.3, label: 'SW Corner' },
+    { ...base, id: 'mw', x: -3, y: 0, plantId: 'asclepias-incarnata', label: 'Swamp Milkweed', radius: 3.5 },
+    { ...base, id: 'lob1', x: -2.2, y: 0.1, plantId: 'lobelia-siphilitica', label: 'Great Blue Lobelia', radius: 0.8 },
+    { ...base, id: 'lob2', x: -1.5, y: 0, plantId: 'lobelia-siphilitica', label: 'Great Blue Lobelia', radius: 0.8 },
+  ];
+  const { width, height } = page.viewportSize()!;
+  await page.addInitScript(([s, w, h]) => {
+    if (sessionStorage.getItem('seeded')) return;
+    sessionStorage.setItem('seeded', '1');
+    const zoom = 1.4, ppf = 24 * zoom;
+    localStorage.setItem('landscape-planner-v1', JSON.stringify({ shapes: s, zoom, offsetX: -2 - w / 2 / ppf, offsetY: -(h - 160) / 2 / ppf }));
+  }, [shapes, width, height] as const);
+  await page.goto('./');
+  await expect(page.locator('#canvas-svg [data-pin-of=lob1]')).toHaveCount(1);
+  await expect(page.locator('#canvas-svg [data-pin-of=lob2]')).toHaveCount(1);
+}
+
+test('a hidden plant\'s pin picks that plant, even inside the circle of the one selected; its own pin goes on down the stack (Jason, Nov 6)', async ({ page, isMobile }) => {
+  // Picked by its pin, the first; then the second's pin, pressed: the second, where it picked the bed under the first.
+  await lobelias(page);
+  const ring = (id: string) => page.locator(`#canvas-svg [data-rim-of="${id}"]`);
+  const press = async (id: string) => {
+    await page.waitForTimeout(450); // (not a double tap)
+    const b = (await page.locator(`#canvas-svg [data-pin-of="${id}"]`).boundingBox())!;
+    const x = b.x + b.width / 2, y = b.y + b.height / 2;
+    if (isMobile) await page.touchscreen.tap(x, y); else await page.mouse.click(x, y);
+  };
+  await press('lob2');
+  await expect(ring('lob2')).toHaveAttribute('data-mark', 'selected');
+  await press('lob1');
+  await expect(ring('lob1')).toHaveAttribute('data-mark', 'selected');
+  await expect(page.locator('.sel-pill .name')).toHaveText('Great Blue Lobelia');
+  await expect(ring('lob2')).toHaveAttribute('data-mark', 'pin');
+  // And back: the first again, by its pin.
+  await press('lob2');
+  await expect(ring('lob2')).toHaveAttribute('data-mark', 'selected');
+  await expect(page.locator('.overlay .sheet')).toHaveCount(0); // (never taken for a double tap: no pane opened)
+});
+
+test('taps again on one spot, a plant\'s pin, go on down the stack to the bed and round (Jason, Nov 6, his second recording)', async ({ page, isMobile }) => {
+  // (They went lobelia, the one under it, lobelia, the one under it…: each tap on the pin was taken as a press on a hidden
+  // plant's pin, and picked it again.)
+  await lobelias(page);
+  const b = (await page.locator('#canvas-svg [data-pin-of=lob1]').boundingBox())!;
+  const spot = await planFeet(page, { x: b.x + b.width / 2, y: b.y + b.height / 2 });
+  /** The plant selected (its id), or the bed's name. */
+  const picked = () => page.evaluate(() => document.querySelector('#canvas-svg [data-rim-of][data-mark=selected]')?.getAttribute('data-rim-of')
+    ?? document.querySelector('.sel-pill .name')?.textContent ?? null);
+  const picks: (string | null)[] = [];
+  for (let i = 0; i < 5; i++) {
+    await page.waitForTimeout(450); // (not a double tap)
+    const before = await picked();
+    const p = await planPoint(page, spot.x, spot.y);
+    if (isMobile) await page.touchscreen.tap(p.x, p.y); else await page.mouse.click(p.x, p.y);
+    await expect.poll(picked).not.toBe(before);
+    picks.push(await picked());
+  }
+  // The pin's plant, the other two plants there, the bed, and round to the pin's plant again.
+  expect(picks[0]).toBe('lob1');
+  expect(new Set(picks.slice(1, 3))).toEqual(new Set(['lob2', 'mw']));
+  expect(picks[3]).toBe('SW Corner');
+  expect(picks[4]).toBe('lob1');
+  await expect(page.locator('.overlay .sheet')).toHaveCount(0); // (never taken for a double tap)
 });

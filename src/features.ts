@@ -16,12 +16,12 @@ export interface KindInfo {
 export const SUB_FEATURES: Record<SubFeatureKind, KindInfo> = {
   door: { label: 'Door', width: [3, 2, 8], hosts: ['building'] },
   window: { label: 'Window', width: [3, 1, 20], hosts: ['building'] },
-  garage: { label: 'Garage door', width: [9, 6, 20], hosts: ['building'] },
+  garage: { label: 'Garage Door', width: [9, 6, 20], hosts: ['building'] },
   steps: { label: 'Steps', width: [4, 2, 20], hosts: ['building', 'path'] },
   gate: { label: 'Gate', width: [4, 2, 20], hosts: ['boundary'] },
   downspout: { label: 'Downspout', hosts: ['building'] },
-  spigot: { label: 'Hose bib', hosts: ['building'] },
-  ac: { label: 'AC unit', hosts: ['building'] },
+  spigot: { label: 'Hose Bib', hosts: ['building'] },
+  ac: { label: 'AC Unit', hosts: ['building'] },
   meter: { label: 'Meter', hosts: ['building'] },
 };
 export const SUB_FEATURE_ORDER: SubFeatureKind[] = ['door', 'window', 'garage', 'steps', 'gate', 'downspout', 'spigot', 'ac', 'meter'];

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
-import { finishPlacing, placeTap, recentPlants, startPlacing, switchPlacingPlant, undoPlace } from '../src/place';
+import { finishPlacing, placeTap, startPlacing, switchPlacingPlant, undoPlace } from '../src/place';
 import { linkFromPicker, plantsById, type Plant } from '../src/plants';
 import { canFinishDraw, finishDraw, startTreeDraw } from '../src/draw';
 import { state } from '../src/state';
@@ -47,6 +47,15 @@ describe('placing plants by tapping', () => {
     startPlacing(cone);
     tapFt(2, 3); // (at once, in a new go: meant)
     expect(state.shapes).toHaveLength(2);
+    finishPlacing();
+  });
+  it('a tap at once where the one just taken back with Undo was places it again (Plant this bed\'s "Placed outside", Undo)', () => {
+    startPlacing(cone);
+    tapFt(2, 3);
+    undoPlace();
+    tapFt(2, 3);
+    expect(state.shapes).toHaveLength(1);
+    expect(state.placing!.placed).toHaveLength(1);
     finishPlacing();
   });
   it('takes back the last one with Undo', () => {
@@ -105,24 +114,16 @@ describe('placing plants by tapping', () => {
     tapFt(1, 1);
     expect(state.shapes[0]).toMatchObject({ status: 'planted', phase: 'Fall 2026' });
   });
-  it('remembers the plants placed most recently (not just picked)', () => {
-    startPlacing(cone); tapFt(1, 1); finishPlacing();
-    startPlacing(oak); tapFt(40, 40); finishPlacing();
-    startPlacing(cone); tapFt(3, 1); finishPlacing();
-    startPlacing(oak); finishPlacing(); // picked, nothing placed
-    expect(recentPlants().map((p) => p.id)).toEqual(['u-cone', 'u-oak']);
-  });
-  it('counts a plant swapped in as placed: first in Recent (the UI review, 2026-11-01)', () => {
+  it('swaps a placed plant for the one picked; a circle drawn before the catalog is linked (Recent, which kept them, went Nov 4)', () => {
     startPlacing(cone); tapFt(1, 1); finishPlacing();
     state.pickerLinkId = state.shapes[0].id; state.pickerLinkAlso = []; // (its sheet's "Swap for another plant…")
     linkFromPicker(aster);
     expect(state.shapes[0]).toMatchObject({ plantId: 'u-aster' });
-    expect(recentPlants().map((p) => p.id)).toEqual(['u-aster', 'u-cone']);
-    // (Linked, a circle drawn before the catalog isn't placed: Recent as it was.)
     state.shapes.push({ ...state.shapes[0], id: 'drawn', plantId: undefined, label: 'Oak' } as CircleShape);
     state.pickerLinkId = 'drawn';
     linkFromPicker(oak);
-    expect(recentPlants().map((p) => p.id)).toEqual(['u-aster', 'u-cone']);
+    expect(state.shapes.find((s) => s.id === 'drawn')).toMatchObject({ plantId: 'u-oak' });
+    expect(localStorage.getItem('lp-recent-plants')).toBeNull(); // (nothing kept for it any more)
   });
   it('draws a picked existing tree at the size tapped, named for the plant', () => {
     startTreeDraw('u-oak');

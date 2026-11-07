@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addPlainShape, closeSheet, drag, field, openFresh, openSections, openWarnings, placeOnceAtCenter, setRole, shapeCount } from './helpers';
+import { addPlainShape, closeSheet, drag, field, openFresh, openSections, openWarnings, placeOnceAt, planMiddle, setRole, shapeCount, shapeNamed } from './helpers';
 
 async function addRect(page: Page, label: string, role: string, size?: [number, number]) {
   await addPlainShape(page, 'rect');
@@ -11,14 +11,16 @@ async function addRect(page: Page, label: string, role: string, size?: [number, 
   }
 }
 async function addPlant(page: Page, name: string) {
+  // (In the middle of the plan as it was: the picker, opened with the bed just drawn still selected, moves the plan on a
+  // phone to show the bed above it. Jason, Nov 2, the plan in view while choosing.)
+  const at = await planMiddle(page);
   await page.locator('.tool-btn.plants').click();
-  await expect(page.locator('.sheet-header .title')).toContainText(/Plant Picker \(\d,\d{3}\)/);
+  await expect(page.getByTestId('picker-count')).toContainText(/\d,\d{3} plants/);
   await page.locator('.sheet input[type=text]').fill(name);
   await page.locator('.sheet .proj-row', { hasText: name }).first().locator('[data-testid=plant-place]').click();
-  await placeOnceAtCenter(page);
+  await placeOnceAt(page, at);
 }
-const shapeEl = (page: Page, label: string) =>
-  page.locator('[data-shape-group]', { has: page.locator('text', { hasText: label }) }).locator('[data-shape-id]');
+const shapeEl = (page: Page, label: string) => shapeNamed(page, label);
 async function openProps(page: Page, label: string) {
   await page.locator('button[title=Layers]').click();
   await page.locator('.layer-row', { hasText: label }).click();

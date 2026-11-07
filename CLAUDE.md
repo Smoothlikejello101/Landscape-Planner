@@ -6,7 +6,9 @@
   `npm test`, and the end-to-end specs that cover the change. CI is the full
   check (Jason, Nov 1): it runs every test on the pull request as it would
   merge, in about 3 minutes; `npm run check` takes 20–35 minutes on this
-  workspace's 2 cores. Never ask Jason to merge before CI passes. Never run
+  workspace's 2 cores. A merge into `main` runs only the type check, unit
+  tests and build before Next (CI minutes, Jason, Nov 6); a release runs
+  everything. Never ask Jason to merge before CI passes. Never run
   a full check while another test run is going: the load makes tests time
   out.
 - Keyboard safety (Android): text/number/range/color inputs must update via
@@ -16,7 +18,17 @@
   destroys the focused input.
 - Gestures update only the affected canvas layer (`previewView`,
   `redrawShapes`, `redrawMarquee`, `redrawBackground`); a full `render()`
-  happens on pointer release.
+  happens on pointer release, except when only the view moved (a pan, a
+  pinch, the wheel, a zoom button): then the plan alone is drawn again, in
+  place (`viewMoved`), as a full render there blanked the screen for a few
+  frames on Android (Jason, Nov 5).
+- Phones (Jason, Nov 6): every feature has to run well on a cheap, older phone.
+  Don't add work per frame, per keystroke or per tap that grows with the plan
+  or the catalog when it can be done once and kept. The plan's `<svg>` stays
+  on the page across `render()`, and `drawCanvas` keeps what came out the same
+  (`keepWhatsSame`); e2e/draw-check.spec.ts and the `lp-draw-check` check in
+  every e2e test hold it to the plan drawn whole. Shape listeners find their
+  shape by id (`pressPicks`), as a kept element can outlive its shape object.
 - Storage changes need a migration path, a test in tests/storage.test.ts,
   and a pull request of their own.
 - Service worker updates are user-confirmed (src/pwa.ts); don't add

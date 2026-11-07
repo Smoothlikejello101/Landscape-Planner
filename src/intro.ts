@@ -7,13 +7,17 @@
 
 import type { SunLevel } from './sun';
 
-export type StepId = 'zip' | 'photo' | 'turn' | 'house' | 'bed' | 'fade' | 'sun' | 'who' | 'plant' | 'ring';
-/** In order. "turn" and "fade" are the photo's own steps (2b, 4b): only with a photo. */
-export const STEPS: StepId[] = ['zip', 'photo', 'turn', 'house', 'bed', 'fade', 'sun', 'who', 'plant', 'ring'];
-/** The step's number as the card says it: eight main steps, two of them with a "b". */
-export const STEP_NUMBER: Record<StepId, string> = { zip: '1', photo: '2', turn: '2b', house: '3', bed: '4', fade: '4b', sun: '5', who: '6', plant: '7', ring: '8' };
+export type StepId = 'zip' | 'photo' | 'turn' | 'house' | 'lock' | 'bed' | 'fade' | 'sun' | 'who' | 'plant' | 'ring';
+/**
+ * In order. "turn" and "fade" are the photo's own steps (2b, 4b): only with a photo. "lock" (3b) only while the house
+ * just drawn is unlocked (Jason, Nov 4: locking it is a step of its own, taught from its panel, not done for them on
+ * the bed's card).
+ */
+export const STEPS: StepId[] = ['zip', 'photo', 'turn', 'house', 'lock', 'bed', 'fade', 'sun', 'who', 'plant', 'ring'];
+/** The step's number as the card says it: eight main steps, three of them with a "b". */
+export const STEP_NUMBER: Record<StepId, string> = { zip: '1', photo: '2', turn: '2b', house: '3', lock: '3b', bed: '4', fade: '4b', sun: '5', who: '6', plant: '7', ring: '8' };
 export const STEP_TITLE: Record<StepId, string> = {
-  zip: "Where's the garden?", photo: 'A photo from above', turn: 'Turn it square', house: 'Your house', bed: 'A bed',
+  zip: "Where's the garden?", photo: 'A photo from above', turn: 'Turn it square', house: 'Your house', lock: 'Lock the house', bed: 'A bed',
   fade: 'Fade the photo', sun: 'Sun and shade', who: "Who's in your yard?", plant: 'Find a plant', ring: 'The ring',
 };
 
@@ -33,6 +37,8 @@ export interface Snapshot {
   /** The sheet open, if any. */
   panel: string | null;
   bgEditMode: boolean;
+  /** The newest building locked (null: none). Read live as the steps go; not kept with the record. */
+  houseLocked?: boolean | null;
 }
 /** A photo's scale before it's set (src/background.ts handleBgImageFile). */
 export const UNSCALED = 0.1;
@@ -88,6 +94,7 @@ export function parseIntroRecord(raw: string | null): IntroRecord {
 export function applies(step: StepId, s: Snapshot, done: readonly StepId[] = []): boolean {
   if (step === 'turn') return s.scale != null && done.includes('photo');
   if (step === 'fade') return s.scale != null;
+  if (step === 'lock') return s.houseLocked === false;
   return true;
 }
 
@@ -101,10 +108,12 @@ export function stepDone(step: StepId, base: Snapshot, now: Snapshot): boolean {
   switch (step) {
     case 'zip': return !!now.zip && now.zip !== base.zip;
     case 'photo': return now.scale != null && now.scale !== UNSCALED && now.scale !== base.scale;
-    case 'turn': return now.rotation !== base.rotation && !now.bgEditMode;
+    case 'turn': return now.scale != null && now.rotation !== base.rotation && !now.bgEditMode;
     case 'house': return now.buildings > base.buildings;
+    // (The newest house locked, from its panel's toggle: Jason, Nov 4.)
+    case 'lock': return now.houseLocked === true;
     case 'bed': return now.beds > base.beds;
-    case 'fade': return (now.opacity < base.opacity || (!now.visible && base.visible)) && now.panel !== 'bg';
+    case 'fade': return now.scale != null && (now.opacity < base.opacity || (!now.visible && base.visible)) && now.panel !== 'bg';
     // (Once the sun's recorded and the sheet closed: the times are set in the sheet.)
     case 'sun': return now.sunAreas > base.sunAreas && now.panel !== 'props';
     case 'plant': return now.plants > base.plants;
@@ -123,7 +132,7 @@ export function prevStep(from: StepId, s: Snapshot, done: readonly StepId[] = []
   for (const st of STEPS.slice(0, STEPS.indexOf(from)).reverse()) if (applies(st, s, done)) return st;
   return null;
 }
-/** Where "Show me around" picks up: the step they left, or the first not done. */
+/** Where Guided start (⋮ → Help) picks up: the step they left, or the first not done. */
 export function resumeStep(rec: IntroRecord, s: Snapshot): StepId | null {
   if (rec.step && applies(rec.step, s, rec.done) && !rec.done.includes(rec.step)) return rec.step;
   return nextStep(null, rec, s);
@@ -133,19 +142,20 @@ export function resumeStep(rec: IntroRecord, s: Snapshot): StepId | null {
 /**
  * The flowering shrubs step 7 names for them to find, most familiar first (Jason's to change; the doc's last section).
  * Its zones and sun are the catalog's sourced facts (NC State). Roses aren't on it (unverified zones and sun);
- * crapemyrtle is more tree than shrub. `name` is what the card calls it, which the search finds.
+ * crapemyrtle is more tree than shrub. `name` is what the card calls it, which the search finds (in Title Case, as the
+ * picker names it: src/names.ts).
  */
 export const SHRUBS_TO_FIND: { id: string; name: string }[] = [
-  { id: 'hydrangea-macrophylla', name: 'a French hydrangea' },
-  { id: 'hydrangea-quercifolia', name: 'an oakleaf hydrangea' },
-  { id: 'syringa-vulgaris', name: 'a common lilac' },
-  { id: 'forsythia-x-intermedia', name: 'a forsythia' },
-  { id: 'gardenia-jasminoides', name: 'a gardenia' },
-  { id: 'camellia-japonica', name: 'a Japanese camellia' },
-  { id: 'weigela-florida', name: 'a weigela' },
-  { id: 'hydrangea-paniculata', name: 'a panicled hydrangea' },
-  { id: 'kalmia-latifolia', name: 'a mountain laurel' },
-  { id: 'calycanthus-floridus', name: 'an eastern sweetshrub' },
+  { id: 'hydrangea-macrophylla', name: 'a French Hydrangea' },
+  { id: 'hydrangea-quercifolia', name: 'an Oakleaf Hydrangea' },
+  { id: 'syringa-vulgaris', name: 'a Common Lilac' },
+  { id: 'forsythia-x-intermedia', name: 'a Forsythia' },
+  { id: 'gardenia-jasminoides', name: 'a Gardenia' },
+  { id: 'camellia-japonica', name: 'a Japanese Camellia' },
+  { id: 'weigela-florida', name: 'a Weigela' },
+  { id: 'hydrangea-paniculata', name: 'a Panicled Hydrangea' },
+  { id: 'kalmia-latifolia', name: 'a Mountain Laurel' },
+  { id: 'calycanthus-floridus', name: 'an Eastern Sweetshrub' },
 ];
 export interface ShrubCheck {
   /** Hardy in their zone (null: no ZIP, so none is named). */
@@ -170,6 +180,21 @@ export function shrubToFind(check: ShrubCheck): { id: string; name: string } | n
 }
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/**
+ * What step 8's card says (Jason, Nov 4). Plants on the plan, none selected: select one first, since the ring shows
+ * only on the plant selected ("the plant you just placed", after step 7). One selected: both its circles, plainly. A
+ * plant just placed is planned, not planted, so its own edge is dashed too: said, or it's two dashed circles and words
+ * about one. One whose sources give one size has no ring: its circle is the size it can reach. No plants: in general.
+ */
+export function ringCardText(o: { looking: 'nothing' | 'unselected' | 'plant'; justPlaced?: boolean; planned?: boolean; ring?: boolean; tap: string }): string {
+  if (o.looking === 'nothing') return "A plant's circle is its typical size; selected, a dashed ring shows the size it can reach. Give plants room: plant two closer than usual and the app tells you.";
+  if (o.looking === 'unselected') return `${cap(o.tap)} ${o.justPlaced ? 'the plant you just placed' : 'a plant'} to see its ring.`;
+  const dashed = o.planned ? ", dashed because it's planned, not planted yet" : '';
+  return o.ring
+    ? `Its circle is its typical size${dashed}. The outer dashed ring is the size it can reach. Give it room: plant two closer than usual and the app tells you.`
+    : `Its circle is the size it can reach (its sources give one size)${dashed}. Give it room: when circles overlap, the app tells you.`;
+}
 /** What step 7's card says, by what the earlier steps set (Jason, Oct 28: it changes if they skipped the ZIP, the bed or the sun). */
 export function plantCardText(o: { bed: boolean; zip: boolean; sun: SunLevel | null; shrub: { name: string } | null; tap: string }): string {
   const where = o.bed ? 'in the bed' : 'on the plan';

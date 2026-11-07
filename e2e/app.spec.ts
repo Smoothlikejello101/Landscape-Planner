@@ -31,6 +31,7 @@ test.describe('core editing', () => {
     await openFresh(page);
     await addShape(page, 'circle');
     const label = field(page, 'Label');
+    await expect(label).toHaveAttribute('spellcheck', 'false'); // (a name: Jason, Nov 5)
     await label.click();
     const handle = await label.elementHandle();
     await page.keyboard.type('Red Oak', { delay: 20 });
@@ -212,6 +213,53 @@ test.describe('projects and selection', () => {
     expect(await shapeCount(page)).toBe(1);
   });
 
+  // The general bug hunt, Nov 1: a backup's notice stayed up over the new, empty plan. Another plan opened, or a new one
+  // made: the last plan's notices go, its Undo with them.
+  test('a new plan, or another opened, puts away the last plan\'s notices (the general bug hunt, Nov 1)', async ({ page }) => {
+    autoDialogs(page, 'Back yard');
+    await openFresh(page);
+    await addShape(page, 'circle');
+    await closeSheet(page);
+    await page.locator('.project-btn').click();
+    await page.locator('.backup-section button', { hasText: 'Back up all projects' }).click();
+    await expect(page.locator('#toast')).toContainText('Backed up 1 project');
+    await page.waitForTimeout(500);
+    await page.locator('button', { hasText: 'New project' }).click();
+    await expect(page.locator('.project-btn .pname')).toHaveText('Back yard');
+    await expect(page.locator('#toast')).not.toHaveClass(/show/);
+    await expect(page.locator('#toast')).toHaveText('');
+    // An Undo left up from one plan doesn't follow into another.
+    await addShape(page, 'circle');
+    await closeSheet(page);
+    await page.locator('#canvas-svg [data-layer=shapes] circle').first().click();
+    await page.keyboard.press('Delete');
+    await expect(page.locator('#toast-action')).toContainText('Deleted');
+    await page.locator('.project-btn').click();
+    await page.locator('.proj-row', { hasText: 'My Garden' }).click();
+    await expect(page.locator('.project-btn .pname')).toHaveText('My Garden');
+    await expect(page.locator('#toast-action')).toHaveCount(0);
+    expect(await shapeCount(page)).toBe(1);
+  });
+
+  // The general bug hunt, Nov 1: New project's name was a plain browser box (square black border), unlike every other field.
+  test('New project\'s name field looks like the app\'s other fields (the general bug hunt, Nov 1)', async ({ page }) => {
+    await openFresh(page);
+    const look = (l: ReturnType<Page['locator']>) => l.evaluate((e) => {
+      (e as HTMLElement).blur(); // (as it looks before it's focused: focused, both ring green)
+      const c = getComputedStyle(e);
+      return [c.borderTopColor, c.borderTopWidth, c.borderTopLeftRadius, c.paddingLeft, c.fontSize, c.backgroundColor].join(' ');
+    });
+    await page.locator('.project-btn').click();
+    await page.getByRole('button', { name: 'Rename My Garden' }).click();
+    const field = await look(page.locator('.modal .field input'));
+    await page.locator('.modal').getByRole('button', { name: 'Cancel' }).click();
+    await page.locator('button', { hasText: 'New project' }).click();
+    const named = page.getByTestId('ask-input');
+    await expect(named).toBeFocused();
+    expect(await look(named)).toBe(field);
+    expect(field).toContain('6px'); // (rounded, as the app's fields are)
+  });
+
   test('lasso selects several shapes and they move together', async ({ page }) => {
     await openFresh(page);
     await addShape(page, 'circle');
@@ -252,18 +300,18 @@ test.describe('plants, background, export', () => {
   test('plant picker places a circle sized to mature spread', async ({ page }) => {
     await openFresh(page);
     await page.locator('.tool-btn.plants').click();
-    await expect(page.locator('.sheet-header .title')).toContainText(/Plant Picker \(\d,\d{3}\)/);
-    // Every plant offered is counted (no ZIP: no state's law leaves any out; tests/location.spec.ts has one that does).
-    await expect(page.getByTestId('picker-count')).toContainText(/^All \d,\d{3} plants · Place a plant/);
+    // Every plant offered is counted, on the count line (no title row since Jason's notes of Nov 4; no ZIP: no state's
+    // law leaves any out, tests/location.spec.ts has one that does). Just how many: not how to place one.
+    await expect(page.getByTestId('picker-count')).toHaveText(/^All \d,\d{3} plants$/);
     await page.locator('.sheet input[type=text]').fill('privet');
-    await expect(page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Chinese privet$/ }) })).toHaveCount(1);
+    await expect(page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Chinese Privet$/ }) })).toHaveCount(1);
     await page.locator('.sheet input[type=text]').fill('Autumn Bride');
     await page.locator('.sheet .proj-row', { hasText: "Heuchera 'Autumn Bride'" }).locator('[data-testid=plant-place]').click();
     await placeOnceAtCenter(page);
     expect(await shapeCount(page)).toBe(1);
     await expect(page.locator('.sel-pill .name')).toContainText('Autumn Bride');
     await page.locator('.sel-pill button.edit').click();
-    await expect(field(page, 'Spread')).toHaveValue('1.5'); // 1.5 ft spread (Schroeder Gardens), drawn 1.5 ft across
+    await expect(field(page, 'Width when grown')).toHaveValue('1.5'); // 1.5 ft spread (Schroeder Gardens), drawn 1.5 ft across
   });
 
   test('background image two-point calibration sets the scale', async ({ page }) => {

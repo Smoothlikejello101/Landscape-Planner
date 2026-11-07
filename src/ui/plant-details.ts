@@ -1,10 +1,13 @@
 // A plant's full details, shown when its row in the picker is opened: the
 // facts the catalog has, where it came from and how sure it is, and what
 // other sources say where they differ from the value shown.
-import { el } from '../dom';
+import { el, type Child } from '../dom';
+import { I } from '../icons';
+import { withSourcePane } from './source-pane';
 import type { Plant, PoisonParent } from '../plants';
 import { MONTH_NAMES, PLANT_META, formsOf, oldDogWarning, ownCopies, parentRated, tenderWoody, zoneNote } from '../plants';
 import { isMine } from '../my-plants';
+import { titleCase } from '../names';
 import { rootSpread, rootText, seedText } from '../spread';
 import { butterflyCaps } from '../search';
 import { zoneRange } from '../climate';
@@ -16,7 +19,8 @@ const kinds = (n: number) => `${countWords(n)} kind${n === 1 ? '' : 's'}`;
 const kindsOf = (n: number, what: string) => `${kinds(n)} of ${what}${n === 1 ? '' : 's'}`;
 import { dayOfYear, escapeHere, escapeText, hostsHere, localBloom, localLeafOut, nativeHere, narrowerThanSpecies, nativeText, REGISTER_WHERE, registerText, regulatedHere, wildHere, wildText } from '../wild';
 
-const SURE: Record<string, string> = {
+/** How sure a value is, in a few words (the catalog's `check`): the details' words, and the comparison's (src/compare.ts). */
+export const SURE: Record<string, string> = {
   agree: 'confirmed', confirmed: 'confirmed', single: 'one source', likely: 'nurseries agree', reported: 'one nursery', disputed: 'sources disagree',
 };
 const sourceName = (id: string) => PLANT_META?.sources?.[id]?.title ?? id;
@@ -55,8 +59,8 @@ const yes = (v: unknown) => (v === true ? 'Yes' : v === false ? 'No' : '');
 export function edibleText(p: Pick<Plant, 'edible' | 'edible_parts' | 'poison' | 'poison_parents'>): string {
   if (p.edible !== true) return yes(p.edible);
   const what = p.edible_parts?.length ? cap(p.edible_parts.join(', ')) : 'Yes';
-  if (p.poison) return `${what}, though it's also listed as poisonous to people (above)`;
-  return parentRated(p) ? `${what}, though a parent is listed as poisonous to people (above)` : what;
+  if (p.poison) return `${what}, though it's also listed as toxic to people (above)`;
+  return parentRated(p) ? `${what}, though a parent is listed as toxic to people (above)` : what;
 }
 /**
  * What it takes to fruit (Jason, Oct 30: partner plants), with a cultivar's own sex where its page says: "A female:
@@ -112,7 +116,7 @@ export function poisonRow(p: Plant): string {
  * irritate skin." A parent not rated, or listing none, is said too.
  */
 export function parentsPoisonText(pp: NonNullable<Plant['poison_parents']>): string {
-  const name = (x: PoisonParent) => (x.common ? `${x.common} (${x.name})` : x.name);
+  const name = (x: PoisonParent) => (x.common ? `${titleCase(x.common, x.name)} (${x.name})` : x.name);
   const rated = pp.parents.filter((x) => x.poison), n = rated.length, all = n === pp.parents.length;
   const count = all ? (n === 2 ? 'Both parents are' : `All ${n} parents are`) : n === 1 ? '1 parent is' : `${n} parents are`;
   const each = pp.parents.map((x) => `${name(x)}: ${x.poison ? poisonText(x.poison) : x.poison === null ? 'none listed' : 'not rated'}.`);
@@ -123,7 +127,10 @@ const inches = (x: string) => (x.startsWith('<') ? `under ${x.slice(1)} in` : x.
 const FLOWER_SHAPE_WORDS: Record<string, string> = { tubular: 'tubular', lipped: 'lipped', irregular: 'irregular', radial: 'radial' };
 const PETAL_WORDS: Record<string, string> = { '2-3': '2–3 petals', '4-5': '4–5 petals', '6': '6 petals', '7-20': '7–20 petals', '20+': 'over 20 petals', bracts: 'showy bracts',
   fused: 'fused petals', sepals: 'colored sepals', tepals: 'tepals', asymmetrical: 'uneven petals' };
-const CLUSTER_WORDS: Record<string, string> = { solitary: 'borne singly', spadix: 'on a spadix', insignificant: '' };
+// (A botanist's words in plain ones, the term after where it helps to know it (Kayla, Nov 4: "What if I'm a new
+// gardener?"): "in branched clusters (panicles)".)
+const CLUSTER_WORDS: Record<string, string> = { solitary: 'borne singly', spadix: 'on a fleshy spike (spadix)', insignificant: '', raceme: 'along a stem (racemes)',
+  panicle: 'in branched clusters (panicles)', umbel: 'in umbrella-shaped clusters (umbels)' };
 /**
  * What its flowers look like, in a line (NC State's fields), a part to each step: "Cup-shaped · 4–5 petals · 1–3 in · in
  * panicles". A plant whose flowers NC State calls insignificant says so.
@@ -139,13 +146,21 @@ export function flowerFormText(f?: Plant['flower_form']): string {
 }
 const MARGIN_WORDS: Record<string, string> = { entire: 'smooth-edged', serrate: 'toothed', dentate: 'toothed', denticulate: 'finely toothed', 'doubly serrate': 'double-toothed',
   'doubly dentate': 'double-toothed', crenate: 'scalloped', crenulate: 'finely scalloped', 'doubly crenate': 'scalloped', lobed: 'lobed', undulate: 'wavy-edged', sinuate: 'wavy-edged' };
-/** What its leaves look like, in a line (NC State's fields): "Simple · elliptical, obovate or ovate · toothed · alternate · 3–6 in". */
+/** NC State's leaf words in plain ones (Kayla, Nov 4: "What if I'm a new gardener?"): its kind, shape and how it sits. */
+const LEAF_TYPE_WORDS: Record<string, string> = { simple: 'single leaves', compound: 'compound (made of leaflets)' };
+const LEAF_SHAPE_WORDS: Record<string, string> = { ovate: 'egg-shaped', obovate: 'egg-shaped (wide end out)', lanceolate: 'lance-shaped', oblanceolate: 'lance-shaped (wide end out)',
+  elliptical: 'oval', linear: 'long and narrow', cordate: 'heart-shaped', subcordate: 'nearly heart-shaped', orbicular: 'round', spatulate: 'spoon-shaped', deltoid: 'triangular',
+  reniform: 'kidney-shaped', acicular: 'needle-like', filiform: 'threadlike', subulate: 'awl-shaped', cuneate: 'wedge-shaped', rhomboidal: 'diamond-shaped', obtuse: 'blunt-tipped',
+  peltate: 'shield-shaped', auriculate: 'eared at the base', pinnatifid: 'deeply cut, like a feather', pinnatisect: 'cut to the middle, like a feather',
+  palmatifid: 'deeply cut, like a hand', palmasect: 'cut almost to the base, like a hand' };
+const ARRANGEMENT_WORDS: Record<string, string> = { alternate: 'one at a time along the stem', opposite: 'in pairs along the stem', whorled: 'in rings around the stem', rosulate: 'in a rosette' };
+/** What its leaves look like, in a line (NC State's fields): "Single leaves · oval, egg-shaped · toothed · in pairs along the stem · 3–6 in". */
 export function leafFormText(l?: Plant['leaf_form']): string {
   if (!l) return '';
-  const type = orList(l.type ?? []);
-  const shape = orList((l.shape ?? []).slice(0, 3));
+  const type = orList((l.type ?? []).map((x) => LEAF_TYPE_WORDS[x] ?? x));
+  const shape = orList([...new Set((l.shape ?? []).slice(0, 3).map((x) => LEAF_SHAPE_WORDS[x] ?? x))]);
   const margin = orList([...new Set((l.margin ?? []).map((x) => MARGIN_WORDS[x] ?? x))]);
-  const arr = orList((l.arrangement ?? []).filter((x) => x !== 'complex'));
+  const arr = orList((l.arrangement ?? []).filter((x) => x !== 'complex').map((x) => ARRANGEMENT_WORDS[x] ?? x));
   const len = orList((l.length ?? []).map(inches));
   return cap([type, shape, margin, arr, len].filter(Boolean).join(' · '));
 }
@@ -201,7 +216,7 @@ function expectedWinterSource(p: Plant): string {
   const w = p.winter_leaves, from = p.prov?.winter_leaves?.inherited ? ' · from its species' : '';
   if (!w) return '';
   return (w.basis === 'records'
-    ? `USA-NPN observers recorded it bare: ${w.n} plant-year${w.n === 1 ? '' : 's'}`
+    ? `Source: USA-NPN observers, who recorded it bare: ${w.n} plant-year${w.n === 1 ? '' : 's'}`
     : 'Not from a source: other species of its genus, as their sources give them') + from;
 }
 /** NC State's color groups, said plainly ("Red/Burgundy": red). */
@@ -243,13 +258,30 @@ export function winterParts(p: Plant): [string, string, string][] {
 function winterRow(p: Plant): HTMLElement | null {
   const parts = winterParts(p);
   if (!parts.length) return null;
-  const dd = el('dd', { 'data-testid': 'winter-row' });
+  return putParts(el('dd', { 'data-testid': 'winter-row' }), parts.map(([text, src, testid]) => [text, src, testid]));
+}
+/**
+ * A row of several facts (In winter, Bloom, Caterpillar host), each with its own source under it: one alone on its
+ * label's line, as every other row's fact is (Jason, Nov 4, note 8: "If a plant only has a single 'In winter' fact, it
+ * looks funny to have it broken to a new line"); more, each on a line of its own under the label ("With multiple winter
+ * facts breaking over multiple lines looks right").
+ */
+function putParts(dd: HTMLElement, parts: [text: Child, src: string, testid?: string][]): HTMLElement {
+  const one = parts.length === 1;
   for (const [text, src, testid] of parts) {
-    dd.appendChild(el('span', { className: 'details-part', 'data-testid': testid }, text));
+    dd.appendChild(el('span', { className: one ? 'details-one' : 'details-part', ...(testid ? { 'data-testid': testid } : {}) }, text));
     if (src) dd.appendChild(el('span', { className: 'details-src' }, src));
   }
   return dd;
 }
+/** The soils it grows in, as NC State lists their textures: "Clay, loam or sand"; "Loam". Empty for none. */
+const SOIL_ALSO_SAID: Record<string, string> = { organic: 'high organic matter', rocky: 'shallow rocky soil' };
+/** "Clay or loam"; with NC State's other soils, "Clay or loam; also high organic matter and shallow rocky soil". */
+export const soilText = (t?: string[], also?: string[]): string => {
+  const more = (also ?? []).map((x) => SOIL_ALSO_SAID[x]).filter(Boolean).join(' and ');
+  const main = orList(t ?? []);
+  return main && more ? `${cap(main)}; also ${more}` : cap(main || more);
+};
 /** "Yes: gold, red"; "No"; or, with colors and no yes or no, the colors. */
 export const fallText = (p: Plant): string => {
   const colors = p.fall_colors?.length ? p.fall_colors.join(', ') : '';
@@ -291,10 +323,10 @@ function rows(p: Plant): Row[] {
     // (Drawn by toxRow: never left out for a catalog plant, since no line about pets reads as safe.)
     ['Toxicity', '', ['tox', 'dog']],
     // (Beside Edible: a plant can be both, its fruit eaten and its seeds poisonous.)
-    ['Poisonous to people', poisonRow(p), parentRated(p) ? ['poison_parents'] : ['poison']],
+    ['Toxic to people', poisonRow(p), parentRated(p) ? ['poison_parents'] : ['poison']],
     ['Edible', edibleText(p), ['edible', 'edible_parts']],
     // (Read from its description: separate sexes, a partner needed or helping, or on its own; a cultivar's sex.)
-    ['Fruit set', fruitSetText(p), ['fruit_set', 'sex', 'partners']],
+    ['Fruiting', fruitSetText(p), ['fruit_set', 'sex', 'partners']],
     ['Thorns', yes(p.thorns), ['thorns']],
     // (As its source lists them: NC State's take in the seasons and the undersides.)
     ['Leaf colors', leafText(p.leaf_color), ['leaf_color']],
@@ -306,8 +338,10 @@ function rows(p: Plant): Row[] {
     ['Bark', barkText(p), ['bark', 'bark_color']],
     ['Fall color', fallText(p), ['fall_color', 'fall_colors']],
     ['Growth rate', p.growth_rate ? cap(p.growth_rate) : '', ['growth_rate']],
+    // (The soil textures NC State lists it for: "Clay, loam or sand". Beside it, Takes clay as before.)
+    ['Soil', soilText(p.soil_texture, p.soil_also), p.soil_also?.length ? ['soil_texture', 'soil_also'] : ['soil_texture']],
     ['Takes clay', yes(p.clay_ok), ['clay_ok']],
-    ['Takes wet feet', yes(p.wet_feet), ['wet_feet']],
+    ['Takes wet soil', yes(p.wet_feet), ['wet_feet']],
     ['Takes dry shade', yes(p.dry_shade), ['dry_shade']],
     // (By seed, and underground or by runners: two facts, one question, "will it spread?"; drawn by spreadRow.)
     ['How it spreads', '', ['self_seed', 'habit']],
@@ -316,9 +350,9 @@ function rows(p: Plant): Row[] {
     ['Taproot (hard to move)', yes(p.taproot), ['taproot']],
     ['Humidity', p.humidity === 'humid' ? 'Likes humid summers' : p.humidity === 'dry' ? 'Likes dry air' : p.humidity === 'either' ? 'Either' : '', ['humidity']],
     // (A habit that speaks to spreading is under "How it spreads"; one that doesn't, a vine's twining, stays here.)
-    ['Habit', rootSpread(p.habit) && rootSpread(p.habit) !== 'shape' ? '' : p.habit ?? '', ['habit']],
+    ['How it grows', rootSpread(p.habit) && rootSpread(p.habit) !== 'shape' ? '' : p.habit ?? '', ['habit']],
     ['Trunk', p.trunk ? `${p.trunk} in across` : '', ['trunk']],
-    ['Nativar', p.nativar ? 'A cultivar of a native species' : '', ['nativar']],
+    ['Bred from a native', p.nativar ? 'A cultivar of a native species (a "nativar")' : '', ['nativar']],
   ];
 }
 /** How sure, strongest first: the weaker of two halves of a range is how sure the range is. */
@@ -326,24 +360,32 @@ const STRENGTH = ['agree', 'confirmed', 'single', 'likely', 'reported', 'dispute
 /** The two ends of a range, in words, for a range whose ends come from different sources. */
 const ENDS: Record<string, [string, string]> = { zone_min: ['cold limit', 'warm limit'], sun_most: ['most sun', 'least sun'] };
 /**
+ * Where a range came from (zones, sun: two facts), as rangeLine says it: one end's own where the other isn't known; the
+ * sources that gave both ends, as sure as the less sure end (fewer sources behind the whole range than behind either
+ * end: how sure, by those sources); or, where no source gave both, each end's own, the pair.
+ */
+export function rangeProvenance(facts: string[], prov: Record<string, Provenance> | undefined): Provenance | undefined | [Provenance, Provenance] {
+  const [a, b] = facts.map((f) => prov?.[f]);
+  if (!a || !b || a.unknown || b.unknown) return a && !a.unknown ? a : b;
+  const weaker = [a.check, b.check].sort((x, y) => STRENGTH.indexOf(x ?? 'disputed') - STRENGTH.indexOf(y ?? 'disputed'))[1];
+  const both = a.src.filter((s) => b.src.includes(s));
+  const ref = both.some((s) => PLANT_META?.sources?.[s]?.trust === 'reference');
+  const fewer = both.length < a.src.length || both.length < b.src.length;
+  const check = !fewer ? weaker : ref ? (both.length > 1 ? 'confirmed' : 'single') : both.length > 1 ? 'likely' : 'reported';
+  if (both.length) return { ...a, src: both, check, inherited: a.inherited || b.inherited };
+  return [a, b];
+}
+/**
  * Where a range came from (zones, sun: two facts): the sources that gave both ends, as sure as the less sure end.
  * Sources can decide each end apart (nurseries outnumbering NC State on one end only), so a source behind one
  * end isn't named for the range; where no source gave both, each end says its own.
  */
 function rangeLine(facts: string[], prov: Record<string, Provenance> | undefined): string {
-  const [a, b] = facts.map((f) => prov?.[f]);
-  if (!a || !b || a.unknown || b.unknown) return sourceLine(a && !a.unknown ? a : b);
-  const weaker = [a.check, b.check].sort((x, y) => STRENGTH.indexOf(x ?? 'disputed') - STRENGTH.indexOf(y ?? 'disputed'))[1];
-  const both = a.src.filter((s) => b.src.includes(s));
-  // (Fewer sources behind the whole range than behind either end: how sure, by those sources.)
-  const ref = both.some((s) => PLANT_META?.sources?.[s]?.trust === 'reference');
-  const fewer = both.length < a.src.length || both.length < b.src.length;
-  const check = !fewer ? weaker : ref ? (both.length > 1 ? 'confirmed' : 'single') : both.length > 1 ? 'likely' : 'reported';
-  if (both.length) return sourceLine({ ...a, src: both, check, inherited: a.inherited || b.inherited });
+  const r = rangeProvenance(facts, prov);
+  if (!Array.isArray(r)) return sourceLine(r);
+  const [a, b] = r;
   const [ea, eb] = ENDS[facts[0]] ?? [facts[0], facts[1]];
-  const names = (pv: Provenance) => (pv.src.length === 1 && PLANT_META?.sources?.[pv.src[0]]?.trust === 'unverified' ? 'earlier list, unverified' : pv.src.map(sourceName).join(', '));
-  const how = (pv: Provenance) => (pv.check && SURE[pv.check] ? ` (${SURE[pv.check]})` : '');
-  return [`${names(a)} for the ${ea}${how(a)}; ${names(b)} for the ${eb}${how(b)}`, a.inherited || b.inherited ? 'from its species' : ''].filter(Boolean).join(' · ');
+  return [`Sources: ${whoGives(a).text} for the ${ea}; ${whoGives(b).text} for the ${eb}`, a.inherited || b.inherited ? 'from its species' : ''].filter(Boolean).join(' · ');
 }
 /**
  * "How it spreads": by seed, and underground or by runners, each with its own source (they come from separate
@@ -360,7 +402,7 @@ function spreadRow(p: Plant): HTMLElement | null {
   // (One source line under both where they share it: "earlier list, unverified" once, not twice.)
   const same = parts.length === 2 && parts[0][1] === parts[1][1];
   parts.forEach(([text, src], i) => {
-    dd.appendChild(el('span', { className: 'details-part' }, text));
+    dd.appendChild(el('span', { className: parts.length === 1 ? 'details-one' : 'details-part' }, text)); // (one: on its label's line, putParts)
     if (src && !(same && i === 0)) dd.appendChild(el('span', { className: 'details-src' }, src));
   });
   return dd;
@@ -374,16 +416,11 @@ function bloomRow(p: Plant): HTMLElement | null {
   const parts: [text: string, src: string, testid?: string][] = [];
   const local = localBloom(p);
   if (local) parts.push([`${months(local)}, peak ${MONTH_NAMES[local.peak]}`,
-    `${local.species ? 'its species: ' : ''}${local.n} flowering records in ${local.stateName}${local.area === 'region' ? ' and neighboring states' : ''} · ${local.source}`, 'local-bloom']);
+    `Source: ${local.n} flowering records ${local.species ? 'of its species ' : ''}in ${local.stateName}${local.area === 'region' ? ' and neighboring states' : ''} · ${local.source}`, 'local-bloom']);
   if (p.bloom_season?.length) parts.push([seasonText(p.bloom_season), sourceLine(p.prov?.bloom_season), 'bloom-season']);
   if (!local && p.bloom?.start) parts.push([months(p.bloom), sourceLine(p.prov?.bloom), 'bloom-months']);
   if (!parts.length) return null;
-  const dd = el('dd', { 'data-testid': 'bloom-row' });
-  for (const [text, src, testid] of parts) {
-    dd.appendChild(el('span', { className: 'details-part', ...(testid ? { 'data-testid': testid } : {}) }, text));
-    if (src) dd.appendChild(el('span', { className: 'details-src' }, src));
-  }
-  return dd;
+  return putParts(el('dd', { 'data-testid': 'bloom-row' }), parts);
 }
 /**
  * When it leafs out where the garden is: the middle day of its plant-years there, and the middle half of them
@@ -393,9 +430,9 @@ function leafOutRow(p: Plant): HTMLElement | null {
   const l = localLeafOut(p);
   if (!l) return null;
   const dd = el('dd', { 'data-testid': 'leaf-out-row' });
-  dd.appendChild(el('span', { className: 'details-part' }, `Around ${dayOfYear(l.med)} (most ${dayOfYear(l.q1)} to ${dayOfYear(l.q3)})`));
+  dd.appendChild(el('span', { className: 'details-one' }, `Around ${dayOfYear(l.med)} (most ${dayOfYear(l.q1)} to ${dayOfYear(l.q3)})`));
   dd.appendChild(el('span', { className: 'details-src' },
-    `${l.species ? 'its species: ' : ''}${l.n} plant-years in ${l.stateName}${l.area === 'region' ? ' and neighboring states' : ''} · ${l.source}`));
+    `Source: ${l.n} plant-years ${l.species ? 'of its species ' : ''}in ${l.stateName}${l.area === 'region' ? ' and neighboring states' : ''} · ${l.source}`));
   return dd;
 }
 /** Butterflies' common names, for a line, with field-guide capitals: "Monarch, Gray Hairstreak" (the binomials are in the source). */
@@ -415,16 +452,11 @@ function hostRow(p: Plant): HTMLElement | null {
       ? `Its genus, ${g.genus}: ${kindsOf(here.n, 'native caterpillar')} in ${here.stateName} (${countWords(g.species)} in North America)`
         + (here.butterflies.length ? `. Butterflies among them: ${commonNames(here.butterflies)}` : '')
       : `Its genus, ${g.genus}: ${kindsOf(g.species, 'native caterpillar')} in North America`;
-    parts.push([text, [here?.source ?? sourceLine(p.prov?.host_genus), 'counted for the genus'].filter(Boolean).join(' \u00b7 '), 'hosts-genus']);
+    parts.push([text, [here ? `Source: ${here.source}` : sourceLine(p.prov?.host_genus), 'counted for the genus'].filter(Boolean).join(' \u00b7 '), 'hosts-genus']);
   }
   if (!p.hosts?.length && p.host) parts.push([butterflyCaps(p.host), sourceLine(p.prov?.host), 'hosts-earlier']);
   if (!parts.length) return null;
-  const dd = el('dd', { 'data-testid': 'host-row' });
-  for (const [text, src, testid] of parts) {
-    dd.appendChild(el('span', { className: 'details-part', 'data-testid': testid }, text));
-    if (src) dd.appendChild(el('span', { className: 'details-src' }, src));
-  }
-  return dd;
+  return putParts(el('dd', { 'data-testid': 'host-row' }), parts);
 }
 /**
  * Toxicity to animals, never left blank on a catalog plant (no line reads as "safe"): NC State's "Problem for"; its
@@ -438,28 +470,48 @@ export function toxRow(p: Plant): { value: string; line: string } | null {
   const earlier = p.tox?.dog ? '' : p.dog && p.dog !== 'Unverified' ? `dogs: ${p.dog}` : '';
   if (nc) {
     const also = !nc.includes('dogs') && earlier ? earlier : '';
-    return { value: `A problem for ${andList(nc)}` + (also ? `; ${also}` : ''), line: sourceLine(p.prov?.problem_for) + (also ? ' · dogs: earlier list, unverified' : '') };
+    return { value: `Toxic to ${andList(nc)}` + (also ? `; ${also}` : ''), line: sourceLine(p.prov?.problem_for) + (also ? ' · dogs: earlier list, unverified' : '') };
   }
   const warnsHere = p.tox?.dog === 'toxic' || !!oldDogWarning(p);
   if (p.dogVia && !warnsHere) {
-    return { value: `dogs: ${p.dogVia.dog}`, line: `earlier list, unverified · given for ${p.dogVia.common}, the same species` + (p.dog === 'Safe' ? '; the earlier list calls this one safe' : '') };
+    return { value: `dogs: ${p.dogVia.dog}`, line: `Source: earlier list, unverified · given for ${p.dogVia.common}, the same species` + (p.dog === 'Safe' ? '; the earlier list calls this one safe' : '') };
   }
   const own = tox(p.tox) || (p.dog && p.dog !== 'Unverified' ? `dogs: ${p.dog}` : '');
   if (own) return { value: own, line: sourceLine(p.prov?.tox ?? p.prov?.dog) };
   if (isMine(p) && !p.parent) return null; // (one of mine linked to its species: said as for the catalog's)
   // (NC State's page read, and it lists no animal: said so, and that it isn't the same as safe.)
-  if (p.prov?.poison?.src.includes('ncsu')) return { value: 'Not listed as a problem for dogs, cats or horses', line: 'NC State · a plant not listed isn\u2019t necessarily safe' };
+  if (p.prov?.poison?.src.includes('ncsu')) return { value: 'Not listed as toxic to dogs, cats or horses', line: 'Source: NC State · a plant not listed isn\u2019t necessarily safe' };
   return { value: 'Not rated for pets', line: 'No source we\u2019ve read rates it for dogs, cats or horses' };
 }
-/** Where a value came from, in a few words: "NC State, USDA · confirmed", "earlier list, unverified". */
+/**
+ * A fact's sources, in front, quietly (Jason, Nov 4, from the beta testers: "'Confirmed' and 'one source' seem
+ * unnecessary on the end of the plant facts. Maybe scrap those and add 'source:' or 'sources:' at the front?"):
+ * "Source: NC State", "Sources: NC State, USDA". Every source named, none dropped.
+ */
+export const sourcesSaid = (names: string[]): string => (names.length ? `${names.length > 1 ? 'Sources' : 'Source'}: ${names.join(', ')}` : '');
+/**
+ * What's still said of how sure a value is, beside its sources, where it matters: nurseries alone behind it, or sources
+ * that disagree. ("Confirmed" and "one source" aren't: an authority behind it is the usual.)
+ */
+const SURE_NOTE: Record<string, string> = { likely: 'nurseries', reported: 'a nursery', disputed: 'they disagree' };
+/**
+ * Who gives a value, without the "Source:": "NC State, USDA", "a.com, b.com (nurseries)", "NC State (its
+ * description)", "earlier list, unverified" (that one matters: kept).
+ */
+function whoGives(prov: Provenance): { names: string[]; text: string } {
+  if (prov.src.length === 1 && PLANT_META?.sources?.[prov.src[0]]?.trust === 'unverified') return { names: [], text: 'earlier list, unverified' };
+  // (By their short names, "NC State" for its Plant Toolbox: the fact, not its source, is what's read first.)
+  const names = prov.src.map((s) => CITE_SHORT[s] ?? sourceName(s));
+  // (A value read from a page's text, not its fields, credits that (Jason, 2026-10-27: credit it, don't quote it).)
+  const notes = [prov.check ? SURE_NOTE[prov.check] ?? '' : '', prov.from === 'description' ? (names.length > 1 ? 'their descriptions' : 'its description') : ''].filter(Boolean);
+  return { names, text: names.join(', ') + (notes.length ? ` (${notes.join('; ')})` : '') };
+}
+/** Where a value came from, in a few words: "Source: NC State", "Sources: NC State, USDA", "Source: earlier list, unverified". */
 function sourceLine(prov: Provenance | undefined): string {
   if (!prov) return '';
-  if (prov.src.length === 1 && PLANT_META?.sources?.[prov.src[0]]?.trust === 'unverified') return 'earlier list, unverified';
-  // (A value read from a page's text, not its fields, credits that: "Prose description, NC State …" (Jason, 2026-10-27:
-  // credit it, don't quote it).)
-  const who = (prov.from === 'description' ? 'Prose description, ' : '') + prov.src.map(sourceName).join(', ');
-  const how = prov.check ? SURE[prov.check] ?? '' : '';
-  return [who, how, prov.inherited ? 'from its species' : '', prov.at ? `for ${prov.at}` : ''].filter(Boolean).join(' · ');
+  const who = whoGives(prov);
+  const head = who.names.length ? `${who.names.length > 1 ? 'Sources' : 'Source'}: ${who.text}` : who.text ? `Source: ${who.text}` : '';
+  return [head, prov.inherited ? 'from its species' : '', prov.at ? `for ${prov.at}` : ''].filter(Boolean).join(' · ');
 }
 
 /**
@@ -469,10 +521,10 @@ function sourceLine(prov: Provenance | undefined): string {
 const GLANCE = ['Form', 'Size', 'Hardiness', 'Sun', 'Water', 'Bloom'];
 export const DETAIL_GROUPS: { id: string; title: string; labels: string[] }[] = [
   { id: 'looks', title: 'Flowers and leaves', labels: ['Flower color', 'Leaf colors', 'Leafs out', 'Fall color', 'In winter', 'Bark'] },
-  { id: 'wildlife', title: 'Wildlife', labels: ['Native', 'Nectar for pollinators', 'For birds', 'Attracts', 'Caterpillar host', 'Nativar'] },
-  { id: 'safety', title: 'Safety', labels: ['Poisonous to people', 'Toxicity', 'Edible', 'Thorns'] },
-  { id: 'growing', title: 'Growing', labels: ['Spacing', 'Fruit set', 'Deer', 'Tolerates', 'Growth rate', 'Takes clay', 'Takes wet feet', 'Takes dry shade', 'How it spreads', 'Maintenance',
-    'Taproot (hard to move)', 'Humidity', 'Habit', 'Trunk'] },
+  { id: 'wildlife', title: 'Wildlife', labels: ['Native', 'Nectar for pollinators', 'For birds', 'Attracts', 'Caterpillar host', 'Bred from a native'] },
+  { id: 'safety', title: 'Safety', labels: ['Toxic to people', 'Toxicity', 'Edible', 'Thorns'] },
+  { id: 'growing', title: 'Growing', labels: ['Spacing', 'Fruiting', 'Deer', 'Tolerates', 'Growth rate', 'Soil', 'Takes clay', 'Takes wet soil', 'Takes dry shade', 'How it spreads', 'Maintenance',
+    'Taproot (hard to move)', 'Humidity', 'How it grows', 'Trunk'] },
 ];
 /** The groups opened while the picker is open (Jason: they stay open until it closes, then fold again). */
 const openGroups = new Set<string>();
@@ -484,9 +536,9 @@ export function foldDetailGroups() { openGroups.clear(); }
  */
 export function safetyWarnings(p: Plant): string[] {
   const w: string[] = [];
-  if (p.poison) w.push(`Poisonous to people${p.poison.severity ? ` (${p.poison.severity} severity)` : ''}${p.poison.skin ? '; can irritate skin' : ''}`);
-  else if (parentRated(p)) w.push('A parent is poisonous to people');
-  if (p.problem_for?.length) w.push(`a problem for ${andList(['dogs', 'cats', 'horses'].filter((a) => p.problem_for!.includes(a)))}`);
+  if (p.poison) w.push(`Toxic to people${p.poison.severity ? ` (${p.poison.severity} severity)` : ''}${p.poison.skin ? '; can irritate skin' : ''}`);
+  else if (parentRated(p)) w.push('A parent is toxic to people');
+  if (p.problem_for?.length) w.push(`toxic to ${andList(['dogs', 'cats', 'horses'].filter((a) => p.problem_for!.includes(a)))}`);
   else if (p.tox?.dog === 'toxic') w.push('toxic to dogs');
   else if (oldDogWarning(p)) w.push(`dogs: ${oldDogWarning(p)!.toLowerCase()} (earlier list)`);
   return w;
@@ -513,14 +565,14 @@ export function groupSummary(id: string, p: Plant): string {
   } else if (id === 'safety') {
     const warn = safetyWarnings(p);
     if (warn.length) return cap(warn.join(' · '));
-    if (p.prov?.poison?.unknown || p.poison === null) parts.push('not listed as poisonous to people');
+    if (p.prov?.poison?.unknown || p.poison === null) parts.push('not listed as toxic to people');
     const t = toxRow(p);
-    if (t) parts.push(t.value.startsWith('Not listed') ? 'not listed as a problem for pets' : t.value.startsWith('Not rated') ? 'not rated for pets' : t.value.toLowerCase().replace(/\bgi\b/g, 'GI') + (t.line.startsWith('earlier list') ? ' (earlier list)' : ''));
+    if (t) parts.push(t.value.startsWith('Not listed') ? 'not listed as toxic to pets' : t.value.startsWith('Not rated') ? 'not rated for pets' : t.value.toLowerCase().replace(/\bgi\b/g, 'GI') + (/^Source: earlier list/.test(t.line) ? ' (earlier list)' : ''));
     if (p.edible === true) parts.push('edible');
     if (p.thorns) parts.push('thorns');
   } else if (id === 'growing') {
     if (p.deer) parts.push(p.deer === 'Resistant' ? 'deer resistant' : lower(deerWords(p.deer).split(':')[0]));
-    const takes = [...(p.tolerates ?? []).filter((x) => x !== 'deer'), p.clay_ok && 'clay', p.wet_feet && 'wet feet', p.dry_shade && 'dry shade'].filter(Boolean) as string[];
+    const takes = [...new Set([...(p.tolerates ?? []).filter((x) => x !== 'deer'), p.clay_ok && 'clay', p.wet_feet && 'wet soil', p.dry_shade && 'dry shade'].filter(Boolean) as string[])];
     if (takes.length) parts.push(`takes ${takes.join(', ')}`);
     if (p.growth_rate) parts.push(`${p.growth_rate} growth`);
     if (p.maintenance_level) parts.push(`${p.maintenance_level} upkeep`);
@@ -532,11 +584,12 @@ export function groupSummary(id: string, p: Plant): string {
 }
 /** Its size in one row (Jason, 2026-10-29): "15–30 ft tall, 15–20 ft wide". */
 const sizeText = (h?: Plant['height'], w?: Plant['width']) => [ft(h) && `${ft(h)} tall`, ft(w) && `${ft(w)} wide`].filter(Boolean).join(', ');
-/** Where its size came from: one line where height and spread share their sources, else each its own. */
+/** Where its size came from: one line where height and width share their sources, else each its own. */
 function sizeLine(prov: Record<string, Provenance> | undefined): string {
   const [h, w] = [prov?.height, prov?.width].map((x) => (x && !x.unknown ? x : undefined));
   const a = sourceLine(h), b = sourceLine(w);
-  return a && b && a !== b ? `height: ${a}; spread: ${b}` : a || b;
+  if (!(a && b && a !== b)) return a || b;
+  return [`Sources: ${whoGives(h!).text} for the height; ${whoGives(w!).text} for the width`, h!.inherited || w!.inherited ? 'from its species' : ''].filter(Boolean).join(' · ');
 }
 const CHEVRON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
 
@@ -554,7 +607,16 @@ export function plantDetails(p: Plant, flagged: string[] | undefined, opts: { ha
     box.appendChild(el('div', { className: 'details-flag', 'data-testid': 'reported-flag' },
       `Shown because of what other sources say for its ${flagged.join(' and ')}; the value shown first says otherwise (below).`));
   }
-  if (p.botanical) box.appendChild(el('div', { className: 'details-bot' }, p.botanical));
+  // Its botanical name (Compare beside it, src/ui/compare-sheet.ts), and, on a line of its own with a picture's icon, a
+  // way to see what it looks like: a web image search for it, in a new tab (Jason, Nov 4, from Sam: "Wishes there were
+  // photos of the plants"; images in the app would mean licensing them. On its own line: Jason, Nov 4, note 9, "'See
+  // photos' kinda gets lost between the botanical name and 'compare'").
+  const photos = el('a', { className: 'details-photos', href: photoSearchUrl(p), target: '_blank', rel: 'noopener noreferrer', 'data-testid': 'see-photos',
+    'aria-label': `See photos of ${p.common} (a web image search, in a new tab)` },
+    el('span', { className: 'details-photos-icon', 'aria-hidden': 'true', html: I.image }),
+    el('span', { className: 'details-photos-text' }, 'See photos'), el('span', { 'aria-hidden': 'true', className: 'details-photos-arrow' }, ' \u2197'));
+  box.appendChild(el('div', { className: 'details-bot' }, p.botanical ? el('span', { className: 'details-bot-name' }, p.botanical) : null));
+  box.appendChild(el('div', { className: 'details-photos-line' }, photos));
   /** Each row drawn, by its label (placed below: at a glance, or in its group). */
   const drawn = new Map<string, HTMLElement[]>();
   const put = (label: string, dd: HTMLElement) => drawn.set(label, [el('dt', {}, label), dd]);
@@ -583,7 +645,7 @@ export function plantDetails(p: Plant, flagged: string[] | undefined, opts: { ha
     const form = look?.text(p) ?? '';
     if (form) {
       const own = look.facts.map((f) => p.prov?.[f]).find(Boolean), other = own && !own.src.every((s) => prov?.src.includes(s));
-      dd.appendChild(el('span', { className: 'details-form', 'data-testid': look.testid }, form + (other ? ` (${own.src.map(sourceName).join(', ')})` : '')));
+      dd.appendChild(el('span', { className: 'details-form', 'data-testid': look.testid }, form + (other ? ` (according to ${own.src.map((s) => SHORT[s] ?? sourceName(s)).join(', ')})` : '')));
     }
     // (A range: hardiness, sun; its size: height and spread; not toxicity's two facts.)
     const line = label === 'Size' ? sizeLine(p.prov) : ENDS[facts[0]] ? rangeLine(facts, p.prov) : sourceLine(prov);
@@ -613,7 +675,7 @@ export function plantDetails(p: Plant, flagged: string[] | undefined, opts: { ha
     const dd = el('dd', { 'data-testid': 'regulated-here', className: `details-law${rule.tier === 'listed' ? ' listed' : ''}` }, rule.says);
     // (Native here and covered anyway: why, in plain words, under the rule's own.)
     if (rule.native) dd.appendChild(el('span', { className: 'details-law-native', 'data-testid': 'law-native' }, rule.native));
-    const src = el('span', { className: 'details-src' });
+    const src = el('span', { className: 'details-src' }, 'Source: ');
     src.appendChild(el('a', { href: rule.url, target: '_blank', rel: 'noopener' }, rule.title));
     src.appendChild(document.createTextNode(`; ${rule.edition}; read ${rule.read}`));
     dd.appendChild(src);
@@ -638,9 +700,9 @@ export function plantDetails(p: Plant, flagged: string[] | undefined, opts: { ha
     const dd = el('dd', { 'data-testid': 'native-here', ...(native?.status === 'I' ? { className: 'details-introduced' } : {}) });
     if (native) {
       dd.appendChild(document.createTextNode(escape ? escapeText(escape) : nativeText(native, p.common)));
-      dd.appendChild(el('span', { className: 'details-src' }, [native.source, ...(escape?.sources ?? [])].join(' · ')));
+      dd.appendChild(el('span', { className: 'details-src' }, sourcesSaid([native.source, ...(escape?.sources ?? [])])));
     }
-    if (wild) dd.appendChild(el('span', { className: 'details-part', 'data-testid': 'wild-here' }, wildText(wild), el('span', { className: 'details-src' }, wild.sources.join('; '))));
+    if (wild) dd.appendChild(el('span', { className: 'details-part', 'data-testid': 'wild-here' }, wildText(wild), el('span', { className: 'details-src' }, sourcesSaid(wild.sources))));
     top.append(el('dt', {}, native ? `In ${native.stateName}` : 'Wild near you'), dd);
   }
   // Its degree in USGS's register of introduced plants in the wild in the lower 48, in the register's terms and with
@@ -687,11 +749,46 @@ export function plantDetails(p: Plant, flagged: string[] | undefined, opts: { ha
   if (p.notes) box.appendChild(el('div', { className: 'details-notes' }, p.notes));
   // (A plant of mine switched to this one: its notes come along.)
   else if (ownCopies[p.id]?.notes) box.appendChild(el('div', { className: 'details-notes', 'data-testid': 'own-notes' }, 'Your notes: ' + ownCopies[p.id].notes));
+  markUnverified(box);
   // (Once it's on the page, where a line's width can be told.)
   requestAnimationFrame(() => clipCitations(box));
   return box;
 }
 
+/**
+ * The details from the earlier list, with no source behind them, marked on the fact itself: a small "Unverified" beside
+ * its value (Jason, Nov 4, note 1: "'not every detail is checked' can probably go, in favor of highlighting unchecked
+ * details somehow in the details unfold"); "Partly unverified" where only part of it is (one end of a range, the dogs'
+ * word beside NC State's). Its source line says so as before.
+ */
+export function markUnverified(root: HTMLElement) {
+  for (const src of root.querySelectorAll<HTMLElement>('.details-src')) {
+    const t = src.textContent ?? '';
+    if (!t.includes('earlier list, unverified')) continue;
+    const whole = /^Source: earlier list, unverified/.test(t);
+    const chip = el('span', { className: 'unverified-chip', 'data-testid': 'unverified-chip', title: 'From an earlier list with no sources; not yet checked' }, whole ? 'Unverified' : 'Partly unverified');
+    // (On the part it's the source of, in a row of several; else after the row's value, on its line.)
+    const part = src.previousElementSibling;
+    if (part?.matches('.details-part, .details-one')) { part.append(' ', chip); continue; }
+    const dd = src.closest('dd');
+    if (!dd?.firstChild || dd.firstChild === src) continue;
+    dd.firstChild.after(' ', chip);
+  }
+}
+
+/**
+ * A web image search for the plant (Google Images), by its botanical name and its common name, the cultivar with them
+ * ("Rudbeckia fulgida 'Goldsturm' Black-Eyed Susan"): its cultivar once, notes in brackets left out ("(Species)").
+ * Only the name goes: a plain link, opened in a new tab without saying where it came from.
+ */
+export function photoSearchUrl(p: Pick<Plant, 'common' | 'botanical'>): string {
+  const bot = (p.botanical ?? '').replace(/\s*\([^)]*\)/g, '').trim();
+  let common = (p.common ?? '').replace(/\s*\([^)]*\)/g, '').trim();
+  const cultivar = /['\u2018\u201c"][^'\u2019\u201d"]+['\u2019\u201d"]/.exec(common)?.[0];
+  if (cultivar && bot.replace(/[\u2018\u2019]/g, "'").includes(cultivar.replace(/[\u2018\u2019]/g, "'"))) common = common.replace(cultivar, '').replace(/\s+/g, ' ').trim();
+  const q = [bot, common].filter(Boolean).join(' ');
+  return `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(q)}`;
+}
 /** A source's short name in a citation cut to a line ("NC State" for NC State Extension Gardener Plant Toolbox). */
 const CITE_SHORT: Record<string, string> = { ncsu: 'NC State', usda: 'USDA', arkatlas: 'Arkansas atlas', mnwild: 'Minnesota Wildflowers', riis: 'USGS US-RIIS' };
 /** A citation with each source it names by its short name. */
@@ -704,9 +801,10 @@ export function shortSources(text: string): string {
   return out;
 }
 /**
- * Each citation that would take more than a line, cut to one ending "…", opened in full with a tap (Jason,
- * 2026-10-27: a long one pushed the details apart). Closed, a tap on it opens it, a link in it too; open, a link
- * is followed, and a tap elsewhere on it closes it. Only one that doesn't fit: measured once it's laid out.
+ * Each citation that would take more than a line, cut to one ending "…" (Jason, 2026-10-27: a long one pushed the
+ * details apart), its sources by their short names; a tap on it opens the little pane with it in full, as the picker's
+ * Source does (src/ui/source-pane.ts; Jason, Nov 4, note 1: "We might be able to use that same design note all around"),
+ * so nothing below it moves. Only one that doesn't fit: measured once it's laid out.
  */
 export function clipCitations(root: HTMLElement) {
   for (const s of root.querySelectorAll<HTMLElement>('.details-src:not(.clipped)')) {
@@ -715,24 +813,20 @@ export function clipCitations(root: HTMLElement) {
     s.classList.remove('one-line');
     if (!over) continue;
     s.classList.add('clipped');
-    s.setAttribute('role', 'button');
-    s.tabIndex = 0;
-    s.setAttribute('aria-expanded', 'false');
     const full = s.textContent ?? '';
     s.title = full;
-    // (Shut, the sources it names go by their short names, so how sure it is still shows: "NC State, USDA ·
-    // confirmed", drawn by the style from `data-short`. Only on a line of plain text: one with a link stays as it is.
-    // The whole of it stays the line's text, hidden while shut, for a screen reader and a search of the page.)
-    const short = s.children.length ? null : shortSources(full);
+    // (In the pane: the line as it is, its links too. A line of plain text holds its whole for a screen reader and a
+    // search of the page, hidden while it's cut: the pane then shows it only to the eye.)
+    const linked = s.children.length > 0;
+    const inPane = (): Child => (linked ? [...s.childNodes].map((n) => n.cloneNode(true)) : full);
+    // (Cut, the sources it names go by their short names, drawn by the style from `data-short`. Only on a line of plain
+    // text: one with a link stays as it is.)
+    const short = linked ? null : shortSources(full);
     if (short && short !== full) { s.dataset.short = short; s.replaceChildren(el('span', { className: 'cite-full' }, full)); }
-    const toggle = (e: Event) => {
-      e.stopPropagation();
-      const open = s.getAttribute('aria-expanded') === 'true';
-      if (!open) e.preventDefault();
-      else if ((e.target as HTMLElement).closest('a')) return;
-      s.setAttribute('aria-expanded', String(!open));
-    };
-    s.addEventListener('click', toggle);
-    s.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(e); } });
+    // (In a block of its own, so the pane opens under the line and the line keeps its place.)
+    const wrap = el('div', {});
+    s.replaceWith(wrap);
+    withSourcePane(s, inPane, { wrap, testid: 'cite-pane' });
+    if (!linked) wrap.querySelector('.src-pane')?.setAttribute('aria-hidden', 'true');
   }
 }

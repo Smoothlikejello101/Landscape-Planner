@@ -9,7 +9,7 @@
 // partners), each with its count and how many are dismissed, or why it can't run yet with a button to fix that; and
 // what goes with the plan. No badge key (Jason: the icons beside the kinds say it). A kind opened: its switch and what
 // it checks; its rows, name first, the problem as the plant's details say it, Dismiss or Show again at the right, a
-// dismissed one saying who for; under a rule and a heading, "Dismiss all 3" and "Show all 2 again" (#187, from
+// dismissed one saying who for; above them, with a heading, "Dismiss all 3" and "Show all 2 again" (#187, from
 // Settings); and "How this is worked out", its rule and sources.
 //
 // Working through it: on a computer it's a panel beside the plan that stays open while its rows select plants. On a
@@ -23,13 +23,14 @@
 // run yet; the warning sign in gray when none were found in the plants Layers shows, with some hidden (not the check:
 // the plants hidden aren't checked).
 
+import { keepInViewOnTurn } from '../canvas';
 import { BULB_PARTNER_MIN_HEIGHT } from '../crowding';
 import { el } from '../dom';
 import { shapeBBox, unionBounds, canvasRect } from '../geometry';
 import { I } from '../icons';
 import { MAX_ZOOM, MIN_ZOOM, PX_PER_FOOT_BASE } from '../constants';
 import { setRoleView, setViewFilter } from '../mutations';
-import { catalogReady, onCatalogLoaded, plantFilter } from '../plants';
+import { catalogReady, onCatalogLoaded, plantFilter, plantsById } from '../plants';
 import { roleHidden, roleKey } from '../roles';
 import { state } from '../state';
 import { NO_FILTER, passesFilter } from '../status';
@@ -38,15 +39,18 @@ import { startKind } from '../draw';
 import { BURIED_CLEAR, CLEAR_OF_LINE, MEDIUM_TREE, NEAR_LINE, SMALL_TREE, utilityOf } from '../utilities';
 import { setCrowdWarnings, setFruitWarnings, setHardyWarnings, setPoisonWarnings, setShowCrowding } from '../view-settings';
 import {
-  acrossPlan, buttonSaid, cantRunSaid, KIND_WORDS, kindStates, planWarnings, setDismissed, WARNING_KINDS, warningsSummary,
+  acrossPlan, buttonSaid, cantRunSaid, KIND_WORDS, kindStates, planWarnings, setDismissed, utilitiesDrawn, WARNING_KINDS, warningsSummary,
   type CantRun, type KindState, type WarningKind, type WarningRow, type WarningsSummary,
 } from '../warnings-list';
-import { applyYard, household, saveYard, toggleYard, type Yard } from '../yard';
+import { applyYard, household, saveYard, toggleYard, YARD_CHIPS, yardHas, yardSaid } from '../yard';
 import { undoNotice } from './delete-selected';
 import { remindNoMore } from './fruit-notice';
 import { openLocation } from './location-panel';
 import { render } from './render';
 import { dismissAcross } from './role-sections';
+import { nudgePair, swapFiltered, type SwapFor } from './fix-problem';
+import { moverOf } from '../fix-problem';
+import { alreadyThere } from '../status';
 import { toast } from './toast';
 
 // ---------- Kept while the app runs (not stored: the plan's own warnings are) ----------
@@ -89,14 +93,28 @@ function current() {
   return now;
 }
 /**
- * The catalog in: the button, and Warnings if it's open, said afresh in place, without the whole app redrawn (a field
- * being typed in keeps its keyboard: CLAUDE.md).
+ * The catalog in (or the plan changed in place: warningsChangedInPlace): the button, and Warnings if it's open, said
+ * afresh in place, without the whole app redrawn (a field being typed in keeps its keyboard: CLAUDE.md).
  */
 function catalogIn() {
+  if (typeof document === 'undefined') return;
   refreshWarnings();
   const btn = document.querySelector('[data-testid=warnings-btn]'), fresh = warningsButton();
   if (btn && fresh) btn.replaceWith(fresh);
   for (const old of document.querySelectorAll('.warnings-body')) old.replaceWith(body());
+}
+/**
+ * The plan changed with only the canvas redrawn (a field typed in, a slider dragged: src/mutations.ts
+ * updateSelectedSilent): the button's count, and Warnings beside the plan if it's open, said afresh in place, once a
+ * frame (the warnings bug hunt, Nov 1: a sun area's hours dragged from 12 h to 3 h left the count at 11 until its sheet
+ * closed). Never a render: the field being typed in, or the slider held, stays as it is (CLAUDE.md, keyboard safety).
+ */
+let inPlaceQueued = false;
+export function warningsChangedInPlace() {
+  if (inPlaceQueued) return;
+  inPlaceQueued = true;
+  const run = () => { inPlaceQueued = false; catalogIn(); };
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run); else run();
 }
 /** The rows to look at, in the sheet's order: what the walk steps through. */
 const toLookAt = () => current().rows.filter((r) => !r.dismissed);
@@ -114,6 +132,7 @@ const plantsIn = () => state.shapes.some((s) => s.role === 'plant');
  * when `at` is given.
  */
 export function openWarnings(at?: WarningKind) {
+  heldHeads.clear();
   if (at) { kindsOpen.add(at); flashKind = at; }
   state.menu = null;
   if (wideNow()) { sideOpen = true; if (state.panel === 'warnings' || state.panel === 'settings') state.panel = null; }
@@ -267,10 +286,10 @@ const MARKS: Record<WarningKind, string> = {
 /** Why a kind can't run, as its line says it, and the button that fixes it. */
 const CANT: Record<CantRun, { said: string; fix?: string }> = {
   // (Not "Nobody in the yard": Jason, "I'm there, I just don't have poison warnings turned on".)
-  yard: { said: 'Off until you choose kids or pets', fix: 'Choose' },
+  // (People in place of kids: Jason, Nov 5.)
+  yard: { said: 'Off until you choose people or pets', fix: 'Choose' },
   zip: { said: 'Needs your ZIP', fix: 'Set location' },
   sun: { said: 'No sun areas yet', fix: 'Add a sun area' },
-  utilities: { said: 'None drawn. Checked once you draw a line or a septic field' },
 };
 function fix(st: KindState) {
   if (st.cantRun === 'yard') { kindsOpen.add('poison'); flashKind = 'poison'; render(); }
@@ -285,12 +304,24 @@ function fix(st: KindState) {
   }
 }
 
+/**
+ * Kinds that, open, said why they couldn't run, with its button: answered from inside (people or pets chosen in it), the
+ * line and the button keep their room, unseen, till the kind is folded or Warnings opened again, so what's under them
+ * stays under the finger (the bug hunt, Nov 6: People picked, the chips moved up, and a quick press on Dogs missed).
+ */
+const heldHeads = new Map<WarningKind, CantRun>();
 function kindFold(st: KindState, rows: WarningRow[]): HTMLElement {
   const kind = st.kind, name = NAMES[kind];
   const open = kindsOpen.has(kind);
+  if (!open) heldHeads.delete(kind);
+  else if (st.cantRun && CANT[st.cantRun].fix) heldHeads.set(kind, st.cantRun);
+  const held = open && !st.cantRun ? heldHeads.get(kind) : undefined;
+  /** Its room, kept: unseen, unheard, not reached by Tab. */
+  const unseen = (e: HTMLElement) => { e.style.visibility = 'hidden'; e.setAttribute('aria-hidden', 'true'); if (e instanceof HTMLButtonElement) e.tabIndex = -1; return e; };
   const on = rows.filter((r) => !r.dismissed), off = rows.filter((r) => r.dismissed);
-  // Its line under the name: why it can't run; off; or on with none.
-  const sub = !st.on ? 'Off' : st.cantRun ? CANT[st.cantRun].said : rows.length ? '' : 'On · none';
+  // Its line under the name: why it can't run; off; or on with none (utilities with none drawn: said so, quietly, as a
+  // yard may have none, not as a check that can't run).
+  const sub = !st.on ? 'Off' : st.cantRun ? CANT[st.cantRun].said : rows.length ? '' : kind === 'utility' && !utilitiesDrawn() ? 'None drawn' : 'On · none';
   const meta = el('span', { className: 'wk-meta' },
     on.length ? el('span', { className: 'wk-count', 'data-testid': 'kind-count' }, String(on.length)) : null,
     off.length ? el('span', { className: 'wk-off' }, `${on.length ? '· ' : ''}${off.length} dismissed`) : null);
@@ -299,7 +330,7 @@ function kindFold(st: KindState, rows: WarningRow[]): HTMLElement {
     el('span', { className: 'wk-icon', 'aria-hidden': 'true', html: MARKS[kind] }),
     el('span', { className: 'wk-name' }, name),
     meta,
-    sub ? el('span', { className: 'wk-sub', 'data-testid': 'kind-sub' }, sub) : null,
+    sub ? el('span', { className: 'wk-sub', 'data-testid': 'kind-sub' }, sub) : held ? unseen(el('span', { className: 'wk-sub' }, CANT[held].said)) : null,
     el('span', { className: 'wk-chev', 'aria-hidden': 'true' }, open ? '▾' : '›'));
   toggle.addEventListener('click', () => { if (open) kindsOpen.delete(kind); else kindsOpen.add(kind); render(); });
   // (Each kind a heading under Warnings, so a screen reader can go kind by kind: the review found the order upside down.)
@@ -309,20 +340,21 @@ function kindFold(st: KindState, rows: WarningRow[]): HTMLElement {
     const b = el('button', { className: 'warn-fix', 'data-testid': `warnings-fix-${kind}` }, fixSaid);
     b.addEventListener('click', () => fix(st));
     head.appendChild(b);
-  }
+  } else if (held) head.appendChild(unseen(el('button', { className: 'warn-fix', type: 'button' }, CANT[held].fix ?? '')));
   const wrap = el('section', { className: 'warn-kind' + (open ? ' open' : ''), 'data-testid': `warnings-kind-${kind}`, 'data-state': !st.on ? 'off' : st.cantRun ? 'cant-run' : rows.length ? 'found' : 'none' }, head);
   if (!open) return wrap;
   wrap.appendChild(switchCard(kind));
+  const all = kindButtons(kind, rows);
+  // (With a heading, "All 3 hardiness warnings", so they don't read as a row's: Jason, Nov 1. Above the rows, not
+  // under them: Jason's notes after release 3.)
+  if (all) {
+    wrap.appendChild(el('div', { className: 'warnings-all', 'data-testid': `warnings-all-${kind}`, role: 'group', 'aria-label': `All ${rows.length} ${KIND_WORDS[kind]} warnings` },
+      el('span', { className: 'warnings-all-head', 'aria-hidden': 'true' }, `All ${rows.length} ${KIND_WORDS[kind]} warnings`), ...all));
+  }
   if (rows.length) {
     const list = el('div', { className: 'warn-rows' });
     for (const r of [...on, ...off]) list.appendChild(warningRow(r));
     wrap.appendChild(list);
-  }
-  const all = kindButtons(kind, rows);
-  // (Under a rule and a heading, "All 3 hardiness warnings", so they don't read as the last row's: Jason, Nov 1.)
-  if (all) {
-    wrap.appendChild(el('div', { className: 'warnings-all', 'data-testid': `warnings-all-${kind}`, role: 'group', 'aria-label': `All ${rows.length} ${KIND_WORDS[kind]} warnings` },
-      el('span', { className: 'warnings-all-head', 'aria-hidden': 'true' }, `All ${rows.length} ${KIND_WORDS[kind]} warnings`), ...all));
   }
   const hOpen = howOpen.has(kind);
   const how = el('button', { className: 'warn-how', 'aria-expanded': String(hOpen), 'data-testid': `warnings-how-${kind}` }, 'How this is worked out ', el('span', { 'aria-hidden': 'true' }, hOpen ? '▾' : '▸'));
@@ -334,21 +366,15 @@ function kindFold(st: KindState, rows: WarningRow[]): HTMLElement {
 
 /** A kind's rule, and where it comes from. */
 const RULES: Record<WarningKind, () => string> = {
-  poison: () => 'A plant is flagged when its sources rate it poisonous to people if eaten (NC State Extension: how severe, and which parts) and kids are in the yard, or list it as a problem for the dogs, cats or horses there (NC State Extension, the ASPCA). Its details give the sources, under Plant → Safety. Plants that can irritate skin are marked in the plant list for everyone instead: anyone can brush them.',
+  // (No ASPCA: it said no to the app using its ratings, Nov 5, and none are in the catalog. docs/catalog-sources.md.)
+  poison: () => 'A plant is flagged when its sources rate it toxic to people if eaten (according to NC State Extension: how severe, and which parts) and you chose People, or toxic to the dogs, cats or horses you chose (according to NC State Extension, and for dogs an earlier list). Its details give the sources, under Plant → Safety. Plants that can irritate skin are marked in the plant list for everyone instead: anyone can brush them.',
   utility: () => `Trees and shrubs, by how tall they typically grow and how far they stand from each utility. Within ${NEAR_LINE} ft of an overhead power line a tree should top out at ${SMALL_TREE} ft or less; ${NEAR_LINE} to ${CLEAR_OF_LINE} ft away, under ${MEDIUM_TREE} ft; taller trees ${CLEAR_OF_LINE} ft or more away (UF/IFAS Extension). Trees and shrubs stay ${BURIED_CLEAR} ft from a buried line (Entergy keeps that much clear of its underground lines); call 811 before you dig. A tree or shrub should stand at least as far from a septic field as it grows tall (UGA Extension). A tree drawn without a height isn't checked.`,
   hardy: () => 'Each plant’s hardiness zones, from its sources, against your ZIP’s zone on the 2023 USDA Plant Hardiness Zone Map (the PRISM Group, Oregon State University). Rated only for warmer zones: too cold. Rated only for colder zones: it may be too warm. Annuals, and plants already in the ground, aren’t checked.',
   sun: () => 'A plant inside a sun area you recorded is checked against the sun it wants: full sun is 6 hours or more of direct sun, part shade 3 to 6, shade under 3; filtered light counts as part shade at most. A plant that wants some shade is flagged too with 2 hours or more of sun between 1 and 6 pm. Plants outside your sun areas aren’t checked.',
-  crowding: () => 'Usual spacing is half of each plant’s typical spread added together, less where one grows under a tree whose lower limbs can be taken up. Close is where their typical spreads touch; crowded, closer than three quarters of that. ' +
+  crowding: () => 'Usual spacing is half of each plant’s typical width when grown added together, less where one grows under a tree whose lower limbs can be taken up. Close is where they’d touch at those widths; crowded, closer than three quarters of that. ' +
     `Spring bulbs under a deciduous plant ${BULB_PARTNER_MIN_HEIGHT} ft or taller don’t count, except right at its base.`,
   fruit: () => 'From each plant’s sources: some come as male and female plants, and a female needs a male of its kind nearby to fruit; others need, or do better with, a second variety. Every plant in the plan counts as a partner. As you place one, a notice offers partners to add.',
 };
-
-/** Who's in the yard, in words: "kids and dogs". */
-function yardSaid(): string {
-  const y = household();
-  const who = [y.kids ? 'kids' : '', y.dogs ? 'dogs' : '', y.cats ? 'cats' : '', y.horses ? 'horses' : ''].filter(Boolean);
-  return who.length > 1 ? `${who.slice(0, -1).join(', ')} and ${who.at(-1)}` : who[0] ?? '';
-}
 
 /** A kind's switch, with a line saying what it checks (the review: the switches didn't say what's actually checked). */
 function switchCard(kind: WarningKind): HTMLElement {
@@ -367,8 +393,9 @@ function switchCard(kind: WarningKind): HTMLElement {
     return b;
   };
   if (kind === 'poison') {
-    const who = yardSaid();
-    lines.append(el('div', {}, who ? `Plants poisonous to the ${who} in the yard` : 'Plants poisonous to the kids or pets in the yard, once you choose them'));
+    const who = yardSaid(household());
+    // (Jason's words, after release 3: "Warn about plants poisonous to …".)
+    lines.append(el('div', {}, who ? `Warn about plants toxic to the ${who} in the yard` : 'Warn about plants toxic to the people or pets in the yard, once you choose them'));
     card.appendChild(check('poison-warnings', state.poisonWarnings, setPoisonWarnings, 'Check poison'));
     card.appendChild(yardChips());
   } else if (kind === 'utility') {
@@ -388,7 +415,7 @@ function switchCard(kind: WarningKind): HTMLElement {
     card.appendChild(check('sun-warnings', state.sunWarnings, (v) => { state.sunWarnings = v; save(); }, 'Check sun'));
   } else if (kind === 'crowding') {
     card.classList.add('ws-stack');
-    card.append(check('show-crowding', state.showCrowding, setShowCrowding, '', 'Plants closer than their spread allows: rings on the plan, amber where close, red where crowded'),
+    card.append(check('show-crowding', state.showCrowding, setShowCrowding, '', 'Plants closer than their width when grown allows: rings on the plan, amber where close, red where crowded'),
       check('crowd-warnings', state.crowdWarnings, setCrowdWarnings, '', 'Tell me as I place a plant close to another'));
     card.removeChild(lines);
   } else {
@@ -397,12 +424,12 @@ function switchCard(kind: WarningKind): HTMLElement {
   }
   return card;
 }
-/** Kids, Dogs, Cats, Horses: who's in the yard, set here as in the plant picker ("Anyone you need to protect?"). */
+/** People, Dogs, Cats, Horses: who's in the yard, set here as in the plant picker ("Hide plants rated toxic to:"). */
 function yardChips(): HTMLElement {
   const y = household();
   const row = el('div', { className: 'ws-yard', role: 'group', 'aria-label': 'In the yard', 'data-testid': 'warnings-yard' }, el('span', { className: 'ws-yard-label' }, 'In the yard:'));
-  for (const [k, label] of [['kids', 'Kids'], ['dogs', 'Dogs'], ['cats', 'Cats'], ['horses', 'Horses']] as [keyof Yard, string][]) {
-    const on = k === 'dogs' ? y.dogs !== '' : !!y[k];
+  for (const [k, label] of YARD_CHIPS) {
+    const on = yardHas(y, k);
     const b = el('button', { className: 'color-chip protect-chip' + (on ? ' on' : ''), 'aria-pressed': String(on), 'data-testid': `warnings-yard-${k}` }, label);
     b.addEventListener('click', () => {
       const next = toggleYard({ kids: y.kids, dogs: y.dogs, cats: y.cats, horses: y.horses }, k);
@@ -474,7 +501,50 @@ function warningRow(r: WarningRow): HTMLElement {
     dismiss.addEventListener('click', () => dismissRow(r));
     row.appendChild(dismiss);
   }
+  const fixes = r.dismissed ? null : rowFixes(r);
+  if (fixes) { row.classList.add('has-fixes'); row.appendChild(fixes); }
   return row;
+}
+
+/** What a Swap from each kind says, and for a screen reader, which plant ("Swap Fig for one hardy here"). */
+const SWAP_SAID: Partial<Record<WarningKind, [SwapFor, string, string]>> = {
+  crowding: ['big', 'Swap for a smaller plant\u2026', 'for a smaller plant'],
+  sun: ['sun', 'Swap for one that takes this sun\u2026', 'for one that takes the sun where it\u2019s planted'],
+  hardy: ['hardy', 'Swap for one hardy here\u2026', 'for one hardy here'],
+  poison: ['poison', 'Swap for one not flagged\u2026', 'for one not flagged for who\u2019s in the yard'],
+};
+/**
+ * A row's fixes, on a line under it (Jason's UI review, Nov 2): a crowded pair, Nudge apart, the one selected or the
+ * newer moving; and Swap, opened already filtered by what failed (crowding, the newer one for a smaller plant, its own
+ * smaller forms first; sun, hardiness, poison, every copy the row is about). Utilities and fruit partners have none here.
+ */
+function rowFixes(r: WarningRow): HTMLElement | null {
+  const said = SWAP_SAID[r.kind];
+  if (!said) return null;
+  const shapes = r.ids.map((id) => state.shapes.find((s) => s.id === id)).filter((s) => !!s);
+  if (!shapes.length) return null;
+  const wrap = el('div', { className: 'wr-fixes', 'data-testid': 'warning-fixes' });
+  let swapping = shapes;
+  if (r.kind === 'crowding') {
+    const [a, b] = shapes;
+    if (!a || !b) return null;
+    const prefer = state.selectedIds.length === 1 && r.ids.includes(state.selectedIds[0]) ? state.selectedIds[0] : undefined;
+    const nudge = el('button', { className: 'wr-btn', 'data-testid': 'warning-nudge', 'aria-label': `Nudge apart: ${r.name}` }, 'Nudge apart');
+    // (The one that moves goes away from every plant it's close to, not this pair's other alone: Jason, Nov 4.)
+    nudge.addEventListener('click', () => { nudgePair(a, b, prefer); });
+    wrap.appendChild(nudge);
+    // (The one Nudge apart would move; one already in the ground isn't swapped.)
+    const one = moverOf(a, b, state.shapes, prefer)?.[0] ?? [b, a].find((x) => !alreadyThere(x));
+    swapping = one ? [one] : [];
+  }
+  const [kind, text, why] = said;
+  if (swapping.length && swapping.every((x) => !!x.plantId && !!plantsById[x.plantId])) {
+    const who = swapping.length === 1 ? (plantsById[swapping[0].plantId!]?.common ?? 'it') : `these ${swapping.length}`;
+    const swap = el('button', { className: 'wr-btn', 'data-testid': `warning-swap`, 'aria-label': `Swap ${who} ${why}` }, text);
+    swap.addEventListener('click', () => swapFiltered(kind, swapping));
+    wrap.appendChild(swap);
+  }
+  return wrap.childNodes.length ? wrap : null;
 }
 
 // ---------- On the plan ----------
@@ -493,6 +563,7 @@ function showRow(r: WarningRow) {
   state.selectedIds = shapes.map((s) => s.id);
   const list = toLookAt();
   walk = { key: keyOf(r), dismissed: r.dismissed, name: r.name, said: r.said, at: Math.max(0, list.findIndex((x) => keyOf(x) === keyOf(r))), selected: state.selectedIds.join() };
+  keepInViewOnTurn(walkTurned); // (its plants kept in view if the phone's turned)
   if (state.panel === 'warnings') state.panel = null;
   zoomTo(r);
   render();
@@ -518,6 +589,17 @@ function zoomTo(r: WarningRow) {
   state.offsetX = cx - (left + (W - left - right) / 2) / ppf;
   state.offsetY = cy - (top + (H - top - bottom) / 2) / ppf;
   saveView();
+}
+
+/**
+ * The phone turned mid-walk (or the window resized): the plants it's on zoomed to again, clear of the chip at the foot
+ * (the warnings bug hunt, Nov 1: turned to 839 × 412, the plan wasn't re-centered and the chip covered the maple).
+ * Only the view changes, and the canvas is redrawn by the resize (src/canvas.ts resizeCanvas): no render.
+ */
+function walkTurned() {
+  if (!walk || !walkUp()) return;
+  const row = findRow(walk.key, walk.dismissed);
+  if (row) zoomTo(row);
 }
 
 /**

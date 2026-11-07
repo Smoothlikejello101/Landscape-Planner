@@ -15,7 +15,7 @@ const list = (code: string, plants: object[], classes: Record<string, string> = 
 describe('the regulated lists', () => {
   it('are well formed: each entry a species, variety or genus, of a class its list says, each list cited', () => {
     expect(problems(real)).toEqual([]);
-    expect(real.jurisdictions.map((j: { code: string }) => j.code)).toEqual(['US', 'AR', 'TX', 'MS', 'MO', 'OK', 'LA', 'TN', 'VA', 'GA', 'PA', 'KY', 'NC', 'OH', 'IN', 'IL', 'WV', 'AL', 'MI', 'NJ', 'SC', 'NY', 'MA']);
+    expect(real.jurisdictions.map((j: { code: string }) => j.code)).toEqual(['US', 'AR', 'TX', 'MS', 'MO', 'OK', 'LA', 'TN', 'VA', 'GA', 'PA', 'KY', 'NC', 'OH', 'IN', 'IL', 'WV', 'AL', 'MI', 'NJ', 'SC', 'NY', 'MA', 'FL', 'MD', 'MN', 'CO', 'WA', 'OR', 'ID', 'MT', 'UT', 'AK', 'CT', 'IA', 'NV', 'ND', 'SD', 'RI', 'VT', 'WY', 'AZ', 'CA', 'DC', 'HI', 'KS', 'ME', 'NH', 'NM', 'WI']);
     expect(problems({ v: 1, jurisdictions: [list('XX', [{ name: 'Melia', class: 'noxious' }, { name: 'Melia azedarach', class: 'banned' },
       { genus: 'Cuscuta', except: ['Lythrum alatum'], class: 'noxious' }, { name: 'Melia azedarach', kew: 'Melia', class: 'noxious' },
       { name: 'Melia azedarach', accepted: 'Melia', also: ['x'], notKew: 'Ophiuros', class: 'noxious' }])] }))
@@ -306,5 +306,20 @@ describe('what the matcher is given', () => {
       { id: 'privet', binomial: 'Ligustrum sinense', botanical: 'Ligustrum sinense' },
       { id: 'bella', botanical: 'Lonicera x bella' },
     ]);
+  });
+});
+
+describe('an accepted subspecies or variety (Jason, Nov 5: Amur maple)', () => {
+  it('is allowed, and takes in only that one, by the catalog\'s own name', () => {
+    const list = (plants: object[]) => ({ v: 1, jurisdictions: [{ code: 'XX', title: 't', url: 'https://example.gov', edition: 'e', read: '2026-11-05', classes: { ban: 'b' }, tiers: { ban: 'ban' }, plants }] });
+    const data = list([{ name: 'Acer ginnala', accepted: 'Acer tataricum subsp. ginnala', class: 'ban' }]);
+    expect(problems(data)).toEqual([]);
+    expect(problems(list([{ name: 'Acer ginnala', accepted: 'Acer tataricum ginnala', class: 'ban' }]))).toEqual(['XX Acer ginnala: bad accepted name']);
+    const plants = [
+      { id: 'amur', botanical: 'Acer tataricum subsp. ginnala', binomial: 'Acer tataricum' },
+      { id: 'amur-flame', botanical: "Acer tataricum subsp. ginnala 'Flame'", binomial: 'Acer tataricum' },
+      { id: 'tatarian', botanical: 'Acer tataricum', binomial: 'Acer tataricum' },
+    ];
+    expect(regulatedPlants(data, plants, { amur: 'Acer tataricum', 'amur-flame': 'Acer tataricum', tatarian: 'Acer tataricum' })).toEqual({ XX: { amur: 'ban', 'amur-flame': 'ban' } });
   });
 });

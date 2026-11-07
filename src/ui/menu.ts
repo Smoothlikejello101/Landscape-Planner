@@ -12,11 +12,12 @@ import { render } from './render';
 import { openLocation } from './location-panel';
 import { openFeedback } from './feedback-sheet';
 import { MARK_SMALL } from '../brand';
-import { showMeAround } from './intro-card';
+import { openHelp } from './help-sheet';
 import { openWhatsNew } from './whats-new-panel';
 import { CHANNEL } from '../channel';
 import { builtOn } from '../whats-new';
 import { openPrint } from './print-panel';
+import { noteScreen } from '../print-area';
 import { openWarnings, warningsMenuLabel } from './warnings-sheet';
 import { openPlantList } from './plant-list-panel';
 import { checkForUpdate, onUpdateWaiting, updateNow, updateWaiting } from '../pwa';
@@ -73,7 +74,7 @@ export function renderMoreMenu() {
   if (state.shapes.length) {
     // (Its own item: people look for "print", not for it under Export.)
     items.push({ icon: I.print, label: 'Print or save as PDF…', onClick: () => { openPrint(); state.menu = null; render(); } });
-    items.push({ icon: I.download, label: 'Export image…', onClick: () => { state.panel = 'export'; state.menu = null; render(); } });
+    items.push({ icon: I.download, label: 'Export image…', onClick: () => { noteScreen(); state.panel = 'export'; state.menu = null; render(); } });
   }
   items.push({ divider: true });
   // The plans, and backing them up: the pane the plan's name opens, from here too (Jason, from the UI review,
@@ -103,11 +104,9 @@ export function renderMoreMenu() {
   // Every setting in one sheet: text and label size, drawing, and a way to Warnings (Jason, Oct 31, from round 3: Bea
   // found them scattered between Layers and the foot of this menu).
   items.push({ icon: I.settings, label: 'Settings\u2026', testid: 'menu-settings', onClick: () => { state.panel = 'settings'; state.menu = null; render(); } });
-  // The guided introduction, any time: from the start, or (left part way) pick up where they left (src/ui/intro-card.ts).
-  items.push({
-    icon: I.help, label: 'Show me around', testid: 'menu-intro',
-    onClick: () => { state.menu = null; showMeAround(); render(); },
-  });
+  // Help: "How do I…", each with a way there, and the guided introduction, Guided start (src/ui/help-sheet.ts; Jason,
+  // Nov 2, from the UI review: it was "Show me around", the tour alone; named Guided start Nov 4).
+  items.push({ icon: I.help, label: 'Help', testid: 'menu-help', onClick: openHelp });
   // What changed in each update, newest first (src/whats-new.ts; Jason, Oct 31: for the beta's testers).
   items.push({ icon: I.news, label: 'What\u2019s new', testid: 'menu-whats-new', onClick: openWhatsNew });
   items.push({

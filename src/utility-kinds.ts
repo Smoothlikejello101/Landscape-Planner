@@ -6,9 +6,9 @@ import type { UtilityKind } from './types';
 // import, so storage can check one without pulling in the checks.)
 
 export const UTILITY_KINDS: { key: UtilityKind; label: string; lines: boolean }[] = [
-  { key: 'overhead', label: 'Overhead power line', lines: true },
-  { key: 'buried', label: 'Buried line', lines: true },
-  { key: 'septic', label: 'Septic field', lines: false },
+  { key: 'overhead', label: 'Overhead Power Line', lines: true },
+  { key: 'buried', label: 'Buried Line', lines: true },
+  { key: 'septic', label: 'Septic Field', lines: false },
 ];
 export const isUtilityKind = (v: unknown): v is UtilityKind => UTILITY_KINDS.some((k) => k.key === v);
 /**

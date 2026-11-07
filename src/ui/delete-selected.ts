@@ -10,6 +10,7 @@ import { toast, toastAction } from './toast';
 import { ask, askChoice } from './ask';
 import { isTree } from '../trees';
 import { isBed, plantsInBed } from '../beds';
+import { labelShown } from '../names';
 
 /** "6 plants, 1 boundary": what a set of shapes is, by role. */
 const NAMES: Record<RoleKey | 'tree', [string, string]> = {
@@ -64,7 +65,7 @@ export async function deleteSelectedAsking(): Promise<void> {
     }
     deleteShapesByIds([selected[0].id]);
     state.panel = null;
-    undoNotice(`Deleted ${selected[0].label || describeShapes(selected)}`);
+    undoNotice(`Deleted ${labelShown(selected[0]) || describeShapes(selected)}`);
     render();
     return;
   }
@@ -154,7 +155,7 @@ export function cutSelected() {
   copyShapes(going);
   deleteShapesByIds(going.map((s) => s.id));
   state.panel = null;
-  undoNotice(`Cut ${going.length === 1 ? going[0].label || describeShapes(going) : describeShapes(going)}` + (kept ? `; ${kept} locked ${kept === 1 ? 'shape' : 'shapes'} kept` : ''));
+  undoNotice(`Cut ${going.length === 1 ? labelShown(going[0]) || describeShapes(going) : describeShapes(going)}` + (kept ? `; ${kept} locked ${kept === 1 ? 'shape' : 'shapes'} kept` : ''));
 }
 /**
  * "Deleted 3 plants · Undo": every delete says what went, with an Undo of that step (while nothing has changed
@@ -162,12 +163,12 @@ export function cutSelected() {
  * for a plant across the plan aren't in the undo history: src/warnings-list.ts setDismissed): it takes it back its own
  * way, false if it has changed since.
  */
-export function undoNotice(said: string, takeBack?: () => boolean) {
+export function undoNotice(said: string, takeBack?: () => boolean, testid?: string) {
   const step = state.history[state.historyIndex];
   toastAction(said, [{ label: 'Undo', run: () => {
     flushHistoryDebounce();
     if (takeBack ? !takeBack() : state.history[state.historyIndex] !== step) { toast('It has changed since, so it was left as it is.'); return; }
     if (!takeBack) undo();
     render();
-  } }], 8000);
+  } }], 8000, testid);
 }

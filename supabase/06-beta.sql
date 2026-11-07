@@ -6,8 +6,8 @@
 --   select public.new_beta_code(10, 'Wave 1', 60);
 -- The sign-ups: Table Editor → beta_signups. When the beta ends, empty it (the privacy policy says so):
 --   truncate public.beta_signups;
--- If floods of fake sign-ups ever get past the limits below, the next step is a challenge on the form
--- (Cloudflare Turnstile), checked by a server function.
+-- Since Nov 5 the form goes through a server function that first has Cloudflare Turnstile check that a person is
+-- filling it in (supabase/functions/beta-signup, 08-beta-check.sql); 09-beta-close.sql closes the way in below.
 
 -- ---------- Sign-ups ----------
 -- The website has no accounts, so anyone may sign up, through one function that checks each answer. Nobody
@@ -75,6 +75,7 @@ begin
 end $$;
 revoke all on function public.beta_signup(text, text, text, text, boolean, text, text) from public, anon, authenticated;
 grant execute on function public.beta_signup(text, text, text, text, boolean, text, text) to anon, authenticated;
+-- (09-beta-close.sql takes that back: run it again after this file.)
 
 -- ---------- Beta codes ----------
 -- A code makes a signed-in account a beta account (everything free during the beta). Each code serves up

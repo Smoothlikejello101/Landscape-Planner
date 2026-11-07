@@ -71,7 +71,8 @@ function returningFromSignIn(): boolean {
   const q = new URLSearchParams(location.search);
   return q.has('code') || q.has('error_description') || /(^|[#&])(access_token|error_description)=/.test(location.hash);
 }
-function storedSession(): boolean {
+/** Whether a sign-in is kept on this device (checked with the server only by initAccount). */
+export function storedSession(): boolean {
   try { return !!localStorage.getItem(AUTH_STORAGE_KEY); } catch { return false; }
 }
 /** Forget the session on this device, whatever the server says (signing out offline must still sign out). */

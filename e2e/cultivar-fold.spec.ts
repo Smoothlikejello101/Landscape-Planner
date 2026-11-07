@@ -47,8 +47,8 @@ test('a species\' cultivars fold under it, a tap to open; a search naming one sh
   await openPicker(page);
   // Browsing: a row a species, its cultivars folded; two cultivars stay rows of their own; cultivars with no species
   // record fold under a heading for their genus, at its own name; two don't.
-  await expect(names(page)).toHaveText(["Camellia 'Winter's Charm'", "Camellia 'Winter's Star'", 'Oakleaf hydrangea', "Oakleaf hydrangea 'Alice'", "Oakleaf hydrangea 'Ruby Slippers'",
-    'Pecan', 'Rose of Sharon', 'Roses', 'Smooth hydrangea', 'White oak', 'Zinnia']);
+  await expect(names(page)).toHaveText(["Camellia 'Winter's Charm'", "Camellia 'Winter's Star'", 'Oakleaf Hydrangea', "Oakleaf Hydrangea 'Alice'", "Oakleaf Hydrangea 'Ruby Slippers'",
+    'Pecan', 'Rose of Sharon', 'Roses', 'Smooth Hydrangea', 'White Oak', 'Zinnia']);
   const pecans = foldOf(page, 'Pecan');
   await expect(pecans.getByTestId('cultivar-fold')).toHaveText('4 cultivars');
   // One entry with its species (no line between them); its arrow where the rows' color spots are, to catch the eye.
@@ -70,7 +70,7 @@ test('a species\' cultivars fold under it, a tap to open; a search naming one sh
   await expect(roses.getByTestId('group-count')).toHaveText('Rosa \u00b7 5 cultivars');
   await expect(roses.getByTestId('plant-place')).toHaveCount(0);
   await roses.getByTestId('group-head').click();
-  await expect(roses.getByTestId('cultivar-list').locator('.pname')).toHaveText(["Climbing rose 'New Dawn'", "Rosa 'Abraham Darby'", "Rose 'Belinda's Dream'", "Rose 'Carefree Beauty'", "Rose 'Julia Child'"]);
+  await expect(roses.getByTestId('cultivar-list').locator('.pname')).toHaveText(["Climbing Rose 'New Dawn'", "Rosa 'Abraham Darby'", "Rose 'Belinda's Dream'", "Rose 'Carefree Beauty'", "Rose 'Julia Child'"]);
   await expect(roses.getByRole('button', { name: "Place Rose 'Julia Child'" })).toBeVisible();
   // A search for the species: the species, its cultivars folded (as left).
   await page.getByTestId('plant-search').fill('pecan');
@@ -99,18 +99,18 @@ test('filters look inside a fold, and open it to the cultivars that match; a spe
   await expect(rosFold.getByTestId('cultivar-fold')).toHaveText('4 of 5 cultivars match your filters');
   await expect(rosFold.getByTestId('cultivar-fold')).toHaveAttribute('aria-expanded', 'true');
   // Smooth hydrangea is white: shown for its pink cultivars, saying it doesn't match itself. Roses: the pink ones.
-  const hyd = foldOf(page, 'Smooth hydrangea');
+  const hyd = foldOf(page, 'Smooth Hydrangea');
   await expect(hyd.getByTestId('cultivar-fold')).toHaveText('4 of 5 cultivars match your filters; the species itself doesn\u2019t');
   await expect(page.getByTestId('cultivar-group').getByTestId('group-count')).toHaveText('Rosa \u00b7 4 of 5 cultivars match your filters');
   // A species with no cultivar of it in the color: below the divider, as before.
   await expect(page.locator('.plant-item .pname, [data-testid=comes-in-divider]')).toHaveText(['Rose of Sharon', "Rose of Sharon 'Aphrodite'", "Rose of Sharon 'Lucy'", "Rose of Sharon 'Minerva'", "Rose of Sharon 'Pink Chiffon'",
-    'Roses', "Climbing rose 'New Dawn'", "Rosa 'Abraham Darby'", "Rose 'Belinda's Dream'", "Rose 'Carefree Beauty'",
-    'Smooth hydrangea', "Smooth hydrangea 'Bella Anna'", "Smooth hydrangea 'Invincibelle Ruby'", "Smooth hydrangea 'Invincibelle Spirit'", "Smooth hydrangea 'Pink Pincushion'",
+    'Roses', "Climbing Rose 'New Dawn'", "Rosa 'Abraham Darby'", "Rose 'Belinda's Dream'", "Rose 'Carefree Beauty'",
+    'Smooth Hydrangea', "Smooth Hydrangea 'Bella Anna'", "Smooth Hydrangea 'Invincibelle Ruby'", "Smooth Hydrangea 'Invincibelle Spirit'", "Smooth Hydrangea 'Pink Pincushion'",
     'Also comes in pink, depending on the plant you buy', 'Zinnia']);
   // Closed by hand: stays closed as the list changes.
   await hyd.getByTestId('cultivar-fold').click();
   await page.getByTestId('plant-search').fill('hydrangea');
-  await expect(foldOf(page, 'Smooth hydrangea').getByTestId('cultivar-fold')).toHaveAttribute('aria-expanded', 'false');
+  await expect(foldOf(page, 'Smooth Hydrangea').getByTestId('cultivar-fold')).toHaveAttribute('aria-expanded', 'false');
   // Fewer than four match: rows of their own (one purple one here), the species below the divider.
   await page.getByTestId('plant-search').fill('');
   await expect(page.getByTestId('picker-count')).toContainText(/^14 of 29 plants match/);

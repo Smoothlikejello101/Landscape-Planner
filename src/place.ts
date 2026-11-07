@@ -60,7 +60,6 @@ export function placeTap(clientX: number, clientY: number) {
   state.shapes.push(shape);
   pushHistory('place ' + p.common);
   state.placing.placed.push({ id: shape.id, snap: state.history[state.historyIndex] });
-  noteRecentPlant(p.id); // what's actually placed, not just picked
   save();
   // Too close to another: a notice (Move it takes this one back, to tap again).
   crowdNotice(shape, () => { if (state.placing?.placed.at(-1)?.id === shape.id) undoPlace(); });
@@ -87,13 +86,15 @@ export function placeTap(clientX: number, clientY: number) {
 export function undoPlace() {
   const last = state.placing?.placed.pop();
   if (!last) return;
+  lastPlaced.t = -1e9; // (taken back: a tap there again at once places it again, not a double tap on one that's gone)
   flushHistoryDebounce();
   state.shapes = state.shapes.filter((s) => s.id !== last.id);
   state.selectedIds = state.selectedIds.filter((id) => id !== last.id);
   for (const snap of state.history) snap.shapes = snap.shapes.filter((s) => s.id !== last.id);
-  // The step that placed it is now the same as the one before it: drop it.
-  const i = state.history.indexOf(last.snap);
-  if (i > 0) {
+  // The step that placed it is now the same as the one before it: drop it, and any made on it since (a Nudge apart).
+  for (const step of [...(last.also ?? []), last.snap]) {
+    const i = state.history.indexOf(step);
+    if (i <= 0) continue;
     state.history.splice(i, 1);
     if (i <= state.historyIndex) state.historyIndex--;
   }
@@ -124,25 +125,8 @@ export function selectionJustPlaced(): boolean {
 /** The batch picked by a tap since (one plant placed, tapped): just selected now (src/gestures.ts handleShapeTap). */
 export function notJustPlaced() { justPlaced = ''; }
 
-// ---------- Recently placed plants (this device) ----------
-const RECENT_KEY = 'lp-recent-plants';
-export const RECENT_MAX = 8;
-function loadRecent(): string[] {
-  try {
-    const v = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
-    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
-  } catch { return []; }
-}
-/** A plant just placed (by a tap, or swapped in for another: src/plants.ts linkFromPicker), first in Recent. */
-export function noteRecentPlant(id: string) {
-  try { localStorage.setItem(RECENT_KEY, JSON.stringify([id, ...loadRecent().filter((x) => x !== id)].slice(0, 20))); } catch { /* not remembered */ }
-}
-/** The last plants placed, newest first (ones no longer known are skipped). */
-export function recentPlants(): Plant[] {
-  // (A plant of mine switched to the catalog's is that plant now: listed once.)
-  const seen = new Set<string>();
-  return loadRecent().map((id) => plantsById[id]).filter((p): p is Plant => !!p && !seen.has(p.id) && !!seen.add(p.id)).slice(0, RECENT_MAX);
-}
+// (The picker's Recent, the plants placed last on this device, went with Jason's notes of Nov 4: "In this plan" finds
+// them. What it kept, 'lp-recent-plants', is left as it was on devices that have it, no longer read or written.)
 
 // ---------- With a mouse: the plant follows the pointer ----------
 let hover: Point | null = null;

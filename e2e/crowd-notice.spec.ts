@@ -27,7 +27,8 @@ test('placing too close: a notice says which plant and why; Move it takes it bac
   await expect(notice(page)).toHaveClass(/tone-red/);
   await expect(notice(page).getByTestId('notice-detail')).toBeHidden();
   await notice(page).getByTestId('notice-line').click();
-  await expect(notice(page).getByTestId('notice-detail')).toHaveText('Snowberry and Snowberry will grow into each other: 2 ft apart, where about 4.5 ft is usual for these two.');
+  // (Two of a kind: "Two Snowberry", not "Snowberry and Snowberry": Jason's notes after release 3.)
+  await expect(notice(page).getByTestId('notice-detail')).toHaveText('Two Snowberry will grow into each other: 2 ft apart, where about 4.5 ft is usual for these two.');
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(2);
   // Move it: that one goes, to be tapped again.
   await notice(page).getByRole('button', { name: 'Move it' }).click();
@@ -38,7 +39,7 @@ test('placing too close: a notice says which plant and why; Move it takes it bac
   await tapFromCenter(page, -2, 0);
   await expect(notice(page).getByTestId('notice-line')).toHaveText('Close to Snowberry');
   await expect(notice(page)).toHaveClass(/tone-amber/);
-  await expect(notice(page).getByTestId('notice-detail')).toHaveText('Snowberry and Snowberry may quickly grow into one another: 4 ft apart, where about 4.5 ft is usual for these two. A little of this can be fine, if you\'re after a quick, full look.');
+  await expect(notice(page).getByTestId('notice-detail')).toHaveText('Two Snowberry may quickly grow into each other: 4 ft apart, where about 4.5 ft is usual for these two. A little of this can be fine, if you\'re after a quick, full look.');
   await expect(page.locator('#canvas-svg [data-role=close]')).toHaveCount(2);
   // Another close one: no notice this time (once a placing session); a crowded one: again.
   await tapFromCenter(page, 2, 0);
@@ -56,7 +57,7 @@ test('Dismiss: that pair is dismissed, said so in its sheet, and can be shown ag
   await startPlacing(page, 'Snowberry');
   await tapFromCenter(page, 0, 0);
   await tapFromCenter(page, 2, 0);
-  await expect(notice(page).getByRole('button')).toHaveText(['Crowding Snowberry', 'Dismiss', 'Move it', 'Settings', '✕']);
+  await expect(notice(page).getByRole('button')).toHaveText(['Crowding Snowberry', 'Nudge apart', 'Dismiss', 'Move it', '', '✕']);
   await notice(page).getByRole('button', { name: 'Dismiss' }).click();
   await expect(notice(page)).toHaveCount(0);
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(0);
@@ -88,10 +89,10 @@ test('a small plant crowded by a bigger one is too far under it: try out toward 
   await page.getByTestId('plant-search').fill("Heuchera 'Autumn Bride'");
   await page.locator('.sheet .proj-row', { hasText: 'Autumn Bride' }).first().locator('[data-testid=plant-place]').click();
   await tapFromCenter(page, 0.5, 0);
-  await expect(notice(page).getByTestId('notice-line')).toHaveText('Too far under Sweet Joe Pye weed');
+  await expect(notice(page).getByTestId('notice-line')).toHaveText('Too far under Sweet Joe Pye Weed');
   await notice(page).getByTestId('notice-line').click();
-  await expect(notice(page).getByTestId('notice-detail')).toContainText("Heuchera 'Autumn Bride' will be buried by Sweet Joe Pye weed: 0.5 ft apart");
-  await expect(notice(page).getByTestId('notice-detail')).toContainText('Try moving it out toward the edge of Sweet Joe Pye weed.');
+  await expect(notice(page).getByTestId('notice-detail')).toContainText("Heuchera 'Autumn Bride' will be buried by Sweet Joe Pye Weed: 0.5 ft apart");
+  await expect(notice(page).getByTestId('notice-detail')).toContainText('Try moving it out toward the edge of Sweet Joe Pye Weed.');
   // In its properties: one line, opened to say so.
   await bar(page).getByRole('button', { name: 'Done' }).click();
   await tapFromCenter(page, 0, 8); // (nothing there: the two placed are let go)
@@ -102,7 +103,7 @@ test('a small plant crowded by a bigger one is too far under it: try out toward 
   await expect(page.getByTestId('crowding-line')).toHaveText('⚠ Planted closer than usual to one neighbor');
   await expect(page.getByTestId('crowding-detail')).toBeHidden();
   await page.getByTestId('crowding-line').click();
-  await expect(page.getByTestId('crowding-detail')).toContainText('Sweet Joe Pye weed: 0.5 ft apart');
+  await expect(page.getByTestId('crowding-detail')).toContainText('Sweet Joe Pye Weed: 0.5 ft apart');
   await expect(page.getByTestId('crowding-detail')).toContainText('buried by it: try out toward its edge');
 });
 
@@ -172,7 +173,7 @@ test('a spring bulb under a deciduous plant 3 ft or taller is not crowding it, e
   await expect(page.locator('#canvas-svg [data-role=close], #canvas-svg [data-role=crowded]')).toHaveCount(0);
   // Right at its base: close.
   await tapFromCenter(page, -0.4, 0);
-  await expect(notice(page).getByTestId('notice-line')).toHaveText('Close to Sweet Joe Pye weed, at its base');
+  await expect(notice(page).getByTestId('notice-line')).toHaveText('Close to Sweet Joe Pye Weed, at its base');
 });
 
 test('a notice can be put away without its buttons: ✕, or a swipe sideways; a short swipe slides it back', async ({ page }) => {
@@ -192,4 +193,63 @@ test('a notice can be put away without its buttons: ✕, or a swipe sideways; a 
   await expect(notice(page)).toBeVisible();
   await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 160, y, { steps: 8 }); await page.mouse.up();
   await expect(notice(page)).toHaveCount(0);
+});
+
+// Jason, Nov 4: "The crowding notice and nudge option isn't shown if the 'nudged apart ... Undo' is on the screen. The undo
+// notice should be auto-dismissed and the new one shown, and we probably ought to look at where else similar things are
+// happening." A notice for something new replaces an older one; only one about the same plant keeps its order.
+const ZIPS = {
+  v: 1, accessed: '2026-10-17',
+  zips: { '71923': ['8a', 0, 3] },
+  stations: [{ name: 'Arkadelphia 2 N, AR', chance: 100, spring: '03-24', springLate: '04-08', fall: '11-06', fallEarly: '10-24' }],
+};
+test('a new plant\'s notice replaces "Nudged… Undo": crowded, close (said again after a nudge), too cold, a fruit partner; its own crowding still first (Jason, Nov 4)', async ({ page }) => {
+  await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ZIPS) }));
+  await openFresh(page);
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'Garden location' }).click();
+  await page.getByTestId('zip').fill('71923');
+  await page.getByTestId('zip-lookup').click();
+  await expect(page.getByTestId('location-result')).toContainText('8a');
+  await closeSheet(page);
+  const nudged = page.getByTestId('nudge-notice');
+  // Close (amber), nudged: the next close one is said all the same, over "Nudged… Undo".
+  await startPlacing(page, 'Snowberry');
+  await tapFromCenter(page, -2, -4);
+  const first = (await page.locator('#canvas-svg circle[data-shape-id]').first().getAttribute('data-shape-id'))!;
+  await tapFromCenter(page, 2, -4); // (4 ft: close)
+  await expect(notice(page)).toHaveClass(/tone-amber/);
+  await notice(page).getByRole('button', { name: 'Nudge apart' }).click();
+  await expect(nudged).toBeVisible();
+  await tapFromCenter(page, -6, -4); // (4 ft from the first: close)
+  await expect(notice(page).getByTestId('notice-line')).toHaveText('Close to Snowberry');
+  await expect(nudged).toHaveCount(0);
+  // Crowded, nudged; another crowded: its notice in place of the Undo.
+  await notice(page).getByRole('button', { name: 'Nudge apart' }).click();
+  await expect(nudged).toBeVisible();
+  await tapFromCenter(page, -2, -2); // (2 ft below the first: crowded)
+  await expect(notice(page).getByTestId('notice-line')).toHaveText('Crowding Snowberry');
+  await notice(page).getByRole('button', { name: 'Nudge apart' }).click();
+  await expect(nudged).toBeVisible();
+  await bar(page).getByRole('button', { name: 'Done' }).click();
+  // Too cold, placed clear of everything while "Nudged… Undo" is up: said.
+  await expect(nudged).toBeVisible();
+  await startPlacing(page, 'Barbados aloe');
+  await tapFromCenter(page, 6, 6);
+  await expect(page.getByTestId('hardy-notice')).toContainText('Too cold for zone 8a');
+  await bar(page).getByRole('button', { name: 'Done' }).click();
+  // A fruit partner's notice over an older one: said.
+  await page.getByTestId('hardy-notice').getByRole('button', { name: 'Undo' }).click(); // (deleted, with its own notice)
+  await startPlacing(page, "'Winter Red'");
+  await tapFromCenter(page, 6, 6);
+  await expect(page.getByTestId('fruit-notice')).toContainText("'Winter Red' is a female");
+  await page.getByTestId('fruit-notice').getByTestId('notice-close').click();
+  await bar(page).getByRole('button', { name: 'Done' }).click();
+  await page.keyboard.press('Escape'); // (nothing selected: the picker opens on the plan where it is)
+  // Too cold and crowding one already there: its crowding is said, first, as before.
+  await startPlacing(page, 'Barbados aloe');
+  const on = (await page.locator(`#canvas-svg [data-shape-id="${first}"]`).boundingBox())!; // (the plan may have moved to show what was selected)
+  await page.mouse.click(on.x + on.width / 2, on.y + on.height / 2);
+  await expect(notice(page)).toBeVisible();
+  await expect(page.getByTestId('hardy-notice')).toHaveCount(0);
 });

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addPlainShape, autoDialogs, closeSheet, field, openFilters, openFresh } from './helpers';
+import { addPlainShape, autoDialogs, closeSheet, field, openFilters, openFresh, placeOnceAtCenter } from './helpers';
 
 // Plant picker rows open to show a plant's details; Place uses it.
 
@@ -33,6 +33,62 @@ test('a plant row opens to its details, and stays open while the list changes', 
   await expect(page.getByTestId('place-bar')).toHaveCount(0);
 });
 
+test('with ten or more sure matches, the less-sure groups fold into one line that says how many and opens them; fewer, or a search, and they show as before (Jason, Nov 4)', async ({ page }) => {
+  const sure = (i: number, form = 'Perennial') => ({ id: `sure-${i}`, common: `Sure plant ${String(i).padStart(2, '0')}`, botanical: `Surea plantus ${i}`, src: ['ncsu'], audited: '2026-10-18', facts: { form, sun_most: 'Full', sun_least: 'Part' } });
+  const catalog = {
+    meta: {
+      format: 'lp-catalog', version: 2, zones: 'half', title: 'Test catalog', updated: '2026-10-18',
+      sources: { ncsu: { title: 'NC State Extension', trust: 'reference' }, shop: { title: 'A nursery', trust: 'nursery' }, compendium: { title: 'Earlier list', trust: 'unverified' } },
+      enums: { form: ['Perennial', 'Shrub'] },
+    },
+    plants: [
+      ...Array.from({ length: 9 }, (_, i) => sure(i + 1)), sure(10, 'Shrub'),
+      { id: 'heuchera-villosa', common: 'Hairy alumroot', botanical: 'Heuchera villosa', src: ['ncsu'], audited: '2026-10-18',
+        facts: { form: 'Perennial', sun_most: { v: 'Part', src: ['ncsu'], check: 'single', alt: { v: 'Full', src: ['shop'], check: 'reported' } }, sun_least: { v: 'Shade', src: ['ncsu'], check: 'single' } } },
+      { id: 'old', common: 'Old-list aster', src: ['compendium'], audited: null, facts: { form: 'Perennial', sun_most: 'Full', sun_least: 'Part' } },
+    ],
+  };
+  await page.route('**/plants.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(catalog) }));
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await openFilters(page);
+  await page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any sun' }) }).selectOption('Full');
+  const order = () => page.locator('.list-divider, .plant-item .pname').evaluateAll((els) => els.map((e) => (e.classList.contains('list-divider') ? '|' + e.getAttribute('data-testid') : e.textContent)));
+  const sureNames = Array.from({ length: 10 }, (_, i) => `Sure Plant ${String(i + 1).padStart(2, '0')}`);
+  // Ten sure: the other two fold into one line, last, saying how many and why.
+  await expect.poll(order).toEqual([...sureNames, '|less-sure']);
+  const line = page.getByTestId('less-sure');
+  await expect(line).toHaveText('Show 2 more that other sources or the earlier list say fit');
+  await expect(line).toHaveAttribute('aria-expanded', 'false');
+  // Opened: the two groups, as worded before, with Hide these.
+  await line.click();
+  await expect.poll(order).toEqual([...sureNames, '|others-divider', 'Hairy Alumroot', '|earlier-divider', 'Old-List Aster']);
+  await expect(page.getByTestId('others-divider')).toContainText('Other sources say these take full sun too');
+  await expect(page.getByTestId('hide-others')).toBeVisible();
+  // Nine sure (Perennials only): no line, the groups shown as before.
+  await closeSheet(page);
+  await page.locator('.tool-btn.plants').click();
+  await openFilters(page);
+  await page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any sun' }) }).selectOption('Full');
+  await expect.poll(order).toEqual([...sureNames, '|less-sure']); // (opened by hand last time: folded again, a new look)
+  await page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any form' }) }).selectOption('Perennial');
+  await expect.poll(order).toEqual([...sureNames.slice(0, 9), '|others-divider', 'Hairy Alumroot', '|earlier-divider', 'Old-List Aster']);
+  // Other sources' put away with Hide these, then ten sure again: the line says only the other one.
+  await page.getByTestId('hide-others').click();
+  await page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any form' }) }).selectOption('');
+  await expect(line).toHaveText('Show 1 more that only the earlier list (unverified) says fit');
+  await expect(page.getByTestId('others-hidden')).toContainText('1 more fit by what other sources say.');
+  await page.getByTestId('show-others').click();
+  await expect(line).toHaveText('Show 2 more that other sources or the earlier list say fit');
+  // A search by name finds every plant as before: with ten sure matches too, nothing folded.
+  await page.getByTestId('plant-search').fill('plant');
+  await expect(page.locator('.plant-item', { hasText: 'Sure plant 10' })).toHaveCount(1);
+  await page.getByTestId('plant-search').fill('a');
+  await expect(line).toHaveCount(0);
+  await expect(page.locator('.plant-item', { hasText: 'Hairy Alumroot' })).toHaveCount(1);
+  await expect(page.locator('.plant-item', { hasText: 'Old-List Aster' })).toHaveCount(1);
+});
+
 test('a plant shown only because of what other sources say is marked, and says so, naming who', async ({ page }) => {
   const catalog = {
     meta: {
@@ -62,33 +118,33 @@ test('a plant shown only because of what other sources say is marked, and says s
   await page.locator('.tool-btn.plants').click();
   await openFilters(page);
   await page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any sun' }) }).selectOption('Full');
-  const alumroot = page.locator('.plant-item', { hasText: 'Hairy alumroot' });
+  const alumroot = page.locator('.plant-item', { hasText: 'Hairy Alumroot' });
   await expect(alumroot.getByTestId('row-flag')).toBeVisible();
   await expect(page.locator('.plant-item', { hasText: 'Sweetspire' }).getByTestId('row-flag')).toHaveCount(0);
   // Each row says how far it's checked: all earlier list, some, or (no badge) every detail sourced.
-  await expect(page.locator('.plant-item', { hasText: 'Old-list aster' }).locator('.unverified-badge')).toHaveText('Unverified');
-  await expect(page.locator('.plant-item', { hasText: 'Half-checked aster' }).locator('.unverified-badge')).toHaveText('Partly checked');
+  await expect(page.locator('.plant-item', { hasText: 'Old-List Aster' }).locator('.unverified-badge')).toHaveText('Unverified');
+  await expect(page.locator('.plant-item', { hasText: 'Half-Checked Aster' }).locator('.unverified-badge')).toHaveText('Partly checked');
   await expect(page.locator('.plant-item', { hasText: 'Sweetspire' }).locator('.unverified-badge')).toHaveCount(0);
   // In groups: what its sources say fits; below a divider, what fits by what other sources say (with Hide); below
   // another, what fits only by the earlier list.
   const order = () => page.locator('.list-divider, .plant-item .pname').evaluateAll((els) => els.map((e) => (e.classList.contains('list-divider') ? '|' + e.getAttribute('data-testid') : e.textContent)));
-  await expect.poll(order).toEqual(['Bee balm', 'Bristleleaf sedge', 'Sweetspire', '|others-divider', 'Hairy alumroot', '|earlier-divider', 'Half-checked aster', 'Old-list aster']);
+  await expect.poll(order).toEqual(['Bee Balm', 'Bristleleaf Sedge', 'Sweetspire', '|others-divider', 'Hairy Alumroot', '|earlier-divider', 'Half-Checked Aster', 'Old-List Aster']);
   await expect(page.getByTestId('others-divider')).toContainText('Other sources say these take full sun too');
   await expect(page.getByTestId('earlier-divider')).toContainText('These match on sun only by the earlier list (unverified).');
   await page.getByTestId('hide-others').click();
-  await expect(page.locator('.plant-item', { hasText: 'Hairy alumroot' })).toHaveCount(0);
+  await expect(page.locator('.plant-item', { hasText: 'Hairy Alumroot' })).toHaveCount(0);
   await expect(page.getByTestId('others-hidden')).toContainText('1 more fit by what other sources say.');
   await page.getByTestId('show-others').click();
-  await expect(page.locator('.plant-item', { hasText: 'Hairy alumroot' })).toHaveCount(1);
+  await expect(page.locator('.plant-item', { hasText: 'Hairy Alumroot' })).toHaveCount(1);
   await alumroot.getByTestId('plant-row').click();
   await expect(alumroot.getByTestId('reported-flag')).toContainText('what other sources say for its sun');
   await expect(alumroot.getByTestId('plant-details')).toContainText('Nurseries report: Full sun to shade (A nursery)');
-  const beeBalm = page.locator('.plant-item', { hasText: 'Bee balm' });
+  const beeBalm = page.locator('.plant-item', { hasText: 'Bee Balm' });
   await beeBalm.getByTestId('plant-row').click();
   const details = beeBalm.getByTestId('plant-details');
   await expect(details).toContainText('NC State lists: Full sun');
   // The sun range is credited to the sources behind both its ends, as sure as the less sure end.
-  await expect(details).toContainText('Full sun to part shadeA grower, Another grower · nurseries agree');
+  await expect(details).toContainText('Full sun to part shadeSources: A grower, Another grower (nurseries)');
   await expect(details).not.toContainText('NC State Extension, A grower');
   // Nurseries lead its hardiness, a reference's range beside it; the range shown is nurseries' only, and says so.
   await expect(details).toContainText('NC State lists: zones 4–8a');
@@ -96,18 +152,18 @@ test('a plant shown only because of what other sources say is marked, and says s
   await expect(beeBalm.getByTestId('nursery-only')).toHaveText(onlyNurseries);
   // Hardiness only a nursery gives says so; one a reference gives doesn't.
   await expect(alumroot.getByTestId('nursery-only')).toHaveCount(0);
-  const sedge = page.locator('.plant-item', { hasText: 'Bristleleaf sedge' });
+  const sedge = page.locator('.plant-item', { hasText: 'Bristleleaf Sedge' });
   await sedge.getByTestId('plant-row').click();
   await expect(sedge.getByTestId('nursery-only')).toHaveText(onlyNurseries);
   // Ends from different sources: each named for its own.
   const itea = page.locator('.plant-item', { hasText: 'Sweetspire' });
   await itea.getByTestId('plant-row').click();
-  await expect(itea.getByTestId('plant-details')).toContainText('A grower for the cold limit (one nursery); NC State Extension for the warm limit (one source)');
+  await expect(itea.getByTestId('plant-details')).toContainText('Sources: A grower (a nursery) for the cold limit; NC State for the warm limit');
   await expect(itea.getByTestId('nursery-only')).toHaveText('Its cold limit is from nurseries only.');
   // Only the references: it's gone.
   await openFilters(page);
   await page.locator('label', { hasText: 'Where sources disagree, count both values' }).locator('input').uncheck();
-  await expect(page.locator('.plant-item', { hasText: 'Hairy alumroot' })).toHaveCount(0);
+  await expect(page.locator('.plant-item', { hasText: 'Hairy Alumroot' })).toHaveCount(0);
   // Placing works from the row's button.
   await page.locator('.plant-item', { hasText: 'Sweetspire' }).getByTestId('plant-place').click();
   await expect(page.getByTestId('place-bar')).toBeVisible();
@@ -141,30 +197,33 @@ test('when a plant blooms and its flowers\' color, each with its source; the ear
     return (label: string) => details.locator('dt', { hasText: new RegExp(`^${label}$`) }).locator('xpath=following-sibling::dd[1]');
   };
   // Its season, from NC State and USDA; the earlier list's months under it, labeled; its colors from NC State.
-  const phlox = await open('Garden phlox');
+  const phlox = await open('Garden Phlox');
   await expect(phlox('Bloom').getByTestId('bloom-season')).toHaveText('Summer');
-  await expect(phlox('Bloom')).toContainText('NC State Extension, USDA PLANTS Database · confirmed');
-  await expect(phlox('Bloom').getByTestId('bloom-months')).toHaveText('Jul–Sep');
+  await expect(phlox('Bloom')).toContainText('Sources: NC State, USDA');
+  // (From the earlier list: marked on it, Jason, Nov 4.)
+  await expect(phlox('Bloom').getByTestId('bloom-months')).toHaveText('Jul–Sep Unverified');
+  await expect(phlox('Bloom').getByTestId('bloom-months').getByTestId('unverified-chip')).toHaveText('Unverified');
+  await expect(phlox('Bloom').getByTestId('bloom-season').getByTestId('unverified-chip')).toHaveCount(0);
   await expect(phlox('Bloom')).toContainText('earlier list, unverified');
   await expect(phlox('Flower color')).toContainText('Pink, white, purple');
-  await expect(phlox('Flower color').locator('.details-src')).toHaveText('NC State Extension · one source');
+  await expect(phlox('Flower color').locator('.details-src')).toHaveText('Source: NC State');
   // A cultivar blooms when its species does (said so), in its own colors. (Found by its name: a cultivar folds
   // under its species otherwise.)
   await page.getByTestId('plant-search').fill('david');
-  const david = await open("Garden phlox 'David'");
+  const david = await open("Garden Phlox 'David'");
   await expect(david('Bloom')).toContainText('Summer');
   await expect(david('Bloom')).toContainText('from its species');
   await expect(david('Flower color')).toContainText('White');
   // USDA's finer season, as it writes it; flowers it calls not conspicuous: not showy.
   await page.getByTestId('plant-search').fill('');
-  const oak = await open('White oak');
+  const oak = await open('White Oak');
   await expect(oak('Bloom').getByTestId('bloom-season')).toHaveText('Mid spring');
   await expect(oak('Flower color')).toContainText('Yellow; not showy');
   // Only the earlier list: its months and its color, each labeled.
-  const aster = await open('Old-list aster');
+  const aster = await open('Old-List Aster');
   await expect(aster('Bloom')).toContainText('Sep–Oct');
   await expect(aster('Flower color')).toContainText('Lavender');
-  await expect(aster('Flower color').locator('.details-src')).toHaveText('earlier list, unverified');
+  await expect(aster('Flower color').locator('.details-src')).toHaveText('Source: earlier list, unverified');
 });
 
 test('linking a circle to a catalog plant uses the Link button', async ({ page }) => {
@@ -183,20 +242,20 @@ test('how a plant spreads, by seed and underground, in one row with a source eac
   await page.locator('.tool-btn.plants').click();
   // (Both parts read from NC State's description, 2026-10-27: "freely self-seed", "they sucker profusely".)
   await page.getByTestId('plant-search').fill('Trumpet creeper');
-  const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Trumpet creeper$/ }) });
+  const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Trumpet Creeper$/ }) });
   await item.getByTestId('plant-row').click();
   const details = item.getByTestId('plant-details');
   await expect(details.locator('dt', { hasText: 'How it spreads' })).toHaveCount(1);
   const spreads = details.getByTestId('spreads');
   await expect(spreads.locator('.details-part')).toHaveText(['Self-sows freely', 'Spreads aggressively underground or by runners: Suckering colonizer']);
-  await expect(spreads.locator('.details-src')).toHaveText(['Prose description, NC State Extension Gardener Plant Toolbox · one source']); // (each part its own source; one line where they share it)
-  await expect(details.locator('dt', { hasText: /^Habit$/ })).toHaveCount(0); // (said under "How it spreads")
+  await expect(spreads.locator('.details-src')).toHaveText(['Source: NC State (its description)']); // (each part its own source; one line where they share it)
+  await expect(details.locator('dt', { hasText: /^(Habit|How it grows)$/ })).toHaveCount(0); // (said under "How it spreads")
   // The picker: the ways of spreading you're OK with; a plant shows only if every way it spreads is ticked.
   await openFilters(page);
   const spreading = page.getByTestId('spread-filter');
   await expect(spreading.locator('legend')).toHaveText('Spreading you\u2019re OK with (unverified)');
   const tick = (name: string) => spreading.locator('label', { hasText: name }).locator('input');
-  const creeper = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Trumpet creeper$/ }) });
+  const creeper = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Trumpet Creeper$/ }) });
   await tick('Stays put').check();
   await expect(creeper).toHaveCount(0);
   await tick('Spreads aggressively').check(); // (it self-sows freely too: not yet)
@@ -267,9 +326,9 @@ test('search matches word by word, in any order, and forgives a slip when nothin
   const search = page.getByTestId('plant-search');
   const rows = page.locator('.plant-item [data-testid=plant-row]');
   await search.fill('Bradford pear'); // ("Bradford/Callery pear")
-  await expect(rows.first()).toContainText('Bradford/Callery pear');
+  await expect(rows.first()).toContainText('Bradford/Callery Pear');
   await search.fill('Winterthur viburnum'); // ("Witherod viburnum 'Winterthur'")
-  await expect(rows.first()).toContainText("Witherod viburnum 'Winterthur'");
+  await expect(rows.first()).toContainText("Witherod Viburnum 'Winterthur'");
   await search.fill('witchhazel'); // ("Hybrid Witchhazel", and the witch hazels after it)
   await expect(rows.first()).toContainText(/witch ?hazel/i);
   await expect(page.getByTestId('near-note')).toHaveCount(0);
@@ -282,7 +341,7 @@ test('search matches word by word, in any order, and forgives a slip when nothin
   await expect(page.getByTestId('picker-count')).toContainText(/^All \d,\d{3} plants/);
 });
 
-test('a plant poisonous to people says so, beside Edible, and the picker can keep only plants with none listed', async ({ page }) => {
+test('a plant poisonous to people says so, beside Edible; People hides it, and not a plant listing none, nor one no source rates (Jason, Nov 5)', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Mayapple');
@@ -294,33 +353,41 @@ test('a plant poisonous to people says so, beside Edible, and the picker can kee
   const details = item.getByTestId('plant-details');
   // NC State's words: the parts, how severe, skin irritation, credited to it; and its fruit is edible all the same.
   const row = (label: string) => details.locator('dt', { hasText: new RegExp(`^${label}$`) }).locator('xpath=following-sibling::dd[1]');
-  await expect(row('Poisonous to people')).toContainText('Leaves, roots, seeds and stems, high severity; can irritate skin');
-  await expect(row('Poisonous to people').locator('.details-src')).toContainText('NC State');
-  await expect(row('Edible')).toContainText(/^Fruit, though it's also listed as poisonous to people/); // (the part NC State marks edible)
-  // A plant whose NC State page lists none says so, and the filter keeps only such plants.
+  await expect(row('Toxic to people')).toContainText('Leaves, roots, seeds and stems, high severity; can irritate skin');
+  await expect(row('Toxic to people').locator('.details-src')).toContainText('NC State');
+  await expect(row('Edible')).toContainText(/^Fruit, though it's also listed as toxic to people/); // (the part NC State marks edible)
+  // A plant whose NC State page lists none says so; People keeps it.
   await page.getByTestId('plant-search').fill('Autumn Bride');
   const heuchera = page.locator('.plant-item', { hasText: "Heuchera 'Autumn Bride'" });
   await heuchera.getByTestId('plant-row').click();
-  await expect(heuchera.getByTestId('plant-details').locator('dt', { hasText: /^Poisonous to people$/ }).locator('xpath=following-sibling::dd[1]')).toContainText('None listed');
-  await openFilters(page); // (Poison & pets, among them)
-  await page.locator('label', { hasText: 'Not listed as poisonous to people' }).locator('input').check();
-  await expect(page.getByTestId('active-chip')).toHaveText(['Not listed as poisonous to people']);
+  await expect(heuchera.getByTestId('plant-details').locator('dt', { hasText: /^Toxic to people$/ }).locator('xpath=following-sibling::dd[1]')).toContainText('None listed');
+  await page.getByTestId('clear-search').click(); // ("Hide plants rated toxic to:" folds away while a search is typed)
+  await page.getByTestId('protect-kids').click();
+  await expect(page.getByTestId('active-chip')).toHaveText(['No plants rated toxic to people']);
+  await page.getByTestId('plant-search').fill('Autumn Bride');
   await expect(heuchera).toHaveCount(1);
   await page.getByTestId('plant-search').fill('Mayapple');
   await expect(page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Mayapple$/ }) })).toHaveCount(0);
+  // One no source rates for people still shows, said so in its details (until Nov 5 People hid it too, which read as
+  // "what's left is safe").
+  await page.getByTestId('plant-search').fill('Sideoats grama');
+  const grama = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Sideoats Grama$/ }) });
+  await expect(grama).toHaveCount(1);
+  await grama.getByTestId('plant-row').click();
+  await expect(grama.getByTestId('plant-details').locator('dt', { hasText: /^Toxic to people$/ }).locator('xpath=following-sibling::dd[1]')).toContainText(/^Not known/);
 });
 
 test('a plant\'s leaves: their colors, what they do in winter, fall color and growth rate; the picker can keep only evergreens', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Red maple');
-  const maple = page.locator('.plant-item', { hasText: /^Red maple/ }).first();
+  const maple = page.locator('.plant-item', { hasText: /^Red Maple/ }).first();
   await maple.getByTestId('plant-row').click();
   const details = maple.getByTestId('plant-details');
   const row = (label: string) => details.locator('dt', { hasText: new RegExp(`^${label}$`) }).locator('xpath=following-sibling::dd[1]');
   await expect(row('Leaf colors')).toContainText('Gold, green, orange');
   await expect(row('In winter')).toContainText('Deciduous: loses its leaves');
-  await expect(row('In winter').locator('.details-src').first()).toContainText(/NC State.*, USDA.* · confirmed/);
+  await expect(row('In winter').locator('.details-src').first()).toContainText(/^Sources: NC State, USDA/);
   await expect(row('Fall color')).toContainText('Yes: gold, red');
   await expect(row('Growth rate')).toContainText('Fast');
   // An herb's winter is dying back: Heuchera 'Autumn Bride' keeps its leaves, NC State says.
@@ -333,62 +400,70 @@ test('a plant\'s leaves: their colors, what they do in winter, fall color and gr
   await page.locator('label', { hasText: /^Evergreen$/ }).locator('input').check();
   await expect(heuchera).toHaveCount(1);
   await page.getByTestId('plant-search').fill('Red maple');
-  await expect(page.locator('.plant-item', { hasText: /^Red maple/ })).toHaveCount(0);
+  await expect(page.locator('.plant-item', { hasText: /^Red Maple/ })).toHaveCount(0);
 });
 
-test('animal toxicity: dogs three ways, and a warning given for one record of a species shows on the others', async ({ page }) => {
+test('animal toxicity: a chip each, hiding only what\'s rated toxic to them; a warning given for one record of a species shows on the others (Jason, Nov 5)', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   const count = page.getByTestId('picker-count');
   await expect(count).toContainText(/^All /);
+  // (Dismissed, the line is in Filters, where it stays in view while a search is typed.)
+  await page.getByTestId('protect-dismiss').click();
   const fold = page.getByTestId('filters');
   await expect(fold).toHaveAttribute('aria-expanded', 'false');
   await fold.click();
-  await expect(page.getByTestId('dogs-any')).toBeChecked();
-  await page.getByTestId('dogs-hideToxic').check();
+  const dogs = page.getByTestId('protect-dogs');
+  await expect(dogs).toHaveAttribute('aria-pressed', 'false');
+  // One line: no "Show all", no "rated safe" (the only safe ratings were the earlier list's, unverified).
+  await expect(page.getByTestId('all-filters')).not.toContainText(/rated safe|Show all|Poison & pets/);
+  await dogs.click();
+  await expect(dogs).toHaveAttribute('aria-pressed', 'true');
   await expect(fold).toHaveText('Filters (1 on)');
-  await expect(page.getByTestId('active-chip')).toHaveText(['No dog warnings']);
-  await expect(page.getByTestId('dogs-note')).toContainText(/Hides the \d+ plants with a warning for dogs; keeps the [\d,]+ not yet rated/);
+  await expect(page.getByTestId('active-chip')).toHaveText(['No plants rated toxic to dogs']);
+  await expect(page.getByTestId('protect-note')).toHaveText(/^Hides plants NC State or an earlier list rates toxic to them\. Not rated toxic isn’t the same as safe: [\d,]+ plants have no rating yet\.$/);
   await expect(count).toContainText(/^[\d,]+ of [\d,]+ plants match/);
-  // NC State lists it as a problem for dogs: hidden; any shows it, saying so.
+  // NC State lists it as a problem for dogs: hidden; Dogs off shows it, saying so.
   await page.getByTestId('plant-search').fill('Butterfly milkweed');
-  const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Butterfly milkweed$/ }) });
+  const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Butterfly Milkweed$/ }) });
   await expect(item).toHaveCount(0);
   await openFilters(page); // (typing a search folds them: Jason, Nov 1)
-  await page.getByTestId('dogs-any').check();
+  await dogs.click();
   await expect(item).toHaveCount(1);
-  await item.getByRole('button', { name: /Butterfly milkweed/ }).first().click();
-  await expect(item.getByTestId('tox-row')).toContainText('A problem for dogs, cats and horses');
-  // The species record carries another record's warning (the earlier list's), so hiding toxic hides it too; any shows
-  // it again, saying where the warning came from.
-  await page.getByTestId('dogs-hideToxic').check();
+  await item.getByRole('button', { name: /Butterfly Milkweed/ }).first().click();
+  await expect(item.getByTestId('tox-row')).toContainText('Toxic to dogs, cats and horses');
+  // The species record carries another record's warning (the earlier list's), so Dogs hides it too; off shows it
+  // again, saying where the warning came from.
+  await dogs.click();
   await page.getByTestId('plant-search').fill('Yaupon');
   const yaupon = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Yaupon$/ }) });
   await expect(yaupon).toHaveCount(0);
   await openFilters(page);
-  await page.getByTestId('dogs-any').check();
+  await dogs.click();
   await expect(yaupon).toHaveCount(1);
   await yaupon.getByRole('button', { name: /Yaupon/ }).first().click();
-  await expect(yaupon.getByTestId('tox-row')).toContainText("given for Dwarf yaupon holly 'Schillings', the same species");
+  await expect(yaupon.getByTestId('tox-row')).toContainText("given for Dwarf Yaupon Holly 'Schillings', the same species");
   // A plant no source rates says so, rather than nothing (never "safe").
   await page.getByTestId('plant-search').fill("'Acapulco Orange'");
   const unrated = page.locator('.plant-item').first();
   await unrated.getByRole('button', { name: /Acapulco Orange/ }).first().click();
-  await expect(unrated.getByTestId('tox-row')).toContainText(/^(Not rated for pets|Not listed as a problem for dogs, cats or horses)/);
+  await expect(unrated.getByTestId('tox-row')).toContainText(/^(Not rated for pets|Not listed as toxic to dogs, cats or horses)/);
   // Cats and horses: NC State's warnings hide it.
-  await openFilters(page);
-  await page.getByTestId('dogs-any').check();
   await page.getByTestId('plant-search').fill('Butterfly milkweed');
   await openFilters(page);
-  await page.locator('label', { hasText: 'Hide plants that are a problem for horses' }).locator('input').check();
+  await page.getByTestId('protect-horses').click();
   await expect(item).toHaveCount(0);
   await page.getByTestId('plant-search').fill("'Acapulco Orange'");
-  // Clearing the filters keeps the search and the open section.
+  // Clearing the filters keeps the search and the open section, and who's in the yard: not a filter for the search at
+  // hand, kept with the plan (the bug hunt, Nov 6: cleared here, they came back the next time the list opened).
   await openFilters(page);
-  await page.getByTestId('dogs-nonToxic').check();
+  await dogs.click();
+  await expect(page.getByTestId('reset-filters')).toHaveCount(0); // (the people and pets alone: nothing to clear)
+  await page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any form' }) }).selectOption('Perennial');
   await page.getByTestId('reset-filters').click();
-  await expect(page.getByTestId('dogs-any')).toBeChecked();
-  await expect(page.locator('label', { hasText: 'Hide plants that are a problem for horses' }).locator('input')).not.toBeChecked();
+  await expect(page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any form' }) })).toHaveValue('');
+  await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('protect-horses')).toHaveAttribute('aria-pressed', 'true');
   await expect(fold).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByTestId('plant-search')).toHaveValue("'Acapulco Orange'");
 });
@@ -452,7 +527,7 @@ test('flower color: a cultivar or one-color species first, a species that comes 
   const at = (t: string) => order.findIndex((x) => x.startsWith(t));
   expect(at("Coneflower 'Tomato Soup'")).toBeGreaterThanOrEqual(0);
   expect(at("Coneflower 'Tomato Soup'")).toBeLessThan(at('Also comes in red'));
-  expect(at('Purple coneflower (species)')).toBeGreaterThan(at('Also comes in red'));
+  expect(at('Purple Coneflower (Species)')).toBeGreaterThan(at('Also comes in red'));
   // What's on, above the list: a chip each; taking one off clears its control too.
   await expect(page.getByTestId('active-chip')).toHaveText(['Red flowers']);
   await page.getByRole('button', { name: 'Remove filter: Red flowers' }).click();
@@ -464,10 +539,10 @@ test('flower color: a cultivar or one-color species first, a species that comes 
 test('the filters say what they\'re set to: a dropdown names itself, a month met by season is marked, More filters counts what\'s on', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
-  // The checking note: one line, the rest a tap away.
-  await expect(page.getByTestId('unverified-note')).toContainText('Not every detail is checked yet.');
-  await page.getByTestId('unverified-more').click();
-  await expect(page.getByTestId('unverified-note')).toContainText('Unverified: all its details are from an earlier list');
+  // No note on checking over the list: a plant's details mark what isn't checked (Jason, Nov 4, note 1).
+  await expect(page.getByTestId('picker-count')).toBeVisible();
+  await expect(page.getByTestId('unverified-note')).toHaveCount(0);
+  await expect(page.getByTestId('picker')).not.toContainText('Not every detail is checked');
   await openFilters(page);
   const water = page.locator('.sheet select[aria-label="Water needs"]');
   await water.selectOption('Low');
@@ -533,12 +608,68 @@ test('typing a search folds the open filters, the results in view; Add as my pla
   await search.fill('Black-eyed Susan');
   await page.locator('.plant-item', { hasText: 'Black-eyed Susan' }).first().getByTestId('plant-place').click();
   await page.getByTestId('place-switch').click();
-  await expect(page.locator('.sheet-header .title')).toHaveText('Switch plant');
+  // (Switch plant: the picker itself while placing, its rows' buttons saying Switch; no title row, Jason, Nov 4.)
+  await expect(page.locator('.picker-sheet [data-testid=plant-place]').first()).toHaveText(/^Switch/);
   await openFilters(page);
   await page.getByTestId('plant-search').fill('coneflower');
   await expect(page.getByTestId('all-filters')).toBeHidden();
   await expect(page.locator('.plant-item').first()).toBeInViewport();
   if (isMobile) await expect(page.getByTestId('plant-search')).toBeFocused();
+});
+
+// The picker bug hunt, Nov 1: typing on a 360 × 640 phone, Recent and "Anyone you need to protect?" (since Nov 5, "Hide
+// plants toxic to:") stayed above the results, one row of them in view at most, at Extra large none. The question folds
+// away while a search is typed, as the filters do, and comes back when it's cleared. (Recent went with Jason's notes of
+// Nov 4: "In this plan" finds the plants placed.)
+test('typing a search folds "Hide plants rated toxic to:" away, results in view on a 360 × 640 phone; cleared, it\'s back; no Recent (the picker bug hunt, Nov 1; Jason, Nov 4)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Wild columbine');
+  await page.locator('.plant-item', { hasText: 'Wild columbine' }).first().getByTestId('plant-place').click();
+  await placeOnceAtCenter(page);
+  for (const size of ['medium', 'xlarge']) {
+    await page.evaluate((s) => localStorage.setItem('lp-text-size-2', s), size);
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-text', size);
+    await page.locator('.tool-btn.plants').click();
+    const ask = page.getByTestId('protect-line').first();
+    const search = page.getByTestId('plant-search');
+    await search.fill('');
+    await expect(ask).toBeVisible();
+    // (A plant placed, and no Recent.)
+    await expect(page.getByTestId('recent-field')).toHaveCount(0);
+    await expect(page.getByTestId('recent-plants')).toHaveCount(0);
+    const first = () => page.locator('.plant-item > .proj-row').first().evaluate((r) => { const b = r.getBoundingClientRect(); return { top: b.top, bottom: b.bottom }; });
+    const folds = (await ask.boundingBox())!.height;
+    const before = await first();
+    await search.pressSequentially('aster');
+    await expect(ask, size).toBeHidden();
+    // The results up where it was: the first in view, whole at Medium (it was below the screen at Extra large).
+    const after = await first();
+    expect(after.top, size).toBeLessThan(before.top - folds + 40);
+    expect(after.top + 60, size).toBeLessThan(640);
+    if (size === 'medium') expect(after.bottom).toBeLessThanOrEqual(640);
+    // A word of need made a filter empties the box: still folded, the search going on.
+    await search.fill('');
+    await expect(ask).toBeVisible();
+    await search.pressSequentially('evergreen');
+    await search.press('Enter');
+    await expect(search).toHaveValue('');
+    await expect(page.getByTestId('active-chip').first()).toBeVisible();
+    await expect(ask).toBeHidden();
+    // Cleared by hand: back, by the ×, or by deleting what's typed.
+    await search.pressSequentially('aster');
+    await page.getByTestId('clear-search').click();
+    await expect(ask).toBeVisible();
+    await search.pressSequentially('fern');
+    await expect(ask).toBeHidden();
+    for (let i = 0; i < 4; i++) await search.press('Backspace');
+    await expect(search).toHaveValue('');
+    await expect(ask).toBeVisible();
+    await page.getByTestId('reset-filters').click();
+    await closeSheet(page);
+  }
 });
 
 test('words of need become filters: "shade flowers" is Part shade and Has flowers; a word of a plant\'s name stays the search (Jason, Nov 1)', async ({ page }) => {
@@ -580,12 +711,12 @@ test('words of need become filters: "shade flowers" is Part shade and Has flower
     await expect(page.getByTestId('plant-search')).toHaveValue(name);
     await expect(chips).toHaveCount(0);
   }
-  await expect(page.locator('.plant-item .pname').first()).toContainText('Butterfly weed (clay strain)');
+  await expect(page.locator('.plant-item .pname').first()).toContainText('Butterfly Weed (Clay Strain)');
   // Its old name, "Butterfly weed 'for Clay'", is another name, not its own: "clay" is Clay OK, and it's still found.
   await search.fill('butterfly weed for clay');
   await search.press('Enter');
   await expect(chips).toHaveText(['Clay OK']);
-  await expect(page.locator('.plant-item .pname').first()).toContainText('Butterfly weed (clay strain)');
+  await expect(page.locator('.plant-item .pname').first()).toContainText('Butterfly Weed (Clay Strain)');
   await page.getByTestId('reset-filters').click();
   // "wet " and "shrubs ", typed, are filters on the space, as with Enter (the bug hunt, Nov 1: "wet" stayed a search,
   // for Goldenclub's other name "Never Wet", and "shrubs" for Shrubby cinquefoil and the rest). The "soil" typed
@@ -647,7 +778,7 @@ test('a row: its bloom months, and a small flower in its flowers\' color in a ci
   await closeSheet(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Butterfly milkweed');
-  const row = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Butterfly milkweed$/ }) });
+  const row = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Butterfly Milkweed$/ }) });
   const spot = row.getByTestId('row-dot');
   await expect(spot).toHaveAttribute('role', 'img');
   await expect(spot).toHaveAttribute('aria-label', 'orange flowers, green leaves');
@@ -656,12 +787,12 @@ test('a row: its bloom months, and a small flower in its flowers\' color in a ci
   const months = row.getByTestId('row-bloom');
   await expect(months).toHaveText(/^Blooms [A-Z][a-z]{2}(–[A-Z][a-z]{2})?$/);
   const said = (await months.textContent())!.replace('Blooms ', '');
-  await expect(row.getByTestId('plant-row')).toHaveAccessibleName(/^Butterfly milkweed .*Blooms .* orange flowers, green leaves$/);
+  await expect(row.getByTestId('plant-row')).toHaveAccessibleName(/^Butterfly Milkweed .*Blooms .* orange flowers, green leaves$/);
   await row.getByTestId('plant-row').click();
   await expect(row.getByTestId('plant-details')).toContainText(`${said}, peak`);
   // No showy flowers on record: the circle alone, and no months.
   await page.getByTestId('plant-search').fill('Christmas fern');
-  const fern = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Christmas fern$/ }) });
+  const fern = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Christmas Fern$/ }) });
   await expect(fern.getByTestId('row-dot')).toHaveAttribute('aria-label', /^[a-z ]+ leaves$/);
   await expect(fern.getByTestId('row-dot').getByTestId('spot-flower')).toHaveCount(0);
   await expect(fern.getByTestId('row-bloom')).toHaveCount(0);
@@ -669,7 +800,7 @@ test('a row: its bloom months, and a small flower in its flowers\' color in a ci
   // its spot, its months, and Has flowers and White flowers keep it, as its details list white flowers (the bug hunt,
   // Nov 1: a plain circle, left out by both).
   await page.getByTestId('plant-search').fill('Flowering dogwood');
-  const dogwood = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Flowering dogwood$/ }) });
+  const dogwood = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Flowering Dogwood$/ }) });
   await expect(dogwood.getByTestId('row-dot')).toHaveAttribute('aria-label', 'white flowers, green leaves');
   await expect(dogwood.getByTestId('row-bloom')).toBeVisible();
   for (const need of ['flowers', 'white flowers']) {
@@ -694,7 +825,7 @@ test('a row fits 360 px at every text size: its name, spot, months, Place and co
     await expect(page.locator('html')).toHaveAttribute('data-text', size);
     await page.locator('.tool-btn.plants').click();
     await page.getByTestId('plant-search').fill('Purple coneflower');
-    const row = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Purple coneflower/ }) }).first();
+    const row = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Purple Coneflower/ }) }).first();
     await row.scrollIntoViewIfNeeded();
     const box = async (l: ReturnType<typeof row.locator>) => (await l.boundingBox())!;
     const spot = await box(row.getByTestId('row-dot')), name = await box(row.locator('.pname'));
@@ -713,6 +844,49 @@ test('a row fits 360 px at every text size: its name, spot, months, Place and co
   }
 });
 
+// The picker bug hunt, Nov 1 (B11): "Bradford/Callery pear" broke as "Bradford/Call" and "ery pear" beside the wide
+// "Place (banned)". A name wraps between its words, or after a slash; never in a word.
+test('a name wraps between words or after its slash, never mid-word, beside "Place (banned)" on a 360 px phone at every text size (the picker bug hunt, Nov 1)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await openFresh(page);
+  await page.getByTestId('first-zip').fill('29201');
+  await page.getByTestId('first-zip-lookup').click();
+  await expect(page.getByTestId('location-result')).toContainText('Zone');
+  await closeSheet(page);
+  for (const size of ['small', 'medium', 'large', 'xlarge']) {
+    await page.evaluate((s) => localStorage.setItem('lp-text-size-2', s), size);
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-text', size);
+    await page.locator('.tool-btn.plants').click();
+    await page.getByTestId('plant-search').fill('callery pear');
+    const row = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: 'Bradford/Callery pear' }) }).first();
+    await expect(row.getByTestId('plant-place')).toHaveText('Place (banned)');
+    const name = row.locator('.pname');
+    await expect(name).toHaveText('Bradford/Callery Pear');
+    // Where each line starts: only after a space or a slash.
+    const midWord = await name.evaluate((e) => {
+      const walker = document.createTreeWalker(e, NodeFilter.SHOW_TEXT);
+      let prev: { ch: string; top: number } | null = null, gap = false;
+      const bad: string[] = [];
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        const t = n.textContent ?? '';
+        for (let i = 0; i < t.length; i++) {
+          if (/\s/.test(t[i])) { gap = true; continue; }
+          const r = document.createRange(); r.setStart(n, i); r.setEnd(n, i + 1);
+          const top = r.getBoundingClientRect().top;
+          if (prev && top > prev.top + 2 && !gap && prev.ch !== '/') bad.push(prev.ch + t[i]);
+          prev = { ch: t[i], top }; gap = false;
+        }
+      }
+      return bad;
+    });
+    expect(midWord, size).toEqual([]);
+    const place = (await row.getByTestId('plant-place').boundingBox())!;
+    expect(place.x + place.width, size).toBeLessThanOrEqual(360);
+    await closeSheet(page);
+  }
+});
+
 test('what makes a plant\'s winter interest, each part with its source: showy bark, fruit into winter', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
@@ -722,13 +896,13 @@ test('what makes a plant\'s winter interest, each part with its source: showy ba
     await item.getByTestId('plant-row').click();
     return item.getByTestId('plant-details');
   };
-  const birch = await open('River birch');
+  const birch = await open('River Birch');
   await expect(birch.getByTestId('winter-bark')).toHaveText('Showy bark: exfoliating, papery, peeling');
   await expect(birch.getByTestId('winter-listed')).toHaveText('Listed for winter gardens');
   await expect(birch.getByTestId('winter-row').locator('.details-src').nth(1)).toContainText('NC State');
   await expect(birch.locator('dt', { hasText: /^Bark$/ }).locator('xpath=following-sibling::dd[1]')).toContainText('Exfoliating, papery, peeling, ridges, smooth; light brown, orange');
   await expect(birch.locator('dt', { hasText: /^Winter interest$/ })).toHaveCount(0); // (said under In winter)
-  const winterberry = await open('Winterberry holly');
+  const winterberry = await open('Winterberry Holly');
   await expect(winterberry.getByTestId('winter-fruit')).toHaveText('Fruit stays into winter: yellow, orange, red');
 });
 
@@ -770,7 +944,7 @@ test('a plant\'s facts fold into groups that open with a tap, stay open until th
     await item.getByTestId('plant-row').click();
     return item.getByTestId('plant-details');
   };
-  const hazel = await open('Common witch hazel');
+  const hazel = await open('Common Witch Hazel');
   await expect(hazel.locator('dt', { hasText: /^Size$/ })).toBeVisible();
   await expect(hazel.locator('dt', { hasText: /^Deer$/ })).toBeHidden();
   await expect(hazel.getByTestId('group-growing')).toHaveAttribute('aria-expanded', 'false');
@@ -781,15 +955,15 @@ test('a plant\'s facts fold into groups that open with a tap, stay open until th
   const buttonbush = await open('Buttonbush');
   await expect(buttonbush.getByTestId('group-growing')).toHaveAttribute('aria-expanded', 'true');
   // A warning: Safety first, open, and its line says it.
-  const jessamine = await open('Carolina jessamine');
+  const jessamine = await open('Carolina Jessamine');
   await expect(jessamine.locator('.details-group-head').first()).toHaveAttribute('data-testid', 'group-safety');
   await expect(jessamine.getByTestId('group-safety')).toHaveAttribute('aria-expanded', 'true');
-  await expect(jessamine.getByTestId('group-safety-sum')).toContainText('Poisonous to people (high severity)');
+  await expect(jessamine.getByTestId('group-safety-sum')).toContainText('Toxic to people (high severity)');
   // The picker closed and opened again: folded again.
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('plant-search')).toHaveCount(0);
   await page.locator('.tool-btn.plants').click();
-  const again = await open('Common witch hazel');
+  const again = await open('Common Witch Hazel');
   await expect(again.getByTestId('group-growing')).toHaveAttribute('aria-expanded', 'false');
 });
 
@@ -813,18 +987,20 @@ test("a winter no source gives: as its species' USA-NPN records show it, or as e
     await item.getByTestId('plant-row').click();
     return item.getByTestId('plant-details').locator('dt', { hasText: /^In winter$/ }).locator('xpath=following-sibling::dd[1]');
   };
-  const indigo = await winter('Fragrant false indigo');
+  const indigo = await winter('Fragrant False Indigo');
   await expect(indigo).toContainText('Expected to lose its leaves in winter, like its 2 relatives in the catalog');
   await expect(indigo).toContainText('Not from a source: other species of its genus');
-  const grama = await winter('Sideoats grama');
+  const grama = await winter('Sideoats Grama');
   await expect(grama).toContainText('Goes dormant in winter');
-  await expect(grama).toContainText(/USA-NPN observers recorded it bare: \d+ plant-years/);
+  await expect(grama).toContainText(/USA-NPN observers, who recorded it bare: \d+ plant-years/);
 });
 
-// "Anyone you need to protect?" (Jason, Nov 1, from the UI review: a tester saw "Can irritate skin" on rows but nothing on
-// a plant highly poisonous to people, and never learned the picker screens for kids and pets without opening Filters).
-// First among the filters until it's answered for the plan or dismissed on this device; then under Filters, Poison &
-// pets. Who's in the yard, and the answer, are kept with the plan (Jason, Nov 1); the × is the device's.
+// "Hide plants rated toxic to:" (Jason, Nov 5: "the whole poison filter could be reduced to 'hide plants toxic to …' with
+// chips. Maybe replace 'kids' with 'people.'"), in place of "Anyone you need to protect?" (Jason, Nov 1, from the UI
+// review: a tester saw "Can irritate skin" on rows but nothing on a plant highly poisonous to people, and never learned
+// the picker screens for kids and pets without opening Filters) and the Poison & pets group. First among the filters
+// until it's answered for the plan or dismissed on this device; then in Filters, where Poison & pets was. Who's in the
+// yard, and the answer, are kept with the plan (Jason, Nov 1); the × is the device's. People is kept as `kids`.
 const protect = (page: Page) => page.getByTestId('protect-line');
 /** Who's in the open plan's yard, as stored with it (its time left out). */
 const planHousehold = (page: Page) => page.evaluate(() => new Promise<unknown>((resolve) => {
@@ -841,20 +1017,23 @@ const planHousehold = (page: Page) => page.evaluate(() => new Promise<unknown>((
 /** What the device keeps of it: the × ('lp-protect-line'), and who was in the yard before plans kept it ('lp-yard'). */
 const deviceKept = (page: Page) => page.evaluate(() => [localStorage.getItem('lp-protect-line'), localStorage.getItem('lp-yard')]);
 const NONE = { kids: false, dogs: '', cats: false, horses: false };
-/** The line first among the picker's filters, not under Poison & pets. */
+/** The line first among the picker's filters, not in Filters. */
 const protectAtTop = (page: Page) => page.locator('.picker-filters > [data-testid=protect-line]:first-child');
-const protectInGroup = (page: Page) => page.getByTestId('animal-toxicity').getByTestId('protect-line');
+const protectInGroup = (page: Page) => page.getByTestId('toxic-filters').getByTestId('protect-line');
+/** The line's note: what it hides, by whose word, and how many plants aren't rated for those chosen. */
+const NOTE = /^Hides plants NC State or an earlier list rates toxic to them\. Not rated toxic isn’t the same as safe: ([\d,]+) plants have no rating yet\.$/;
+const unratedSaid = async (page: Page) => Number((NOTE.exec((await page.getByTestId('protect-note').textContent()) ?? '') ?? ['', 'NaN'])[1].replace(/,/g, ''));
 
-test('"Anyone you need to protect?" comes first on a fresh device: Kids, Dogs, Cats and Horses, and why skin irritants are marked for all (Jason, Nov 1)', async ({ page }) => {
+test('"Hide plants rated toxic to:" comes first on a fresh device: People, Dogs, Cats and Horses, its note counting the plants not rated; skin irritants marked for all (Jason, Nov 5)', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await expect(protectAtTop(page)).toBeVisible();
-  await expect(protect(page)).toHaveCount(1); // (not under Poison & pets too)
-  await expect(protect(page).locator('.protect-title')).toHaveText('Anyone you need to protect?');
-  await expect(protect(page).locator('.protect-chip')).toHaveText(['Kids', 'Dogs', 'Cats', 'Horses']);
+  await expect(protect(page)).toHaveCount(1); // (not in Filters too)
+  await expect(protect(page).locator('.protect-title')).toHaveText('Hide plants rated toxic to:');
+  await expect(protect(page).locator('.protect-chip')).toHaveText(['People', 'Dogs', 'Cats', 'Horses']);
   for (const k of ['kids', 'dogs', 'cats', 'horses']) await expect(page.getByTestId(`protect-${k}`)).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.getByTestId('protect-note')).toHaveText("Skin irritants are marked for all: anyone can brush them. Poison if eaten goes by who's in the yard.");
-  await expect(protect(page)).not.toContainText(/\b(tap|click)/i);
+  await expect(page.getByTestId('protect-note')).toHaveText(NOTE);
+  await expect(protect(page)).not.toContainText(/\b(tap|click|kids)\b/i);
   await expect(page.getByTestId('protect-dismiss')).toHaveAttribute('aria-label', /^Dismiss/);
   // Above the Filters button, which is folded.
   const line = (await protect(page).boundingBox())!, fold = (await page.getByTestId('filters').boundingBox())!;
@@ -865,14 +1044,25 @@ test('"Anyone you need to protect?" comes first on a fresh device: Kids, Dogs, C
   const mayapple = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Mayapple$/ }) });
   await expect(mayapple.getByTestId('row-skin')).toHaveText('Can irritate skin');
   await expect(mayapple.getByTestId('row-poison')).toHaveCount(0);
+  // The note counts the plants not rated for those chosen: all four with none; fewer for dogs alone (the earlier list
+  // rates some NC State doesn't).
+  await page.getByTestId('clear-search').click();
+  const any = await unratedSaid(page);
+  expect(any).toBeGreaterThan(0);
+  await page.getByTestId('protect-dogs').click();
+  await expect.poll(() => unratedSaid(page)).toBeLessThan(any);
+  // Nothing of it in Filters while it's first among them: one line, in place of Poison & pets.
+  await openFilters(page);
+  await expect(page.getByTestId('toxic-filters')).toBeHidden();
+  await expect(page.getByTestId('all-filters')).not.toContainText(/Poison & pets|toxic to|rated safe/i);
 });
 
-test('"Anyone you need to protect?": Kids hides plants poisonous to people and is kept; it stays till the picker closes, then it\'s under Poison & pets, after a reload too', async ({ page }) => {
+test('"Hide plants rated toxic to:": People hides plants rated toxic to people, not one no source rates, and is kept; it stays till the picker closes, then it\'s in Filters, after a reload too', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('protect-kids').click();
   await expect(page.getByTestId('protect-kids')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('active-chip')).toHaveText(['Not listed as poisonous to people']);
+  await expect(page.getByTestId('active-chip')).toHaveText(['No plants rated toxic to people']);
   await expect.poll(() => planHousehold(page)).toEqual({ ...NONE, kids: true, answered: true });
   expect(await deviceKept(page)).toEqual([null, null]); // (with the plan, not the device)
   // Mayapple hidden; shown anyway, it's marked poisonous to people now, and still for the skin.
@@ -880,21 +1070,31 @@ test('"Anyone you need to protect?": Kids hides plants poisonous to people and i
   const mayapple = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Mayapple$/ }) });
   await expect(mayapple).toHaveCount(0);
   await page.getByTestId('show-hidden').click();
-  await expect(mayapple.getByTestId('row-poison')).toHaveText('Poisonous to people');
+  await expect(mayapple.getByTestId('row-poison')).toHaveText('Toxic to people');
   await expect(mayapple.getByTestId('row-skin')).toHaveText('Can irritate skin');
   await page.getByTestId('filters-back').click();
-  // In step with Poison & pets, both ways. Dogs is Poison & pets' first dog setting: no dog warnings.
+  // Not rated for people: shown (Jason, Nov 5; hidden before, which read as "what's left is safe").
+  await page.getByTestId('plant-search').fill('Speckled alder');
+  await expect(page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Speckled Alder$/ }) })).toHaveCount(1);
+  // (Folded away while there's a search, back once it's cleared: the picker bug hunt, Nov 1.)
+  await expect(protectAtTop(page)).toBeHidden();
+  await page.getByTestId('clear-search').click();
   await expect(protectAtTop(page)).toBeVisible(); // (answered: it stays for now, to see what was set)
-  await openFilters(page);
-  await expect(page.getByRole('checkbox', { name: 'Not listed as poisonous to people' })).toBeChecked();
+  // In step with the filters' own chips, both ways: Dogs on and off; Cats on, its chip's × takes it off, on again.
   await page.getByTestId('protect-dogs').click();
-  await expect(page.getByTestId('dogs-hideToxic')).toBeChecked();
-  await page.getByTestId('dogs-any').check();
+  await expect(page.getByTestId('active-chip')).toHaveText(['No plants rated toxic to people', 'No plants rated toxic to dogs']);
+  await page.getByTestId('protect-dogs').click();
   await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'false');
-  await page.getByRole('checkbox', { name: 'Hide plants that are a problem for cats' }).check();
+  await page.getByTestId('protect-cats').click();
+  await page.getByTestId('active-chip').filter({ hasText: 'No plants rated toxic to cats' }).click();
+  await expect(page.getByTestId('protect-cats')).toHaveAttribute('aria-pressed', 'false');
+  await page.getByTestId('protect-cats').click();
   await expect(page.getByTestId('protect-cats')).toHaveAttribute('aria-pressed', 'true');
   await expect(protectAtTop(page)).toBeVisible();
-  // Closed and opened again: under Poison & pets, as set.
+  // (Nothing of it in Filters while it's first among them.)
+  await openFilters(page);
+  await expect(page.getByTestId('toxic-filters')).toBeHidden();
+  // Closed and opened again: in Filters, as set.
   await closeSheet(page);
   await page.locator('.tool-btn.plants').click();
   await expect(protectAtTop(page)).toHaveCount(0);
@@ -915,14 +1115,20 @@ test('"Anyone you need to protect?": Kids hides plants poisonous to people and i
   expect(await planHousehold(page)).toEqual({ ...NONE, kids: true, cats: true, answered: true });
 });
 
-test('"Anyone you need to protect?" dismissed: under Poison & pets at once, a notice says so, and it stays there after a reload', async ({ page }) => {
+test('"Hide plants rated toxic to:" dismissed: into Filters at once, a notice says so, and it stays there after a reload', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
-  await page.getByTestId('plant-search').fill('aster');
+  // (Moved in place, the picker not drawn again: its search box the same one after. A search typed folds the question
+  // away, so it isn't dismissed while one is: the picker bug hunt, Nov 1.)
+  const search = page.getByTestId('plant-search');
+  // (Marked once the list is in: the picker is drawn again as the catalog comes in, and CI on #209 marked the box
+  // before that, so the mark went with it.)
+  await expect(page.locator('.plant-item').first()).toBeVisible();
+  await search.evaluate((e) => { (e as HTMLElement & { kept?: boolean }).kept = true; });
   await page.getByTestId('protect-dismiss').click();
-  await expect(page.locator('#toast')).toHaveText("It's under Filters → Poison & pets.");
+  await expect(page.locator('#toast')).toHaveText("It's under Filters.");
   await expect(protectAtTop(page)).toHaveCount(0);
-  await expect(page.getByTestId('plant-search')).toHaveValue('aster'); // (moved in place: the search as it was)
+  expect(await search.evaluate((e) => (e as HTMLElement & { kept?: boolean }).kept)).toBe(true);
   await openFilters(page);
   await expect(protectInGroup(page)).toBeVisible();
   // Who's in the yard is left as it was: no one, not answered. Dismissed on this device.
@@ -936,7 +1142,7 @@ test('"Anyone you need to protect?" dismissed: under Poison & pets at once, a no
   await expect(protectInGroup(page)).toBeVisible(); // (the Filters fold left open)
 });
 
-test('"Anyone you need to protect?" isn\'t asked first on a device that answered step 6 of the introduction, with none ticked', async ({ page }) => {
+test('"Hide plants rated toxic to:" isn\'t asked first on a device that answered step 6 of the introduction, with none ticked', async ({ page }) => {
   autoDialogs(page);
   await openFresh(page);
   await page.getByTestId('intro-start').click();
@@ -959,9 +1165,54 @@ test('"Anyone you need to protect?" isn\'t asked first on a device that answered
   expect(await deviceKept(page)).toEqual([null, null]);
 });
 
-// One of the four set after Clear filters (the filters are for the search at hand; the yard stays) changes that one
-// alone: Cats ticked after clearing kids' and the dog's filters keeps the kids and the dog in the yard (the review of the
-// storage change, Nov 1: taken whole from the filters, the yard lost them, on every device).
+test('step 6\'s "None of these": the four off and the question answered for the plan, so the picker asks it under Filters; one of the four unselects it (Jason, Nov 4)', async ({ page }) => {
+  autoDialogs(page);
+  await openFresh(page);
+  await page.getByTestId('intro-start').click();
+  for (let n = 1; n <= 5; n++) {
+    await expect(page.getByTestId('intro-step')).toHaveText(`Step ${n} of 8`);
+    await page.getByTestId('intro-skip').click();
+  }
+  await expect(page.getByTestId('intro-step')).toHaveText('Step 6 of 8');
+  const none = page.getByTestId('intro-none');
+  await expect(none).toHaveText('None of these');
+  await expect(none).toHaveAttribute('aria-pressed', 'false'); // (not answered yet)
+  await page.getByTestId('intro-kids').click();
+  await none.click();
+  await expect(none).toHaveAttribute('aria-pressed', 'true');
+  for (const k of ['kids', 'dogs', 'cats', 'horses']) await expect(page.getByTestId(`intro-${k}`)).toHaveAttribute('aria-pressed', 'false');
+  await expect.poll(() => planHousehold(page)).toEqual({ ...NONE, answered: true });
+  // One of the four: no longer "none"; the picker's note, under the chips.
+  await page.getByTestId('intro-dogs').click();
+  await expect(none).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByTestId('intro-who-note')).toHaveText(NOTE);
+  await none.click();
+  await expect(page.getByTestId('intro-dogs')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByTestId('intro-who-note')).toBeHidden();
+  await expect(none).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => planHousehold(page)).toEqual({ ...NONE, answered: true });
+  // Answered for the plan by the chip itself (left before Next): the picker asks it under Filters, not first.
+  await page.getByTestId('intro-exit').click();
+  await page.locator('.tool-btn.plants').click();
+  await expect(page.getByTestId('picker-count')).toBeVisible();
+  await expect(protectAtTop(page)).toHaveCount(0);
+  await openFilters(page);
+  await expect(protectInGroup(page)).toBeVisible();
+  for (const k of ['kids', 'dogs', 'cats', 'horses']) await expect(page.getByTestId(`protect-${k}`)).toHaveAttribute('aria-pressed', 'false');
+  // Taken up again from Help: shown chosen, the plan's answer being no one.
+  await closeSheet(page);
+  await page.locator('button[title=More]').click();
+  await page.getByTestId('menu-help').click();
+  await page.getByTestId('help-tour').click();
+  await page.getByTestId('intro-resume').click();
+  await expect(page.getByTestId('intro-step')).toHaveText('Step 6 of 8');
+  await expect(page.getByTestId('intro-none')).toHaveAttribute('aria-pressed', 'true');
+});
+
+// One of the four set after Clear filters changes that one alone: Cats ticked after clearing keeps the kids and the dog in
+// the yard (the review of the storage change, Nov 1: taken whole from the filters, the yard lost them, on every device).
+// Clear filters leaves the four as they are since the bug hunt, Nov 6 (cleared from the list, they came back the next
+// time it opened).
 test("one of the four set after Clear filters keeps the others in the yard: Cats joins the kids and the dog", async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
@@ -969,9 +1220,11 @@ test("one of the four set after Clear filters keeps the others in the yard: Cats
   await page.getByTestId('protect-dogs').click();
   await expect.poll(() => planHousehold(page)).toEqual({ ...NONE, kids: true, dogs: 'hideToxic', answered: true });
   await openFilters(page);
+  await page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any form' }) }).selectOption('Perennial');
   await page.getByTestId('reset-filters').click();
-  await expect(page.getByTestId('active-chip')).toHaveCount(0);
-  await expect(page.getByTestId('protect-kids')).toHaveAttribute('aria-pressed', 'false'); // (the filters cleared)
+  await expect(page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any form' }) })).toHaveValue('');
+  await expect(page.getByTestId('protect-kids')).toHaveAttribute('aria-pressed', 'true'); // (the yard left as it was)
+  await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'true');
   await page.waitForTimeout(400); // (a save would have happened)
   expect(await planHousehold(page)).toEqual({ ...NONE, kids: true, dogs: 'hideToxic', answered: true });
   await page.getByTestId('protect-cats').click();
@@ -1016,13 +1269,13 @@ test("who's in the yard is the plan's: a new plan asks again, \"Same garden?\" c
   await expect(protectAtTop(page)).toHaveCount(0);
   await openFilters(page);
   await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('dogs-hideToxic')).toBeChecked();
+  await expect(page.getByTestId('active-chip')).toHaveText(['No plants rated toxic to dogs']);
   await closeSheet(page);
   // The same garden: its dog comes along, answered.
   await newPlan('Back corner', true);
   await page.locator('.tool-btn.plants').click();
   await expect(protectAtTop(page)).toHaveCount(0);
-  await expect(page.getByTestId('dogs-hideToxic')).toBeChecked();
+  await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(() => planHousehold(page)).toEqual({ ...NONE, dogs: 'hideToxic', answered: true });
   // After a reload, each as it was.
   await page.reload();
@@ -1033,7 +1286,38 @@ test("who's in the yard is the plan's: a new plan asks again, \"Same garden?\" c
   await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'false');
 });
 
-test('"Anyone you need to protect?" fits a 360 px phone at every text size: one row of chips, the list still on screen', async ({ page }) => {
+// What a plan kept before Nov 5 reads as the line has it now, with nothing stored changed: `kids` is People, and Dogs
+// kept as "only plants rated safe" ('nonToxic') is Dogs on, hiding only what's rated toxic to dogs.
+test('a plan kept before Nov 5 with kids and "only plants rated safe for dogs": People and Dogs on, a plant neither rates shown, the plan as it was till Dogs is changed', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('seeded')) return;
+    sessionStorage.setItem('seeded', '1');
+    localStorage.setItem('landscape-planner-v1', JSON.stringify({ shapes: [], household: { kids: true, dogs: 'nonToxic', cats: false, horses: false, answered: true }, zoom: 1, offsetX: 0, offsetY: 0 }));
+  });
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await expect(page.getByTestId('picker-count')).toBeVisible();
+  await expect(protectAtTop(page)).toHaveCount(0); // (answered)
+  await openFilters(page);
+  await expect(page.getByTestId('protect-kids')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('active-chip')).toHaveText(['No plants rated toxic to people', 'No plants rated toxic to dogs']);
+  // Speckled alder: no source rates it for people, and the earlier list says "Unverified" for dogs. Both filters hid it
+  // before; neither does now. Butterfly milkweed, rated toxic to both, is hidden as before.
+  await page.getByTestId('plant-search').fill('Speckled alder');
+  await expect(page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Speckled Alder$/ }) })).toHaveCount(1);
+  await page.getByTestId('plant-search').fill('Butterfly milkweed');
+  await expect(page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Butterfly Milkweed$/ }) })).toHaveCount(0);
+  // Nothing stored changed by reading it; Dogs turned off and on again is kept as it's said now.
+  await page.waitForTimeout(400); // (a save would have happened)
+  expect(await planHousehold(page)).toEqual({ ...NONE, kids: true, dogs: 'nonToxic', answered: true });
+  await openFilters(page);
+  await page.getByTestId('protect-dogs').click();
+  await page.getByTestId('protect-dogs').click();
+  await expect.poll(() => planHousehold(page)).toEqual({ ...NONE, kids: true, dogs: 'hideToxic', answered: true });
+});
+
+test('"Hide plants rated toxic to:" fits a 360 px phone at every text size: one row of chips, the list still on screen', async ({ page }) => {
   // (360 × 740, a 360-wide phone's screen. At 360 × 640, Extra large starts the first plant just below the screen.)
   await page.setViewportSize({ width: 360, height: 740 });
   await openFresh(page);
@@ -1060,8 +1344,9 @@ test('"Anyone you need to protect?" fits a 360 px phone at every text size: one 
     });
     expect(title.lines).toBe(1);
     expect(title.right).toBeLessThanOrEqual(x.x);
-    // The list still starts on the screen.
-    const first = (await page.getByTestId('plant-row').first().boundingBox())!;
-    expect(first.y).toBeLessThan(740);
+    // The list still starts on the screen, at full height. (The picker opens at half, the plan above it; its handle takes
+    // it to full: Jason, Nov 2, the plan in view while choosing, src/ui/picker-view.ts.)
+    await page.getByTestId('picker-handle').click();
+    await expect.poll(async () => (await page.getByTestId('plant-row').first().boundingBox())!.y).toBeLessThan(740);
   }
 });

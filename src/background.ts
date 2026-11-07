@@ -1,7 +1,7 @@
 import { redrawCanvas } from './canvas';
 import { BG_HANDLE_RADIUS_PX, BG_JPEG_QUALITY, BG_MAX_IMAGE_DIM, BG_ROT_HANDLE_OFFSET_PX } from './constants';
 import { svgEl, type Attrs } from './dom';
-import { canvasRect, pxPerFoot, rotate, screenToFeet, viewCenterFeet } from './geometry';
+import { canvasRect, pxPerFoot, rotate, rotatedBoxBounds, screenToFeet, viewCenterFeet } from './geometry';
 import { flushHistoryDebounce, pushHistory, pushHistoryDebounced } from './history';
 import { state } from './state';
 import { save } from './storage';
@@ -9,7 +9,10 @@ import type { BgImage, Point } from './types';
 import { calibrationSeen, render } from './ui/render';
 import { uid } from './util';
 import { ask, tell } from './ui/ask';
-import { zoomToBounds } from './mutations';
+import { zoomBy, zoomToBounds } from './mutations';
+import { clearOfStrip, offerTrace } from './yard-in';
+import { placementOf } from './rescale';
+import { askAfterScale, fitRescale, rescaleFrom } from './ui/rescale-card';
 
 // Background image (satellite photo or survey) to trace over.
 // Stored per project as a downscaled JPEG data URL. Position is the image
@@ -117,8 +120,9 @@ export async function handleBgImageFile(file: File): Promise<boolean> {
     };
     state.photoElsewhere = null; // this photo replaces one kept on another device
     pushHistory();
+    planAtAdd = { imageId: state.bgImage.imageId!, shapes: JSON.stringify(state.shapes) };
     // (The whole photo in view, to find the two points on: Dana and Grace saw only a blur of green and gray.)
-    zoomToBounds({ minX: c.x - (w * 0.1) / 2, maxX: c.x + (w * 0.1) / 2, minY: c.y - (h * 0.1) / 2, maxY: c.y + (h * 0.1) / 2 }, 12);
+    fitPhoto();
     calibrationSeen(); // (just added: no reminder this session; the calibration banner asks)
     save();
     return true;
@@ -126,6 +130,30 @@ export async function handleBgImageFile(file: File): Promise<boolean> {
     void tell('Could not load image: ' + (e instanceof Error ? e.message : String(e)));
     return false;
   }
+}
+/**
+ * The plan as it was when the photo was added on this page (its shapes, as JSON): while it's still that, nothing was
+ * drawn over the photo, so setting its scale has nothing to move with it. Never stored: after a reload, it asks.
+ */
+let planAtAdd: { imageId: string; shapes: string } | null = null;
+/**
+ * Whether the plan is as it was when this photo was added here: drawn before it, not over it. (The bug hunt, Nov 6: a
+ * yard drawn first, then a photo added and its scale set, was asked "Was your plan drawn over the photo?", Move it with
+ * the photo its first button, which would have grown or shrunk the whole plan by the photo's starting size.)
+ */
+function nothingDrawnOverPhoto(): boolean {
+  const bg = state.bgImage;
+  return !!bg && !!planAtAdd && planAtAdd.imageId === bg.imageId && planAtAdd.shapes === JSON.stringify(state.shapes);
+}
+/**
+ * The whole photo in view, a small margin round it. Again once setting its scale has begun, with the plan as tall as
+ * that leaves it (the strip saying what to tap takes the top of the screen: src/ui/render.ts).
+ */
+export function fitPhoto() {
+  const bg = state.bgImage;
+  if (!bg) return;
+  const { w, h } = bgSizeFt(bg);
+  zoomToBounds(rotatedBoxBounds(bg.cx, bg.cy, w, h, bg.rotation), 12);
 }
 export function removeBgImage() {
   if (!state.bgImage) return;
@@ -170,11 +198,32 @@ export function updateBgImageSilent(patch: Partial<BgImage>) {
 
 // ---------- Calibration flow ----------
 export function startBgCalibration() {
-  if (!state.bgImage) return;
+  const bg = state.bgImage;
+  if (!bg) return;
+  // (The photo as it's in view now, before the strip saying what to tap comes above the plan: kept in view below it.)
+  const before = planBox(), photo = before ? photoOnPage(bg, before) : null;
   state.bgCalibrate = { step: 'point1', p1: null, p2: null };
   state.panel = null;
   state.bgEditMode = false; // calibration taps must not be read as drags
   render();
+  // The strip takes the plan's top, with lengths you may know in it (Jason, Nov 4: they need them while picking the
+  // points): the part of the photo that was in view isn't left under it, where A might be tapped.
+  const after = planBox();
+  const move = before && photo && after ? clearOfStrip(photo, before, after) : null;
+  if (!move) return;
+  if (move.zoom < 1) zoomBy(move.zoom, move.x, move.y);
+  state.offsetY -= move.dy / pxPerFoot();
+  render();
+}
+/** The plan's box on the page, while it's laid out. */
+function planBox(): { left: number; top: number; right: number; bottom: number } | null {
+  const r = document.getElementById('canvas-wrap')?.getBoundingClientRect();
+  return r && r.height > 0 ? { left: r.left, top: r.top, right: r.right, bottom: r.bottom } : null;
+}
+/** The photo's bounds on the page (the plan's box at `plan`). */
+function photoOnPage(bg: BgImage, plan: { left: number; top: number }) {
+  const { w, h } = bgSizeFt(bg), b = rotatedBoxBounds(bg.cx, bg.cy, w, h, bg.rotation), ppf = pxPerFoot();
+  return { left: plan.left + (b.minX - state.offsetX) * ppf, top: plan.top + (b.minY - state.offsetY) * ppf, right: plan.left + (b.maxX - state.offsetX) * ppf, bottom: plan.top + (b.maxY - state.offsetY) * ppf };
 }
 export function cancelBgCalibration() {
   state.bgCalibrate = null;
@@ -200,19 +249,32 @@ export function calibrationScale(p1: Point, p2: Point, distanceFt: number): numb
   if (!(distanceFt > 0) || !isFinite(distanceFt)) return 'Please enter a positive distance in feet.';
   return distanceFt / dPx;
 }
-export function finishBgCalibration(distanceFt: number) {
+/**
+ * The scale from A and B `distanceFt` apart. `rough`: that length is a rough guess (the box's checkbox), kept with the
+ * photo (BgImage roughScale) so Layers reminds them to set it again; set again without it, it's gone. One step: Undo
+ * takes the flag back with the scale. With a plan over the photo that its new size would move: asked whether to move
+ * the plan with it (src/ui/rescale-card.ts), the plan shown for it; otherwise the background sheet, with the scale.
+ */
+export function finishBgCalibration(distanceFt: number, rough = false) {
   const cal = state.bgCalibrate;
   if (!state.bgImage || !cal || !cal.p1 || !cal.p2) return;
   const result = calibrationScale(cal.p1, cal.p2, distanceFt);
   if (typeof result === 'string') { void tell(result); return; }
   flushHistoryDebounce();
+  // (Where the plan was drawn over it: where it is now, or, set again before the last time was answered, where it was.)
+  const from = rescaleFrom() ?? placementOf(state.bgImage);
   state.bgImage.ftPerPx = result;
   delete state.bgImage.uncalibrated; // (to scale now)
+  if (rough) state.bgImage.roughScale = true; else delete state.bgImage.roughScale;
   pushHistory();
   save();
+  offerTrace(state.currentProjectId); // (next: "Now trace" the house, driveway and the rest over it: src/ui/trace-card.ts)
   state.bgCalibrate = null;
-  state.panel = 'bg';
+  // ("Was your plan drawn over the photo?" first, a rough scale or not; "Now trace" waits for its answer.)
+  const asked = askAfterScale(from, nothingDrawnOverPhoto());
+  state.panel = asked ? null : 'bg';
   render();
+  if (asked) fitRescale();
 }
 
 // ---------- Rendering ----------
@@ -225,27 +287,42 @@ function imageFrame(bg: BgImage) {
     transform: bg.rotation ? `rotate(${bg.rotation} ${c.x} ${c.y})` : null
   };
 }
+/**
+ * The photo as drawn: one <image>, kept from each drawing of the plan to the next (moved into the new one, its place and
+ * size set afresh), made again only for another photo. Made again each time, as it was until Nov 5, each full redraw
+ * (the one on releasing a pan or a pinch among them) gave the browser a new image to decode, a photo of some megabytes,
+ * and a phone draws the plan without it until that's done: the photo blinked out (Jason's screen recording, Nov 5).
+ * Decoded before it's drawn, too (decoding="sync"): the browser waits for it rather than drawing a frame without it.
+ */
+let photo: { el: SVGImageElement; url: string } | null = null;
 /** Drawn by renderGrid between the tan base and the grid lines. */
 export function renderBgImageInto(svg: SVGElement) {
   const bg = state.bgImage;
+  if (!bg) photo = null; // (gone: nothing kept of it)
   if (!bg || !bg.visible) return;
   const f = imageFrame(bg);
-  const img = svgEl('image', {
-    href: bg.dataUrl,
+  if (photo?.url !== bg.dataUrl) {
+    const el = svgEl('image', { href: bg.dataUrl, decoding: 'sync', preserveAspectRatio: 'none' }); // (aspect is already exact: same ftPerPx both axes)
+    el.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', bg.dataUrl); // older SVG stacks
+    photo = { el, url: bg.dataUrl };
+  }
+  const img = photo.el;
+  const attrs: Record<string, string | number | null> = {
     x: f.x, y: f.y, width: f.w, height: f.h,
     opacity: bg.opacity,
-    preserveAspectRatio: 'none', // aspect is already exact (same ftPerPx both axes)
     'pointer-events': state.bgEditMode ? 'auto' : 'none',
     style: state.bgEditMode ? 'cursor:move;touch-action:none;' : '',
     transform: f.transform,
     'data-role': state.bgEditMode ? 'bg-body' : null,
-  });
-  img.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', bg.dataUrl); // older SVG stacks
+  };
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null) img.removeAttribute(k); else img.setAttribute(k, String(v));
+  }
   svg.appendChild(img);
 }
 function calibrationMarker(svg: SVGElement, bg: BgImage, p: Point, letter: string) {
   const s = worldToCanvas(imagePxToWorld(bg, p));
-  svg.appendChild(svgEl('circle', { cx: s.x, cy: s.y, r: 10, fill: 'rgba(220,38,38,0.2)', stroke: '#dc2626', 'stroke-width': 2, 'pointer-events': 'none' }));
+  svg.appendChild(svgEl('circle', { cx: s.x, cy: s.y, r: 10, fill: 'rgba(220,38,38,0.2)', stroke: '#dc2626', 'stroke-width': 2, 'pointer-events': 'none', 'data-role': `scale-point-${letter.toLowerCase()}` }));
   svg.appendChild(svgEl('circle', { cx: s.x, cy: s.y, r: 3, fill: '#dc2626', 'pointer-events': 'none' }));
   svg.appendChild(svgEl('text', { x: s.x + 12, y: s.y - 8, 'font-size': 12, fill: '#dc2626', 'font-weight': 700, 'pointer-events': 'none', style: 'user-select:none;' }, letter));
   return s;

@@ -14,8 +14,9 @@ export default defineConfig({
     serviceWorkers: 'block',
     // The guard against a stray second tap (src/tap-guard.ts) is off: tests click faster than a person sees what
     // changed. e2e/tap-guard.spec.ts tests it, with it on. The zoom buttons are on, phone too, where tests use them to
-    // zoom (off on a phone to start: e2e/zoom-buttons.spec.ts).
-    storageState: { cookies: [], origins: [{ origin: `http://localhost:${port}`, localStorage: [{ name: 'lp-tap-guard', value: 'off' }, { name: 'lp-zoom-buttons', value: 'on' }] }] },
+    // zoom (off on a phone to start: e2e/zoom-buttons.spec.ts). The plan's drawing checked against drawing it whole at
+    // every drawing (src/canvas.ts drawCheck): e2e/draw-check.spec.ts.
+    storageState: { cookies: [], origins: [{ origin: `http://localhost:${port}`, localStorage: [{ name: 'lp-tap-guard', value: 'off' }, { name: 'lp-zoom-buttons', value: 'on' }, { name: 'lp-draw-check', value: 'on' }] }] },
   },
   projects: [
     // The upgrade tests run their own server; one browser profile is enough.

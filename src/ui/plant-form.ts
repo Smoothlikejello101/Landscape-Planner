@@ -6,6 +6,7 @@ import {
 import { FORM_COLORS, linkFromPicker, MONTH_NAMES, PLANTS, plantColor, plantColors, plantsById, speciesOf, type Plant } from '../plants';
 import { byMatch, matchPlant, readQuery } from '../search';
 import { flowerHex, ownBloomColors } from '../looks';
+import { drawnColor } from '../plant-looks';
 import { state } from '../state';
 import type { Shape } from '../types';
 import { finishPlacing, startPlacing, switchPlacingPlant } from '../place';
@@ -58,7 +59,7 @@ export function renderPlantForm() {
   }
   // A new plant: start from another, found by name (its fields filled in; what's typed in the name stays).
   if (!editing) {
-    const find = el('input', { type: 'text', enterkeyhint: 'search', placeholder: 'e.g. panicle hydrangea', 'data-testid': 'pf-from', autocomplete: 'off', id: 'pf-from' }) as HTMLInputElement;
+    const find = el('input', { type: 'text', spellcheck: 'false', enterkeyhint: 'search', placeholder: 'e.g. panicle hydrangea', 'data-testid': 'pf-from', autocomplete: 'off', id: 'pf-from' }) as HTMLInputElement;
     const hits = el('div', { className: 'from-hits', 'data-testid': 'pf-from-hits' });
     find.addEventListener('input', () => {
       hits.replaceChildren();
@@ -103,8 +104,9 @@ export function renderPlantForm() {
     input.addEventListener('input', clear);
     return { node, need, clear };
   };
+  // (Names and zones: spell checking off, Jason, Nov 5: src/ui/plants-panel.ts, the search. Notes and bloom color keep it.)
   const text = (label: string, value: string, placeholder: string, testid: string) => {
-    const input = el('input', { type: 'text', value, placeholder, 'data-testid': testid }) as HTMLInputElement;
+    const input = el('input', { type: 'text', spellcheck: 'false', value, placeholder, 'data-testid': testid }) as HTMLInputElement;
     const hint = el('div', { className: 'hint' });
     const { node, need } = fieldLabel(label, input, testid, label.endsWith(', required'));
     body.appendChild(el('div', { className: 'field' }, node, input, hint));
@@ -212,7 +214,7 @@ export function renderPlantForm() {
     ? state.shapes.find((s) => s.id === state.pickerLinkId) : undefined;
   const fromData = !!linking && (isDataSized as (s: Shape) => boolean)(linking); // (a plain yes or no: no narrowing)
   const drawn = linking?.type === 'circle' && !linking.canopy && !linking.tree && !fromData ? Math.round(linking.radius * 4) / 2 : undefined;
-  const spread = sizeField('Spread (width), required', (source?.width as Range | undefined) ?? (drawn ? { min: drawn, max: drawn, med: drawn } : undefined),
+  const spread = sizeField('Width when grown, required', (source?.width as Range | undefined) ?? (drawn ? { min: drawn, max: drawn, med: drawn } : undefined),
     'e.g. 6-8', 'pf-spread', true, drawn ? String(drawn) : '');
   const height = sizeField('Height (optional)', source?.height as Range | undefined, 'e.g. 3-4', 'pf-height', false);
 
@@ -259,8 +261,10 @@ export function renderPlantForm() {
     if (source?.form === f) o.selected = true;
     form.appendChild(o);
   }
-  const color = el('input', { type: 'color', value: plantColor(source), 'data-testid': 'pf-color', 'aria-label': 'Color on the plan', title: 'Color on the plan' }) as HTMLInputElement;
-  let colorPicked = !!source?.color;
+  // (Copied from a catalog plant: the color its original is drawn in, its leaves', not its type's. Kept, as a color
+  // picked is, if the type changes. The picker bug hunt, Nov 1.)
+  const color = el('input', { type: 'color', value: fromCatalog ? drawnColor(startedFrom) : plantColor(source), 'data-testid': 'pf-color', 'aria-label': 'Color on the plan', title: 'Color on the plan' }) as HTMLInputElement;
+  let colorPicked = !!source?.color || fromCatalog;
   color.addEventListener('input', () => { colorPicked = true; });
   form.addEventListener('change', () => { if (!colorPicked) color.value = plantColor({ id: '', common: '', form: form.value || undefined }); });
   body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Type and color on the plan'),

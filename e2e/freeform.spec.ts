@@ -1,12 +1,15 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, canvasBox, closeSheet, drag, field, openFresh, shapeCount, addPlainShape, setRole, openSections, openSettings, tapping } from './helpers';
+import { addKind, canvasBox, closeSheet, drag, field, openFresh, shapeCount, addPlainShape, setRole, openSections, openSettings, tapping, planPoint, zoomBackIn, middleOf } from './helpers';
 
 // At the starting view (zoom 100%, 24 px per foot, view starting at -10 ft),
 // canvas pixel 24*k is k-10 ft: tapping at multiples of 24 px lands on the grid.
 const FT = 24;
+/** Where canvas pixel (24 kx, 24 ky) was at the starting view: kx − 10, ky − 10 ft, at the view as it is now (a strip
+ * of words above the plan while drawing, the Building tool opening where a house fits). */
+const at = (page: Page, kx: number, ky: number) => planPoint(page, kx - 10, ky - 10);
 async function tapFt(page: Page, kx: number, ky: number) {
-  const box = await canvasBox(page);
-  await page.mouse.click(box.x + kx * FT, box.y + ky * FT);
+  const p = await at(page, kx, ky);
+  await page.mouse.click(p.x, p.y);
 }
 const drawPoints = (page: Page) => page.locator('#canvas-svg [data-role=draw-point], #canvas-svg [data-role=draw-close]');
 const bar = (page: Page) => page.getByTestId('draw-bar');
@@ -14,7 +17,7 @@ const shapePath = (page: Page) => page.locator('#canvas-svg polygon[data-shape-i
 
 async function drawL(page: Page) {
   await addKind(page, 'plain', 'poly');
-  await expect(page.getByTestId('draw-banner')).toContainText(tapping('Plain shape: Tap each corner'));
+  await expect(page.getByTestId('draw-banner')).toContainText(tapping('Plain Shape: Tap each corner'));
   for (const [x, y] of [[2, 2], [12, 2], [12, 6], [6, 6], [6, 12], [2, 12]]) await tapFt(page, x, y);
   await expect(drawPoints(page)).toHaveCount(6);
   await expect(page.getByTestId('draw-banner')).toContainText('first point');
@@ -77,10 +80,9 @@ test('draw a fence line: a boundary with a length, easy to tap', async ({ page }
   await field(page, 'Label').fill('Back fence');
   await closeSheet(page);
   // Deselect, then tap a few pixels off the line: the wide hit area still selects it.
-  const box = await canvasBox(page);
-  await page.mouse.click(box.x + 5 * FT, box.y + 3 * FT);
+  await tapFt(page, 5, 3);
   await expect(page.locator('.sel-pill')).toHaveCount(0);
-  await page.mouse.click(box.x + 8 * FT, box.y + 14 * FT + 6);
+  await tapFt(page, 8, 14 + 6 / FT);
   await expect(page.locator('.sel-pill .name')).toHaveText('Back fence');
 });
 
@@ -89,20 +91,19 @@ test('a property line drawn as an outline can be picked again by tapping near it
   await addKind(page, 'property', 'poly');
   for (const [x, y] of [[2, 2], [12, 2], [12, 10], [2, 10]]) await tapFt(page, x, y);
   await bar(page).getByRole('button', { name: 'Done' }).click();
-  await expect(page.locator('.sel-pill .name')).toHaveText('Property line');
+  await expect(page.locator('.sel-pill .name')).toHaveText('Property Line');
   // Deselect (inside it is the yard: a tap there picks nothing), then tap a few pixels off its dashed edge.
-  const box = await canvasBox(page);
-  await page.mouse.click(box.x + 7 * FT, box.y + 6 * FT);
+  await tapFt(page, 7, 6);
   await expect(page.locator('.sel-pill')).toHaveCount(0);
   await page.waitForTimeout(400);
-  await page.mouse.click(box.x + 7 * FT, box.y + 10 * FT + 5);
-  await expect(page.locator('.sel-pill .name')).toHaveText('Property line');
+  await tapFt(page, 7, 10 + 5 / FT);
+  await expect(page.locator('.sel-pill .name')).toHaveText('Property Line');
 });
 
 test('edit points: drag, add with +, delete, undo', async ({ page }) => {
   await openFresh(page);
   await addKind(page, 'plain', 'poly');
-  for (const [x, y] of [[2, 2], [10, 2], [10, 8], [2, 8]]) await tapFt(page, x, y);
+  for (const [x, y] of [[2, 5], [10, 5], [10, 11], [2, 11]]) await tapFt(page, x, y); // (below the strip over the plan's top)
   await bar(page).getByRole('button', { name: 'Done' }).click();
   await page.locator('.sel-pill .edit').click(); await openSections(page);
   await expect(page.locator('[data-testid=measure]')).toHaveText('Area: 48 sq ft');
@@ -113,10 +114,9 @@ test('edit points: drag, add with +, delete, undo', async ({ page }) => {
   await expect(page.locator('#canvas-svg [data-role=midpoint]')).toHaveCount(4);
 
   // Drag the bottom-right corner 2 ft right: a trapezoid of (8+10)/2*6 = 54 sq ft.
-  const box = await canvasBox(page);
-  await drag(page, { x: box.x + 10 * FT, y: box.y + 8 * FT }, { x: box.x + 12 * FT, y: box.y + 8 * FT });
+  await drag(page, await at(page, 10, 11), await at(page, 12, 11));
   // Press the + on the top edge (at x=6) and pull it up 2 ft: adds a 8*2/2 = 8 sq ft peak.
-  await drag(page, { x: box.x + 6 * FT, y: box.y + 2 * FT }, { x: box.x + 6 * FT, y: box.y + 0 * FT });
+  await drag(page, await at(page, 6, 5), await at(page, 6, 3));
   await expect(vertices).toHaveCount(5);
   await expect(bar(page).getByRole('button', { name: 'Delete point' })).toBeEnabled(); // the new point is selected
   await bar(page).getByRole('button', { name: 'Done' }).click();
@@ -126,7 +126,7 @@ test('edit points: drag, add with +, delete, undo', async ({ page }) => {
   // Delete the peak again.
   await page.locator('.sel-pill button.edit').click(); await openSections(page);
   await page.getByTestId('edit-points').click();
-  await page.mouse.click(box.x + 6 * FT, box.y + 0 * FT);
+  await tapFt(page, 6, 3);
   await bar(page).getByRole('button', { name: 'Delete point' }).click();
   await expect(vertices).toHaveCount(4);
   await bar(page).getByRole('button', { name: 'Done' }).click();
@@ -208,6 +208,8 @@ test('a bed drawn against an off-grid wall: each snap shown as it lands, with Un
   // A building, measured: 6.3 ft wide, so its right wall (x = 7.3) is off the half-foot grid.
   await addKind(page, 'building', 'rect');
   for (const [x, y] of [[1, 2], [7, 2], [7, 8]]) await tapFt(page, x, y);
+  // (The first building opened where a house fits: this bed's taps are a foot or two apart.)
+  await zoomBackIn(page, await middleOf(page, '#canvas-svg rect[data-shape-id]'));
   await page.locator('.sel-pill .edit').click(); await openSections(page);
   await field(page, 'Width (ft)').fill('6.3');
   await closeSheet(page);
@@ -240,9 +242,9 @@ test('a bed drawn against an off-grid wall: each snap shown as it lands, with Un
   const area = async () => { await page.locator('.sel-pill .edit').click(); await openSections(page); const v = await page.getByTestId('measure').textContent(); const w = await field(page, 'Width (ft)').inputValue(); await closeSheet(page); return [w, v]; };
   expect(await area()).toEqual(['3.7', expect.stringContaining('Area: 15 sq ft')]); // (from the wall, square: 3.7 × 4 ft, 14.8 sq ft, shown whole as everywhere)
   // A pan to look leaves the notice up; its Undo gives back the dots as drawn, still on the wall.
-  const box = await canvasBox(page);
-  await page.mouse.move(box.x + 13 * FT, box.y + 11 * FT); await page.mouse.down();
-  await page.mouse.move(box.x + 12 * FT, box.y + 10 * FT, { steps: 4 }); await page.mouse.move(box.x + 13 * FT, box.y + 11 * FT, { steps: 4 });
+  const p = await at(page, 13, 11), q = await at(page, 12, 10);
+  await page.mouse.move(p.x, p.y); await page.mouse.down();
+  await page.mouse.move(q.x, q.y, { steps: 4 }); await page.mouse.move(p.x, p.y, { steps: 4 });
   await page.mouse.up();
   await notice.getByRole('button', { name: 'Undo' }).click();
   await expect(notice).toHaveCount(0);
@@ -273,6 +275,8 @@ test('a corner tapped right on a building\'s corner stays on it when the rest is
   await openFresh(page);
   await addKind(page, 'building', 'rect');
   for (const [x, y] of [[1, 2], [7, 2], [7, 8]]) await tapFt(page, x, y);
+  // (The first building opened where a house fits: this bed's taps are a few feet apart.)
+  await zoomBackIn(page, await middleOf(page, '#canvas-svg rect[data-shape-id]'));
   // A bed from the building's top-right corner (on the grid already), the far side not quite square, its last
   // corner a little short of the wall.
   await addKind(page, 'bed', 'poly');
@@ -283,4 +287,26 @@ test('a corner tapped right on a building\'s corner stays on it when the rest is
   // Squared to 7–11 × 2–6, its top edge still on the building's (not halfway to the tapped 2.5: 3.8 tall).
   await expect(field(page, 'Width (ft)')).toHaveValue('4');
   await expect(field(page, 'Length (ft)')).toHaveValue('4');
+});
+
+test('squaring, more readily (Jason, Nov 4): an L whose short wall was tapped 14° out comes out square; a corner dragged near square sticks there, marked, until let go', async ({ page }) => {
+  await openFresh(page);
+  await addKind(page, 'bed', 'poly');
+  for (const [x, y] of [[2, 2], [14, 2], [14, 6], [8, 7.5], [8, 12], [2, 12], [2, 2]]) await tapFt(page, x, y);
+  await expect(page.locator('#toast-action')).toContainText('Squared the corners (moved up to 0.8 ft).');
+  await page.getByTestId('pill-edit-points').click();
+  const vertex = page.locator('#canvas-svg [data-role=vertex][data-index="2"]');
+  const from = await middleOf(page, '#canvas-svg [data-role=vertex][data-index="2"]');
+  const to = await at(page, 14.3, 9.2); // (2.4° off the wall from the corner before it)
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 6 });
+  // Held on the line of its wall: the wall lit faintly, the corner before it marked square.
+  await expect(page.locator('#canvas-svg [data-role=square-wall]')).toHaveCount(1);
+  await expect(page.locator('#canvas-svg [data-role=square-mark][data-at="1"]')).toHaveCount(1);
+  const held = (await vertex.boundingBox())!, wall = (await page.locator('#canvas-svg [data-role=vertex][data-index="1"]').boundingBox())!;
+  expect(Math.abs(held.x - wall.x)).toBeLessThan(0.5); // (straight above the corner before it, not under the pointer)
+  await page.mouse.up();
+  await expect(page.locator('#canvas-svg [data-role=square-mark], #canvas-svg [data-role=square-wall]')).toHaveCount(0);
+  await expect(page.locator('#canvas-svg [data-role=side-length]').nth(1)).toHaveText('7 ft');
 });

@@ -1,5 +1,6 @@
 import { PX_PER_FOOT_BASE } from './constants';
 import { state } from './state';
+import { labelShown } from './names';
 import type { Bounds, CircleShape, PathShape, Point, Shape, TextShape, TriangleShape } from './types';
 
 // ---- View transforms (depend on current zoom/offset) ----
@@ -333,13 +334,16 @@ export function outlineOf(s: Exclude<Shape, CircleShape | PathShape | TextShape>
 
 /** Feet for display: 12, 12.5 (one decimal, no trailing .0). */
 export function fmtFeet(v: number): string { return String(Math.round(v * 10) / 10); }
-/** The label as shown on the plan: dimension lines add their length. */
+/**
+ * The label as shown on the plan: dimension lines add their length; a placed plant labeled with its catalog name, that
+ * name as the catalog now writes it (src/names.ts labelShown).
+ */
 export function displayLabel(s: Shape): string {
   if (s.type === 'line' && s.showLength) {
     const len = fmtFeet(pathLength(s.points, false)) + ' ft';
     return s.label ? `${s.label} · ${len}` : len;
   }
-  return s.label;
+  return labelShown(s);
 }
 
 // ---- Lasso ----

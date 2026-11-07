@@ -50,7 +50,7 @@ test('swapped for a bigger plant that now crowds a neighbor: said, with Undo (Da
   const notice = page.getByTestId('crowd-notice');
   await expect(notice).toBeVisible();
   await notice.getByRole('button', { name: 'Undo' }).click();
-  await expect(page.locator('.sheet .title')).toContainText('Turkey corn');
+  await expect(page.locator('.sel-pill')).toContainText('Turkey Corn');
 });
 
 test('one of my own, male or female, for a kind with both (Owen); its copy of a male starts male', async ({ page }) => {

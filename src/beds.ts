@@ -1,6 +1,7 @@
 import { pointInShape, rotate, setCenter, shapeArea, shapeCenter } from './geometry';
 import { isLocked } from './roles';
 import type { Shape, ShapePatch } from './types';
+import { labelShown } from './names';
 
 // Bed membership is worked out from position, never stored: a plant belongs
 // to the bed its center sits in (the smallest one if beds overlap). So it can
@@ -39,7 +40,7 @@ export function attachedPlants(bed: Shape, shapes: Shape[]): Shape[] {
 export function plantSummary(plants: Shape[]): { label: string; count: number }[] {
   const counts = new Map<string, number>();
   for (const p of plants) {
-    const k = p.label || 'Unlabeled plant';
+    const k = labelShown(p) || 'Unlabeled plant';
     counts.set(k, (counts.get(k) ?? 0) + 1);
   }
   return [...counts].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));

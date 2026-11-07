@@ -6,7 +6,7 @@
 // as does a value that would make the record implausible (the app's catalogWarnings: 1 in tall, zones
 // backwards).
 
-import { ATTRACTS, BARK, BARK_COLORS, bloomSeasons, CLIMBING, EDIBLE_PARTS, flowerColors, FORM_WORDS, HABIT_FORMS, ncsuNoPoison, PART_COLORS, PETS, SEASONS, TEXTURES, TOLERATES } from './claims.mjs';
+import { ATTRACTS, BARK, BARK_COLORS, bloomSeasons, CLIMBING, EDIBLE_PARTS, flowerColors, FORM_WORDS, HABIT_FORMS, ncsuNoPoison, PART_COLORS, PETS, SEASONS, SOIL_ALSO, SOIL_TEXTURES, TEXTURES, TOLERATES } from './claims.mjs';
 import { FRUIT_SET, SEXES, WRITTEN_HABITS } from './prose.mjs';
 
 /** The checks the app takes (src/catalog.ts): disputed facts aren't written. */
@@ -87,6 +87,10 @@ const FACTS = {
   // The cultivars its description names as its pollinizer (prose.mjs partnersFromProse), as it names them.
   partners: ['partners', (v) => (Array.isArray(v) && v.length && v.length <= 8 && v.every((x) => typeof x === 'string' && x.length >= 2 && x.length <= 40) ? [...new Set(v)] : undefined)],
   clay_ok: ['clay_ok', yes],
+  // The soil textures NC State's "Soil Texture" lists (claims.mjs soilTextures): clay, loam, sand.
+  soil_texture: ['soil_texture', listOf(SOIL_TEXTURES)],
+  // Its field's other two soils (claims.mjs soilAlso): organic, rocky.
+  soil_also: ['soil_also', listOf(SOIL_ALSO)],
   wet_feet: ['wet_feet', yes],
   edible: ['edible', yes],
   edible_parts: ['edible_parts', listOf(EDIBLE_PARTS)],

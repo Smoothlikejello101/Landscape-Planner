@@ -33,6 +33,13 @@ export const lookFor = (s: CircleShape): Look => lookOf(s.plantId ? plantsById[s
 /** A plant's dot in lists and bars: its flowers' color as its picture draws them, else its own color. */
 export const plantDot = (p: Plant): string => lookOf(p, plantColor(p)).pal.fl ?? plantColor(p);
 /**
+ * A catalog plant's color as its picture on the plan draws it: its leaves' summer color (green, a darker green if
+ * evergreen, purple for a purple-leaved one), as its row's spot shows it. A copy of a catalog plant starts in it
+ * (the picker bug hunt, Nov 1, B10: a copied Eastern redcedar started in the brown every tree is listed in, its
+ * original drawn dark green).
+ */
+export const drawnColor = (p: Plant): string => lookOf(p, plantColor(p)).pal.base;
+/**
  * A plant's spot on a picker row (Jason, Nov 1, from the UI review: "replace the color spot with a flower icon in the
  * middle of a leaf-color circle"): a circle in its leaves' color with a small flower in its flowers' color, both as
  * its picture draws them; a plant without showy flowers on record, the circle alone. `said`, for screen readers:

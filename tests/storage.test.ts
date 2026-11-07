@@ -2,23 +2,38 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryKV, openKV, put } from '../src/db';
-import { state } from '../src/state';
+import { DB_NAME, DB_VERSION, MemoryKV, NewerVersionError, openKV, put, setOpenBlockedListener } from '../src/db';
+import { NewerVersionError as NewerVersionErrorV2, openKV as openKVv2, put as putV2 } from './fixtures/db-v2';
+import { NewerVersionError as NewerVersionErrorV3, openKV as openKVv3, put as putV3 } from './fixtures/db-v3';
+import { DEFAULT_PRINT, state } from '../src/state';
 import {
   _resetStorageForTests, clearedNow, createProject, deleteProject, emptyProjectData, flushSave, getClipboard, initStorage, keepCleared, loadCleared,
   readProject, sanitizeBought, sanitizeHousehold, sanitizeProjectData, sanitizeSwitches, save, saveView, setHouseholdListener, switchProject, writeJournalIfDirty,
-  migrateBgImage, photoRefOf, sanitizePhotoRef, sanitizeDismissed, syncedContent } from '../src/storage';
-import { allExportedProjects, buildBackupFile, importProjects, parseImportFile, uniqueName } from '../src/backup';
+  migrateBgImage, migrateShape, photoRefOf, placePhoto, sanitizePhotoRef, sanitizeDismissed, syncedContent } from '../src/storage';
+import { canonical } from '../src/sync/engine';
+import { releaseMigrateShape } from './fixtures/release-migrate-shape';
+import { releaseMigrateBgImage, releasePhotoRefOf, releasePlacePhoto, releaseSanitizePhotoRef } from './fixtures/release-photo';
+import { NewerVersionError as NewerVersionErrorV4, openKV as openKVv4, put as putV4 } from './fixtures/db-v4';
+import {
+  currentProjectData, getSyncDeletedRecord, getSyncRecords, getSyncTombstones, getSyncUser, projectNow, setNewerVersionListener, storageIsDurable,
+  supersededByNewer } from '../src/storage';
+import { _setJournalLockWaitForTests, renameProject } from '../src/storage';
+import { buildRawCopyFile, RAW_COPY_FORMAT } from '../src/backup';
+import type { Shape } from '../src/types';
+import { allExportedProjects, buildBackupFile, importProjects, importSaid, parseImportFile, planContent, sameName, uniqueName } from '../src/backup';
 import { sanitizeMyPlant } from '../src/my-plants';
+import type { ProjectData } from '../src/types';
 import { buildSupportFile } from '../src/support';
 import { ERROR_LOG_KEY, readErrors, recordError } from '../src/error-log';
 import { NEW_RECORD, parseIntroRecord } from '../src/intro';
 import { NO_YARD, applyYard, household, householdCopy, loadYard, saveYard } from '../src/yard';
 import { PLANT_FILTER_DEFAULTS, plantFilter } from '../src/plants';
 import {
-  allSwitchesOn, loadViewSettings, planSwitches, setCrowdWarnings, setFruitWarnings, setHardyWarnings, setPoisonWarnings, setShowCrowding, setShowFullSize,
-  setZoomButtons, switchesCopy,
+  allSwitchesOn, loadViewSettings, planSwitches, printUnder, setCrowdWarnings, setFruitWarnings, setHardyWarnings, setPoisonWarnings, setPrintUnder, setShowCrowding,
+  setShowFullSize, setZoomButtons, switchesCopy,
 } from '../src/view-settings';
+import { releaseSanitizePrint } from './fixtures/release-print';
+import { NewerVersionError as NewerVersionErrorV5, openKV as openKVv5, put as putV5 } from './fixtures/db-v5';
 
 const IMG = 'data:image/jpeg;base64,' + 'A'.repeat(64);
 const circle = (label: string) => ({ id: label, type: 'circle', x: 1, y: 2, radius: 3, color: '#000', label, opacity: 0.5, locked: false });
@@ -85,7 +100,7 @@ describe('migration from localStorage', () => {
     expect(state.projects).toHaveLength(1);
   });
 
-  it('picks up edits an older version made after the migration', async () => {
+  it('picks up edits an older version made after the migration: beside a plan with parts the older copy lacks, else in its place', async () => {
     localStorage.setItem('lp-projects', JSON.stringify([{ id: 'p1', name: 'Yard', lastModified: 1000 }]));
     localStorage.setItem('lp-project-p1', JSON.stringify({ shapes: [circle('before')] }));
     const kv = await freshStorage();
@@ -100,8 +115,24 @@ describe('migration from localStorage', () => {
     localStorage.setItem('lp-project-p9', JSON.stringify({ shapes: [circle('new')] }));
     _resetStorageForTests();
     await initStorage(kv);
-    expect(state.shapes.map((s) => s.label)).toEqual(['before', 'after']);
-    expect(state.projects.map((p) => p.name).sort()).toEqual(['Made in old app', 'Yard']);
+    // (The plan here took this device's yard and warning switches at the first start, which the older copy can't have:
+    // put over it, the copy would take them away. Kept beside it: the review, Nov 1.)
+    expect(state.shapes.map((s) => s.label)).toEqual(['before']);
+    expect(state.projects.map((p) => p.name).sort()).toEqual(['Made in old app', 'Yard', 'Yard (from older version)']);
+    const copy = state.projects.find((p) => p.name === 'Yard (from older version)')!;
+    expect((await readProject(copy.id))!.shapes.map((s) => s.label)).toEqual(['before', 'after']);
+    expect(await kv.get('projects', 'p1')).toMatchObject({ household: expect.any(Object), switches: expect.any(Object) });
+    // A plan here with nothing the older copy lacks (as one stored before plans kept the yard): put in its place.
+    const p1 = (await kv.get<Record<string, unknown>>('projects', 'p1'))!;
+    const { household: _h, switches: _s, ...without } = p1;
+    await kv.write([put('projects', 'p1', without)]);
+    const later2 = later + 60_000;
+    localStorage.setItem('lp-projects', JSON.stringify([{ id: 'p1', name: 'Yard', lastModified: later2 }]));
+    localStorage.setItem('lp-project-p1', JSON.stringify({ shapes: [circle('before'), circle('after'), circle('again')] }));
+    _resetStorageForTests();
+    await initStorage(kv);
+    expect(state.shapes.map((s) => s.label)).toEqual(['before', 'after', 'again']);
+    expect(state.projects).toHaveLength(3);
   });
 
   it('does not overwrite newer work with an older localStorage copy', async () => {
@@ -500,7 +531,7 @@ describe('backup files', () => {
 
     // Restore into a different, empty device
     await freshStorage();
-    const ids = await importProjects(parseImportFile(text));
+    const { ids } = await importProjects(parseImportFile(text));
     expect(ids).toHaveLength(2);
     const names = state.projects.map((p) => p.name).sort();
     expect(names).toEqual(['My Garden', 'My Garden (2)', 'Second']);
@@ -530,7 +561,7 @@ describe('backup files', () => {
     expect(state.bgImage?.dataUrl).toBe(IMG);
 
     await freshStorage();
-    const ids = await importProjects(parseImportFile(text));
+    const { ids } = await importProjects(parseImportFile(text));
     expect(ids).toHaveLength(2);
     const restored = await Promise.all(ids.map((id) => readProject(id)));
     expect(restored.map((d) => d?.shapes.length).sort()).toEqual([1, 2]);
@@ -555,6 +586,97 @@ describe('backup files', () => {
   it('picks non-colliding names', () => {
     expect(uniqueName('A', [])).toBe('A');
     expect(uniqueName('A', ['A', 'A (2)'])).toBe('A (3)');
+  });
+
+  // Jason, Nov 1, from the list bug hunt (B2, B5): a full backup brought back while its plans are still here made a copy
+  // of each, and every plan read "last modified" at the moment of the import.
+  const OCT20 = new Date(2026, 9, 20, 9).getTime(), OCT25 = new Date(2026, 9, 25, 9).getTime(), NOV1 = new Date(2026, 10, 1, 18).getTime();
+  const at = (t: number) => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(t); };
+  it('a full backup where its plans still are: one just like a plan here is skipped, one deleted comes back, one that differs comes in as a copy; each keeps when it last changed', async () => {
+    at(OCT20);
+    await freshStorage();
+    state.shapes = sanitizeProjectData({ shapes: [circle('oak')] }).shapes;
+    state.bgImage = { dataUrl: IMG, naturalWidth: 4, naturalHeight: 4, ftPerPx: 1, cx: 0, cy: 0, rotation: 30, opacity: 0.6, visible: true };
+    state.bought = { 'ilex-vomitoria': { n: 2, at: OCT20 } };
+    save();
+    await flushSave();
+    at(OCT25);
+    const side = await createProject('Side yard', sanitizeProjectData({ shapes: [circle('fern')], zoom: 2, bgImage: { dataUrl: IMG, naturalWidth: 4, naturalHeight: 4, ftPerPx: 1, cx: 0, cy: 0, rotation: 0, opacity: 0.5, visible: true } }));
+    const cabin = await createProject('Cabin', sanitizeProjectData({ shapes: [circle('pine'), circle('birch')] }));
+    const { text } = await buildBackupFile();
+    at(NOV1);
+    // Since the backup: the open plan zoomed and panned (not a change to it), and Cabin deleted.
+    state.zoom = 3; state.offsetX = 40; state.offsetY = -7;
+    await deleteProject(cabin);
+    // The file's Side yard zoomed and its photo's storage id other: still the same plan. Its My Garden's oak moved: not.
+    const file = JSON.parse(text);
+    const fileSide = file.projects.find((p: { name: string }) => p.name === 'Side yard');
+    Object.assign(fileSide.data, { zoom: 0.5, offsetX: 99 });
+    fileSide.data.bgImage.imageId = 'elsewhere';
+    const fileGarden = file.projects.find((p: { name: string }) => p.name === 'My Garden');
+    fileGarden.data.shapes[0].x += 5;
+    const { ids, skipped } = await importProjects(parseImportFile(JSON.stringify(file)));
+    expect(skipped).toBe(1);
+    expect(ids.map((id) => state.projects.find((p) => p.id === id)!.name).sort()).toEqual(['Cabin', 'My Garden (2)']);
+    expect(state.projects.map((p) => p.name).sort()).toEqual(['Cabin', 'My Garden', 'My Garden (2)', 'Side yard']);
+    expect(state.projects.find((p) => p.id === side)).toBeTruthy();
+    // When each last changed, from the file: not the import's time.
+    const meta = (name: string) => state.projects.find((p) => p.name === name)!;
+    expect(meta('Cabin').lastModified).toBe(OCT25);
+    expect(meta('My Garden (2)').lastModified).toBe(OCT20);
+    expect((await readProject(meta('Cabin').id))!.shapes.map((x) => x.label)).toEqual(['pine', 'birch']);
+    // Brought back again: all here now, nothing new.
+    expect(await importProjects(parseImportFile(JSON.stringify(file)))).toEqual({ ids: [], skipped: 3 });
+  });
+
+  it('the same plan is its name, give or take a "(2)", and its content as a file has it: not how it is viewed on a device', () => {
+    const bg = { dataUrl: IMG, naturalWidth: 4, naturalHeight: 4, ftPerPx: 1, cx: 0, cy: 0, rotation: 30, opacity: 0.6, visible: true };
+    const base = sanitizeProjectData({ shapes: [circle('oak'), circle('ash')], bgImage: bg, bought: { 'ilex-vomitoria': { n: 2, at: 5 } }, phases: ['Fall'] });
+    const same = planContent(base);
+    const with_ = (patch: Partial<ProjectData>) => planContent({ ...base, ...patch });
+    const shapes = (...labels: string[]) => sanitizeProjectData({ shapes: labels.map(circle) }).shapes;
+    // How it's viewed, and where its photo is kept: the same.
+    expect(with_({ zoom: 4, offsetX: 1, offsetY: 2, viewFilter: { status: 'planned', phase: '', showGone: false }, photoElsewhere: null })).toBe(same);
+    expect(with_({ bgImage: { ...bg, imageId: 'abc', fingerprint: 'f00', deviceOnly: true } })).toBe(same);
+    // (Its keys in another order, as another version might write them: the same.)
+    expect(planContent(sanitizeProjectData(JSON.parse(JSON.stringify({ phases: ['Fall'], bought: { 'ilex-vomitoria': { at: 5, n: 2 } }, bgImage: bg, shapes: [circle('oak'), circle('ash')] }))))).toBe(same);
+    // A bed's conditions cleared on purpose ({}) and a fruit warning shown again ('') are none, as sync reads them
+    // (the review, Nov 4): no "(2)" for a plan that differs only by one. Answers or a dismissal: another plan.
+    const marked = (extra: Record<string, unknown>) => planContent({ ...base, shapes: sanitizeProjectData({ shapes: [{ ...circle('oak'), ...extra }, circle('ash')] }).shapes });
+    expect(marked({ fruitDismissed: '' })).toBe(same);
+    expect(marked({ fruitDismissed: 'Oak needs a partner' })).not.toBe(same);
+    const bedOf = (conditions?: Record<string, unknown>) => planContent({ ...base, shapes: sanitizeProjectData({ shapes: [{ id: 'b', type: 'rect', x: 0, y: 0, width: 8, height: 4, rotation: 0, color: '#a16207', label: 'Bed', opacity: 0.4, locked: false, role: 'bed', ...(conditions ? { conditions } : {}) }] }).shapes });
+    expect(bedOf({})).toBe(bedOf());
+    expect(bedOf({ soil: 'clay' })).not.toBe(bedOf());
+    // Its name, or a copy's: one name. Another name: another plan.
+    expect([sameName('Back yard', ' Back yard '), sameName('Back yard', 'Back yard (2)'), sameName('Back yard (3)', 'Back yard')]).toEqual([true, true, true]);
+    expect([sameName('Back yard', 'Front yard'), sameName('Back yard', 'Back yard 2'), sameName('Back yard', 'back yard')]).toEqual([false, false, false]);
+    // Anything else: another plan.
+    expect(with_({ shapes: shapes('oak') })).not.toBe(same);
+    expect(with_({ shapes: shapes('ash', 'oak') })).not.toBe(same); // (drawn in another order)
+    expect(with_({ bought: { 'ilex-vomitoria': { n: 1, at: 5 } } })).not.toBe(same);
+    expect(with_({ bgImage: { ...bg, opacity: 0.7 } })).not.toBe(same);
+    expect(with_({ bgImage: { ...bg, dataUrl: IMG + 'B' } })).not.toBe(same);
+    expect(with_({ bgImage: null })).not.toBe(same);
+    expect(with_({ phases: [] })).not.toBe(same);
+    expect(with_({ location: { zip: '71923', zone: '8a' } })).not.toBe(same);
+    expect(with_({ household: { kids: true, dogs: '', cats: false, horses: false, answered: true, at: 3 } })).not.toBe(same);
+  });
+
+  it('a file\'s "last modified": kept; none, or one from before FullGrown made plans, is the import\'s time; one ahead of the clock is now', () => {
+    at(NOV1);
+    const file = (lastModified: unknown) => JSON.stringify({ format: 'landscape-planner-project', version: 1, project: { name: 'P', lastModified, data: { shapes: [] } } });
+    expect(parseImportFile(file(OCT20))[0].lastModified).toBe(OCT20);
+    for (const v of [undefined, 1, 0, -5, 'yesterday', Number.NaN]) expect(parseImportFile(file(v))[0].lastModified).toBe(NOV1);
+    expect(parseImportFile(file(NOV1 + 86_400_000))[0].lastModified).toBe(NOV1);
+  });
+
+  it('says what came in, and what was here already', () => {
+    expect(importSaid(1, 0, 0)).toBe('Imported 1 project');
+    expect(importSaid(3, 0, 2)).toBe('Imported 3 projects and 2 of your plants');
+    expect(importSaid(1, 2, 0)).toBe('Imported 1 project; 2 already here, skipped');
+    expect(importSaid(0, 1, 0)).toBe('That project is already here, so none were imported');
+    expect(importSaid(0, 3, 1)).toBe('All 3 projects are already here, so none were imported; added 1 of your plants');
   });
 });
 
@@ -786,6 +908,263 @@ describe('trees with a trunk and a shaped canopy', () => {
   });
 });
 
+// A fruit-partner warning dismissed for one plant alone (Jason, Nov 1, from the warnings bug hunt: "Just this one"
+// brought the warning back, there being nowhere to keep it). Kept on the shape as a hardiness or poison warning
+// dismissed for one is: its words, so it comes back if they change. Nothing to convert: a plan without it has none
+// dismissed. An older version (the release, an old tab) leaves it out, as it does any field it doesn't know: the warning
+// shows again there, and nothing else changes (tests/fixtures/release-migrate-shape.ts is the release's migrateShape).
+describe('a fruit-partner warning dismissed for one plant (fruitDismissed, Nov 1)', () => {
+  const said = "American holly 'Clarendon Spreading' is a female: it needs a male of its kind nearby to fruit";
+  const holly = (extra: Record<string, unknown> = {}) => ({
+    id: 'h', type: 'circle', x: 5, y: 5, radius: 3, color: '#14532d', label: "American holly 'Clarendon Spreading'", opacity: 0.65, locked: false,
+    role: 'plant', plantId: 'ilex-opaca-clarendon-spreading', sizeFrom: 'plant', ...extra,
+  });
+  /** A plant with most everything a plant can have, its own dismissals of every other kind among them. */
+  const everything = (extra: Record<string, unknown> = {}) => holly({
+    id: 'all', sizeFrom: 'manual', tree: true, trunk: 1, treeHeight: 30, lowestBranch: 5, canopy: [[-2, -2], [2, -2], [2, 2], [-2, 2]],
+    crowdOk: ['h'], climbsOn: '', colorSet: true, flowerColor: 'white', kind: 'tree', status: 'planted', plantedOn: '2026-10-01', phase: 'Fall 2026',
+    sunDismissed: 'American holly gets about 2 h of sun here; it prefers full sun to part shade.', hardyDismissed: "Too cold for zone 8a: it's rated for zones 9–11",
+    poisonDismissed: 'Poisonous to people', utilityDismissed: 'wire:near', ...extra,
+  });
+  /** Other shapes, as a plan has them. */
+  const others = () => [
+    { id: 'bed', type: 'rect', x: 0, y: 0, width: 10, height: 4, rotation: 15, color: '#a16207', label: 'Front bed', opacity: 0.4, locked: true, role: 'bed', carryPlants: false },
+    { id: 'house', type: 'poly', x: 0, y: 0, points: [[0, 0], [20, 0], [20, 12], [0, 12]], rotation: 0, color: '#78716c', label: 'House', opacity: 0.6, locked: false, role: 'building', features: [{ id: 'd1', kind: 'door', edge: 0, at: 0.5, width: 3 }] },
+    { id: 'wire', type: 'line', x: 0, y: 30, points: [[0, 0], [40, 0]], rotation: 0, color: '#ea580c', label: 'Power line', opacity: 1, locked: false, role: 'utility', utility: 'overhead' },
+    { id: 'note', type: 'text', x: 3, y: 3, fontSize: 1.5, rotation: 0, color: '#000000', label: 'Septic lid here', opacity: 1, locked: false },
+  ];
+
+  it("is kept with the shape as a hardiness or poison dismissal is: an odd one dropped, a long one cut to 300; '' kept, shown again on purpose", () => {
+    const d = sanitizeProjectData({ shapes: [
+      holly({ id: 'a', fruitDismissed: said }), holly({ id: 'b', fruitDismissed: 7 }), holly({ id: 'c', fruitDismissed: '' }),
+      holly({ id: 'd', fruitDismissed: { said } }), holly({ id: 'e', fruitDismissed: 'x'.repeat(400) }), holly({ id: 'f', fruitDismissed: null }),
+    ] });
+    expect(d.shapes[0]).toMatchObject({ fruitDismissed: said });
+    for (const s of [d.shapes[1], d.shapes[3], d.shapes[5]]) expect('fruitDismissed' in s).toBe(false);
+    expect(d.shapes[4].fruitDismissed).toBe('x'.repeat(300)); // (as hardyDismissed and poisonDismissed are)
+    // ('' is a warning shown again on purpose, as a utility warning's is: kept, so sync doesn't fill it back from another
+    // device's copy, src/sync/engine.ts withFruitDismissals. The release drops it as it does the rest.)
+    expect(d.shapes[2].fruitDismissed).toBe('');
+    expect(releaseMigrateShape(d.shapes[2])).not.toHaveProperty('fruitDismissed');
+    // (Pasted as a stored plan's shapes are read: src/mutations.ts paste.)
+    expect(migrateShape(JSON.parse(JSON.stringify(holly({ fruitDismissed: said }))))).toMatchObject({ fruitDismissed: said });
+  });
+
+  it('is saved and opened again, in a backup file, and in what sync sends, as it was', async () => {
+    await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = sanitizeProjectData({ shapes: [holly({ fruitDismissed: said }), holly({ id: 'h2' }), everything({ fruitDismissed: said }), ...others()] }).shapes;
+    expect(state.shapes[0].fruitDismissed).toBe(said);
+    save();
+    await flushSave();
+    const loaded = (await readProject(id))!.shapes;
+    expect(loaded).toEqual(state.shapes);
+    expect(loaded.map((s) => s.fruitDismissed)).toEqual([said, undefined, said, undefined, undefined, undefined, undefined]);
+    const file = await buildBackupFile();
+    expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
+    const sent = syncedContent((await readProject(id))!);
+    expect((sent.shapes as { fruitDismissed?: string }[])[0].fruitDismissed).toBe(said);
+    // (What sync sends, read back as a download is, is the same: src/sync/local.ts tidy.)
+    expect(canonical(syncedContent(sanitizeProjectData(JSON.parse(JSON.stringify(sent)))))).toBe(canonical(sent));
+  });
+
+  it("is in a support file (Send feedback) as in a backup, and comes back from it, '' too", async () => {
+    await freshStorage();
+    state.shapes = sanitizeProjectData({ shapes: [holly({ fruitDismissed: said }), holly({ id: 'h2', fruitDismissed: '' }), holly({ id: 'h3' })] }).shapes;
+    save();
+    await flushSave();
+    const info = { myPlants: [], app: { version: 'test', built: 'now', catalog: null }, device: {}, storage: {}, sync: {}, settings: {}, localData: [], otherKeys: [], errors: [] };
+    const text = JSON.stringify(buildSupportFile({ ...info, projects: await allExportedProjects(), includeImages: false, now: new Date() }));
+    const back = parseImportFile(text)[0].data.shapes;
+    expect(back.map((s) => s.fruitDismissed)).toEqual([said, '', undefined]);
+    expect(back).toEqual(state.shapes);
+  });
+
+  it('a plan without it reads exactly as before, as the release reads it: nothing dismissed, nothing to convert', () => {
+    const before = [holly(), holly({ id: 'h2', hardyDismissed: 'Too cold for zone 8a', poisonDismissed: 'Poisonous to people' }), everything(), ...others()];
+    const now = sanitizeProjectData({ shapes: before }).shapes;
+    expect(now).toEqual(before.map(releaseMigrateShape));
+    for (const s of now) expect('fruitDismissed' in s).toBe(false);
+    // (What it syncs is as before too: no new field, so its fingerprint doesn't change with the update.)
+    expect(canonical(syncedContent(sanitizeProjectData({ shapes: before })))).toBe(canonical(syncedContent(sanitizeProjectData({ shapes: before.map(releaseMigrateShape) }))));
+  });
+
+  it("the release leaves it out and nothing else; this version reads the release's save as not dismissed, and read again it's the same", () => {
+    const mine = sanitizeProjectData({ shapes: [holly({ fruitDismissed: said }), everything({ fruitDismissed: said }), ...others()] }).shapes;
+    // The release opens it: the field is left out, every other field of every shape as this version has it.
+    const read = JSON.parse(JSON.stringify(mine)).map(releaseMigrateShape);
+    expect(read).toEqual(mine.map(({ fruitDismissed: _f, ...rest }) => rest));
+    expect(read.every((s: object) => s && !('fruitDismissed' in s))).toBe(true);
+    // Read again (its next start, its sync's fingerprint of what it stored): the same, so it has nothing new to send.
+    expect(JSON.parse(JSON.stringify(read)).map(releaseMigrateShape)).toEqual(read);
+    // And back here: the same shapes, the warning not dismissed (the only thing lost), read the same twice.
+    const back = sanitizeProjectData({ shapes: JSON.parse(JSON.stringify(read)) }).shapes;
+    expect(back).toEqual(read);
+    expect(sanitizeProjectData({ shapes: JSON.parse(JSON.stringify(back)) }).shapes).toEqual(back);
+  });
+});
+
+// A bed's conditions (Plant this bed, Nov 2: the proposal's "What's stored, and the storage change"): the answers about a
+// bed, kept on the bed shape. On a bed only, each part checked: a word a later version adds is kept as it came (as a
+// utility's kind is); a part that isn't one is dropped and the rest kept, never the plan; {} (cleared on purpose) is
+// kept. An older version leaves the field out, as it does any field it doesn't know
+// (tests/fixtures/release-migrate-shape.ts is the release's migrateShape); a version-3 page is kept from saving over a
+// plan saved at 4 (src/db.ts DB_VERSION: below, "an older version never saves over a newer one").
+describe("a bed's conditions (conditions, Plant this bed, Nov 2)", () => {
+  const ALL = { sun: { most: 'Full', least: 'Part' }, soil: 'clay', moisture: 'average', drip: true };
+  const bed = (extra: Record<string, unknown> = {}) => ({
+    id: 'bed', type: 'rect', x: 0, y: 0, width: 12, height: 4, rotation: 15, color: '#a16207', label: 'Front bed', opacity: 0.4, locked: false, role: 'bed', ...extra,
+  });
+  /** The conditions a bed has, read as a stored plan's shapes are (and whether it has the field at all). */
+  const read = (conditions: unknown) => {
+    const s = sanitizeProjectData({ shapes: [bed({ conditions })] }).shapes[0];
+    return 'conditions' in s ? s.conditions : 'none';
+  };
+  /** Other shapes, as a plan has them, each given conditions too (only a bed keeps them). */
+  const others = (conditions?: unknown) => [
+    { id: 'aster', type: 'circle', x: 2, y: 2, radius: 1, color: '#7c3aed', label: 'Aromatic aster', opacity: 0.65, locked: false, role: 'plant', plantId: 'symphyotrichum-oblongifolium', sizeFrom: 'plant', status: 'planned', conditions },
+    { id: 'lawn', type: 'poly', x: 0, y: 10, points: [[0, 0], [20, 0], [20, 8], [0, 8]], rotation: 0, color: '#65a30d', label: 'Lawn', opacity: 0.3, locked: false, role: 'lawn', conditions },
+    { id: 'shade', type: 'oval', x: 0, y: 0, width: 10, height: 6, rotation: 0, color: '#facc15', label: 'Oak shade', opacity: 0.2, locked: false, role: 'shade', sun: { mode: 'hours', periods: [], hours: 3, dappled: true }, conditions },
+    { id: 'plain', type: 'rect', x: 30, y: 0, width: 4, height: 4, rotation: 0, color: '#78716c', label: 'Something', opacity: 0.5, locked: false, conditions },
+    { id: 'note', type: 'text', x: 3, y: 3, fontSize: 1.5, rotation: 0, color: '#000000', label: 'Septic lid here', opacity: 1, locked: false, conditions },
+  ];
+
+  it('is kept on a bed as answered: every word this version asks, Not sure an answer too, on a bed of any shape', () => {
+    expect(read(ALL)).toEqual(ALL);
+    for (const soil of ['clay', 'loam', 'sand', 'rocky', 'unsure']) expect(read({ soil })).toEqual({ soil });
+    for (const moisture of ['dry', 'average', 'wet', 'unsure']) expect(read({ moisture })).toEqual({ moisture });
+    for (const most of ['Full', 'Part', 'Shade']) for (const least of ['Full', 'Part', 'Shade']) expect(read({ sun: { most, least } })).toEqual({ sun: { most, least } });
+    expect(read({ sun: 'unsure', soil: 'unsure', moisture: 'unsure' })).toEqual({ sun: 'unsure', soil: 'unsure', moisture: 'unsure' });
+    expect(read({ drip: true, moisture: 'wet' })).toEqual({ drip: true, moisture: 'wet' });
+    const beds = [
+      bed({ id: 'r', conditions: ALL }), bed({ id: 'o', type: 'oval', conditions: ALL }), bed({ id: 't', type: 'triangle', rightAngle: 'tl', conditions: ALL }),
+      bed({ id: 'p', type: 'poly', points: [[0, 0], [8, 0], [4, 6]], conditions: ALL }), { ...bed({ id: 'c', conditions: ALL }), type: 'circle', radius: 5 },
+    ];
+    expect(sanitizeProjectData({ shapes: beds }).shapes.map((s) => [s.id, s.conditions])).toEqual(['r', 'o', 't', 'p', 'c'].map((id) => [id, ALL]));
+  });
+
+  it('soil Rocky (Jason, Nov 5): kept through a save and a reload; no store or version change, read as it was before', () => {
+    // (sanitizeBedConditions is unchanged by it: versions from DB_VERSION 4 on kept 'rocky' as a later word already,
+    // sending it on unchanged; src/bed-plant.ts bedRules filters nothing by a word it doesn't know.)
+    const saved = JSON.parse(JSON.stringify(sanitizeProjectData({ shapes: [bed({ id: 'r', conditions: { soil: 'rocky', moisture: 'dry', drip: true } })] })));
+    expect(sanitizeProjectData(saved).shapes[0].conditions).toEqual({ soil: 'rocky', moisture: 'dry', drip: true });
+    expect(read({ soil: 'rocky', ph: 'acid' })).toEqual({ soil: 'rocky', ph: 'acid' });
+  });
+
+  it("a part that isn't one is dropped and the rest kept, never the plan; a question a later version adds, kept as it came", () => {
+    expect(read({ soil: 7, moisture: 'wet' })).toEqual({ moisture: 'wet' });
+    expect(read({ sun: { most: 'Full' }, soil: 'clay' })).toEqual({ soil: 'clay' }); // (a sun without both its ends)
+    expect(read({ sun: ['Full', 'Part'], moisture: 'dry' })).toEqual({ moisture: 'dry' });
+    expect(read({ sun: { most: 'Full', least: 3 }, drip: 'yes', soil: 'loam' })).toEqual({ soil: 'loam' });
+    expect(read({ drip: false, soil: 'x'.repeat(40), moisture: 'wet' })).toEqual({ moisture: 'wet' });
+    expect(read({ soil: '<b>clay</b>', moisture: 'very wet', sun: '', drip: 1, ph: 'acid' })).toEqual({ ph: 'acid' });
+    expect(read({ soil: '<b>clay</b>', moisture: 'very wet', sun: '', drip: 1 })).toBe('none');
+    // (A later version's question: kept when its answer is a word or true, so this device's next upload doesn't lose
+    // it for everyone (the review, Nov 4); not one whose name or answer isn't plain, nor past twelve of them.)
+    expect(read({ ph: 'acid', soil: 'sand' })).toEqual({ soil: 'sand', ph: 'acid' });
+    expect(read({ mulched: true, soil: 'sand' })).toEqual({ soil: 'sand', mulched: true });
+    expect(read({ ph: 7, Shade: 'x', 'pH-level': 'acid', constructor: 'x', toString: 'x', __proto__x: 'y', soil: 'sand' })).toEqual({ soil: 'sand' });
+    const many = Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`q${i}`, 'yes']));
+    expect(Object.keys(read({ ...many, soil: 'sand' }) as object)).toHaveLength(13);
+    expect(read({ sun: { most: 'Full', least: 'Part', hours: 5 } })).toEqual({ sun: { most: 'Full', least: 'Part' } });
+    // Not conditions at all: none. Nothing that could be kept: none too, not taken for cleared on purpose (so sync can
+    // still fill them back from a device that has them, src/sync/engine.ts withBedConditions).
+    for (const odd of ['clay', 7, null, true, [], ['clay'], { soil: 7 }, { drip: false }, { ph: 7 }]) expect(read(odd), JSON.stringify(odd)).toBe('none');
+    // Never the plan: every shape is there, as it was, whatever a bed's conditions hold.
+    const plan = sanitizeProjectData({ shapes: [bed({ conditions: { soil: { texture: 'clay' }, moisture: 'wet' } }), bed({ id: 'b2', conditions: 'clay' }), ...others()] });
+    expect(plan.shapes.map((s) => s.id)).toEqual(['bed', 'b2', 'aster', 'lawn', 'shade', 'plain', 'note']);
+    expect(plan.shapes[0].conditions).toEqual({ moisture: 'wet' });
+  });
+
+  it("a word a later version adds is kept as it came, as a utility's kind is; the release drops the field", () => {
+    const later = { sun: { most: 'Dappled', least: 'Shade' }, soil: 'silt', moisture: 'boggy', drip: true };
+    expect(read(later)).toEqual(later);
+    expect(read({ sun: 'varies' })).toEqual({ sun: 'varies' });
+    expect(sanitizeProjectData({ shapes: [bed({ conditions: later })] }).shapes.map(releaseMigrateShape)[0]).not.toHaveProperty('conditions');
+  });
+
+  it("{} is kept: cleared on purpose (so sync doesn't fill it back), not the same as none", () => {
+    expect(read({})).toEqual({});
+    expect(read(undefined)).toBe('none');
+    // (Read again, the same.)
+    const once = sanitizeProjectData({ shapes: [bed({ conditions: {} })] }).shapes;
+    expect(sanitizeProjectData({ shapes: JSON.parse(JSON.stringify(once)) }).shapes).toEqual(once);
+  });
+
+  it('only on a bed: a plant, a lawn, a sun area, a shape not yet anything, a note are left without it', () => {
+    const shapes = sanitizeProjectData({ shapes: [bed({ conditions: ALL }), ...others(ALL)] }).shapes;
+    expect(shapes[0].conditions).toEqual(ALL);
+    for (const s of shapes.slice(1)) expect('conditions' in s, s.id).toBe(false);
+    // (Everything else about them as before: read as the release reads them.)
+    expect(shapes.slice(1)).toEqual(others(ALL).map((s) => { const { conditions: _c, ...rest } = s; return rest; }).map(releaseMigrateShape));
+    // (Pasted as a stored plan's shapes are read: src/mutations.ts paste.)
+    expect(migrateShape(JSON.parse(JSON.stringify(bed({ conditions: ALL }))))).toMatchObject({ conditions: ALL });
+    expect(migrateShape(JSON.parse(JSON.stringify({ ...bed({ conditions: ALL }), role: 'lawn' })))).not.toHaveProperty('conditions');
+  });
+
+  it('is saved and opened again, in a backup file, in a support file, and in what sync sends, as it was; {} too', async () => {
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = sanitizeProjectData({ shapes: [bed({ conditions: ALL }), bed({ id: 'b2', conditions: {} }), bed({ id: 'b3' }), bed({ id: 'b4', conditions: { soil: 'silt' } }), ...others()] }).shapes;
+    save();
+    await flushSave();
+    const loaded = (await readProject(id))!.shapes;
+    expect(loaded).toEqual(state.shapes);
+    expect(loaded.slice(0, 4).map((s) => s.conditions)).toEqual([ALL, {}, undefined, { soil: 'silt' }]);
+    _resetStorageForTests();
+    await initStorage(kv);
+    expect(state.shapes.slice(0, 4).map((s) => s.conditions)).toEqual([ALL, {}, undefined, { soil: 'silt' }]);
+    const file = await buildBackupFile();
+    expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
+    const info = { myPlants: [], app: { version: 'test', built: 'now', catalog: null }, device: {}, storage: {}, sync: {}, settings: {}, localData: [], otherKeys: [], errors: [] };
+    const support = JSON.stringify(buildSupportFile({ ...info, projects: await allExportedProjects(), includeImages: false, now: new Date() }));
+    expect(parseImportFile(support)[0].data.shapes).toEqual(state.shapes);
+    const sent = syncedContent((await readProject(id))!);
+    expect((sent.shapes as { conditions?: unknown }[]).slice(0, 4).map((s) => s.conditions)).toEqual([ALL, {}, undefined, { soil: 'silt' }]);
+    // (What sync sends, read back as a download is, is the same: src/sync/local.ts tidy.)
+    expect(canonical(syncedContent(sanitizeProjectData(JSON.parse(JSON.stringify(sent)))))).toBe(canonical(sent));
+  });
+
+  it('a plan without it reads exactly as before, as the release reads it: nothing gained, nothing to convert', () => {
+    const before = [bed(), bed({ id: 'b2', carryPlants: false, status: 'planned', phase: 'Fall 2026' }), ...others()];
+    const now = sanitizeProjectData({ shapes: before }).shapes;
+    expect(now).toEqual(before.map(releaseMigrateShape));
+    for (const s of now) expect('conditions' in s).toBe(false);
+    // (What it syncs is as before too: no new field, so its fingerprint doesn't change with the update.)
+    expect(canonical(syncedContent(sanitizeProjectData({ shapes: before })))).toBe(canonical(syncedContent(sanitizeProjectData({ shapes: before.map(releaseMigrateShape) }))));
+  });
+
+  it("the release leaves it out and nothing else; this version reads the release's save as none, and read again it's the same", () => {
+    const mine = sanitizeProjectData({ shapes: [bed({ conditions: ALL }), bed({ id: 'b2', conditions: {} }), ...others()] }).shapes;
+    const read1 = JSON.parse(JSON.stringify(mine)).map(releaseMigrateShape);
+    expect(read1).toEqual(mine.map(({ conditions: _c, ...rest }) => rest));
+    expect(JSON.parse(JSON.stringify(read1)).map(releaseMigrateShape)).toEqual(read1);
+    const back = sanitizeProjectData({ shapes: JSON.parse(JSON.stringify(read1)) }).shapes;
+    expect(back).toEqual(read1);
+    expect(sanitizeProjectData({ shapes: JSON.parse(JSON.stringify(back)) }).shapes).toEqual(back);
+  });
+
+  it("a version from before Oct 11 run again: its edit comes in beside a plan whose bed's conditions were set here since, not over it", async () => {
+    localStorage.setItem('lp-projects', JSON.stringify([{ id: 'p1', name: 'Yard', lastModified: 1000 }]));
+    localStorage.setItem('lp-project-p1', JSON.stringify({ shapes: [bed({ role: undefined })] }));
+    const kv = await freshStorage();
+    // Made a bed and its conditions set here (an edit: later than the copy from that version).
+    laterBy(1000);
+    state.shapes = sanitizeProjectData({ shapes: [bed({ conditions: ALL })] }).shapes;
+    save(); await flushSave();
+    // That version runs once more and saves an edit to its own copy, which never had them.
+    const later = Date.now() + 60_000;
+    localStorage.setItem('lp-projects', JSON.stringify([{ id: 'p1', name: 'Yard', lastModified: later }]));
+    localStorage.setItem('lp-project-p1', JSON.stringify({ shapes: [bed({ role: undefined }), circle('after')] }));
+    _resetStorageForTests();
+    await initStorage(kv);
+    expect(state.projects.map((p) => p.name).sort()).toEqual(['Yard', 'Yard (from older version)']);
+    expect((await stored(kv, 'p1')).shapes).toEqual([expect.objectContaining({ id: 'bed', role: 'bed', conditions: ALL })]);
+    const copy = state.projects.find((p) => p.name === 'Yard (from older version)')!;
+    expect((await readProject(copy.id))!.shapes.map((s) => [s.label, 'conditions' in s])).toEqual([['Front bed', false], ['after', false]]);
+  });
+});
+
 describe('My plants with their own color', () => {
   it('keep a plain hex color across a restart, and drop anything else', async () => {
     const mp = await import('../src/my-plants'); // a namespace, so myPlants stays a live binding
@@ -905,6 +1284,39 @@ describe('synced background photos', () => {
     await kv.write([put('kv', 'syncRecords', { [a]: { revision: 2, hash: 'h', photo: `${FP}@abc:1x` }, [b]: { revision: 1, hash: 'h', photo: '../../x' }, old: { revision: 1, hash: 'h' } })]);
     _resetStorageForTests(); await initStorage(kv);
     expect(getSyncRecords()).toEqual({ [a]: { revision: 2, hash: 'h', photo: `${FP}@abc:1x` }, [b]: { revision: 1, hash: 'h' }, old: { revision: 1, hash: 'h' } });
+  });
+
+  it('sync records keep which shapes had a bed\'s conditions or a fruit dismissal on the server (where a mark may go: src/marks.ts), across a restart; anything else dropped', async () => {
+    const { getSyncRecords, createProject } = await import('../src/storage');
+    const kv = await freshStorage();
+    const a = await createProject('A'), b = await createProject('B');
+    await kv.write([put('kv', 'syncRecords', {
+      [a]: { revision: 2, hash: 'h', marks: { conditions: ['bed1', 7, '<b>', 'x'.repeat(200)], fruit: ['p:1'] } },
+      [b]: { revision: 1, hash: 'h', marks: { conditions: 'bed1', fruit: [] } },
+      c: { revision: 1, hash: 'h', held: true, marks: { fruit: ['p:2'] } }, // (held as an early test build kept it)
+    })]);
+    _resetStorageForTests(); await initStorage(kv);
+    expect(getSyncRecords()).toEqual({ [a]: { revision: 2, hash: 'h', marks: { conditions: ['bed1'], fruit: ['p:1'] } }, [b]: { revision: 1, hash: 'h' }, c: { revision: 1, hash: 'h', held: 'room', marks: { fruit: ['p:2'] } } });
+  });
+
+  it("sync records keep the core's fingerprint without beds' conditions (`bare`, Nov 5) beside the core, across a restart, a deleted plan's too; anything else dropped; records from before it read as they were", async () => {
+    const { getSyncRecords, getSyncDeletedRecord, setSyncRecord, createProject, deleteProject } = await import('../src/storage');
+    const kv = await freshStorage();
+    const a = await createProject('A'), gone = await createProject('Gone');
+    await setSyncRecord(a, { revision: 3, hash: 'h1:a', core: 'c2:b', bare: 'b3:c', marks: { conditions: ['bed1'] } });
+    await setSyncRecord(gone, { revision: 2, hash: 'h4:d', core: 'c5:e', bare: 'b6:f' });
+    await deleteProject(gone);
+    _resetStorageForTests(); await initStorage(kv);
+    expect(getSyncRecords()).toEqual({ [a]: { revision: 3, hash: 'h1:a', core: 'c2:b', bare: 'b3:c', marks: { conditions: ['bed1'] } } });
+    expect(getSyncDeletedRecord(gone)).toEqual({ revision: 2, hash: 'h4:d', core: 'c5:e', bare: 'b6:f' });
+    await kv.write([put('kv', 'syncRecords', {
+      odd: { revision: 1, hash: 'h', core: 'c1:a', bare: '<b>' },
+      noCore: { revision: 1, hash: 'h', bare: 'b1:a' }, // (only beside the core it was made with)
+      oddCore: { revision: 1, hash: 'h', core: 'not one!', bare: 'b1:a' },
+      old: { revision: 4, hash: 'h', core: 'c1:a' }, // (from before it: compared as before, src/sync/engine.ts)
+    })]);
+    _resetStorageForTests(); await initStorage(kv);
+    expect(getSyncRecords()).toEqual({ odd: { revision: 1, hash: 'h', core: 'c1:a' }, noCore: { revision: 1, hash: 'h' }, oddCore: { revision: 1, hash: 'h' }, old: { revision: 4, hash: 'h', core: 'c1:a' } });
   });
 });
 
@@ -1148,12 +1560,12 @@ describe("the Plant list's ticks, kept with the plan (Jason, Nov 1)", () => {
     const { text } = await buildBackupFile();
     expect(JSON.parse(text).projects[0].data.bought).toEqual({ 'ilex-vomitoria': { n: 2, at: 10 } });
     await freshStorage();
-    const [id] = await importProjects(parseImportFile(text));
+    const { ids: [id] } = await importProjects(parseImportFile(text));
     expect((await readProject(id))!.bought).toEqual({ 'ilex-vomitoria': { n: 2, at: 10 } });
     // A backup made by the version before: the same file, with no ticks in it.
     const old = JSON.parse(text);
     delete old.projects[0].data.bought;
-    const [oldId] = await importProjects(parseImportFile(JSON.stringify(old)));
+    const { ids: [oldId] } = await importProjects(parseImportFile(JSON.stringify(old)));
     const restored = (await readProject(oldId))!;
     expect(restored.bought).toBeUndefined();
     expect(restored.shapes.map((x) => x.label)).toEqual(['one']);
@@ -1202,7 +1614,7 @@ describe("who's in the yard, kept with the plan (Jason, Nov 1)", () => {
     expect(household()).toEqual({ ...NO_YARD, kids: true, answered: true, at: expect.any(Number) });
     await switchProject('p2');
     expect(household()).toEqual({ ...NO_YARD, dogs: 'nonToxic', answered: true });
-    expect([plantFilter.noPoison, plantFilter.dogs]).toEqual([false, 'nonToxic']);
+    expect([plantFilter.noPoison, plantFilter.dogs]).toEqual([false, 'hideToxic']); // (kept as 'nonToxic', from before Nov 5: Dogs on)
     await switchProject('p1');
     expect([plantFilter.noPoison, plantFilter.dogs]).toEqual([true, '']);
     _resetStorageForTests();
@@ -1231,11 +1643,11 @@ describe("who's in the yard, kept with the plan (Jason, Nov 1)", () => {
     const { text } = await buildBackupFile();
     localStorage.setItem('lp-yard', JSON.stringify({ ...NO_YARD, cats: true })); // (the device it's restored on)
     await freshStorage();
-    const [id] = await importProjects(parseImportFile(text));
+    const { ids: [id] } = await importProjects(parseImportFile(text));
     expect((await readProject(id))!.household).toEqual({ ...dogsAndKids, answered: true, at: expect.any(Number) });
     const old = JSON.parse(text);
     delete old.projects[0].data.household;
-    const [oldId] = await importProjects(parseImportFile(JSON.stringify(old)));
+    const { ids: [oldId] } = await importProjects(parseImportFile(JSON.stringify(old)));
     expect((await readProject(oldId))!.household).toEqual({ ...NO_YARD, cats: true, answered: true });
     expect(sanitizeHousehold({ kids: 'yes', dogs: 'wolves', cats: true, horses: 1, answered: 'no', at: -3 })).toEqual({ ...NO_YARD, cats: true, answered: false });
     expect([sanitizeHousehold('kids'), sanitizeHousehold([true])]).toEqual([undefined, undefined]);
@@ -1431,12 +1843,12 @@ describe('the warning switches, kept with the plan (Jason, Nov 1)', () => {
     expect(JSON.parse(text).projects[0].data.switches.poisonWarnings).toEqual({ on: false, at: expect.any(Number) });
     localStorage.setItem('lp-crowd-warn', 'off'); // (the device it's restored on)
     await freshStorage();
-    const [id] = await importProjects(parseImportFile(text));
+    const { ids: [id] } = await importProjects(parseImportFile(text));
     await switchProject(id);
     expect(on()).toEqual([true, true, true, false, true]);
     const old = JSON.parse(text);
     delete old.projects[0].data.switches;
-    const [oldId] = await importProjects(parseImportFile(JSON.stringify(old)));
+    const { ids: [oldId] } = await importProjects(parseImportFile(JSON.stringify(old)));
     await switchProject(oldId);
     expect(on()).toEqual([true, false, true, true, true]);
     expect(sanitizeSwitches({ showCrowding: { on: false, at: 3 }, crowdWarnings: { on: 'no' }, hardyWarnings: { on: true, at: -1 }, sunWarnings: { on: false }, poisonWarnings: 7 }))
@@ -1469,5 +1881,1350 @@ describe('a photo not to scale yet (Oct 30)', () => {
     expect(ref).toMatchObject({ fingerprint: fp, uncalibrated: true });
     expect(sanitizePhotoRef(ref)).toMatchObject({ uncalibrated: true });
     expect('uncalibrated' in (sanitizePhotoRef(photoRefOf(raw, fp)) as object)).toBe(false);
+  });
+});
+
+// The two fields database version 5 added (Nov 4): a photo's rough scale, and the sides of a shape typed as numbers.
+// Each kept where it belongs, checked, through every path a plan takes; older plans read exactly as before; the release
+// (and every version before this) leaves them out and nothing else.
+describe("a photo's rough scale (roughScale, Nov 4)", () => {
+  const FP = 'b'.repeat(64);
+  const raw = { dataUrl: IMG, naturalWidth: 40, naturalHeight: 30, ftPerPx: 0.25, cx: 1, cy: 2, rotation: 0, opacity: 0.6, visible: true };
+  it('is kept as true, with a scale set; anything else is none, and "not to scale yet" wins over it', () => {
+    expect(migrateBgImage({ ...raw, roughScale: true })).toMatchObject({ roughScale: true });
+    for (const odd of [false, 'yes', 1, null, {}]) expect('roughScale' in migrateBgImage({ ...raw, roughScale: odd as unknown as true }), String(odd)).toBe(false);
+    const both = migrateBgImage({ ...raw, roughScale: true, uncalibrated: true });
+    expect([both.uncalibrated, 'roughScale' in both]).toEqual([true, false]);
+    // (A photo without it, as before: nothing gained, as the release reads it.)
+    expect(migrateBgImage(raw)).toEqual(releaseMigrateBgImage(raw));
+    expect('roughScale' in migrateBgImage(raw)).toBe(false);
+  });
+  it('goes with the photo as sync carries it, and comes back from it; a photo without it syncs exactly as before', () => {
+    const ref = photoRefOf({ ...raw, roughScale: true }, FP);
+    expect(ref).toMatchObject({ fingerprint: FP, roughScale: true });
+    expect(sanitizePhotoRef(ref)).toEqual(ref);
+    expect(sanitizePhotoRef(JSON.parse(JSON.stringify(ref)))).toEqual(ref);
+    expect(photoRefOf(raw, FP)).toEqual(releasePhotoRefOf(raw, FP));
+    expect(sanitizePhotoRef({ ...photoRefOf(raw, FP), roughScale: 'yes' })).toEqual(photoRefOf(raw, FP));
+    // The release leaves it out, and nothing else.
+    expect(releaseSanitizePhotoRef(ref)).toEqual(photoRefOf(raw, FP));
+    expect(releaseMigrateBgImage({ ...raw, roughScale: true })).toEqual(migrateBgImage(raw));
+  });
+  it('is saved and opened again, in a backup file, a support file, the journal, and a plan waiting for its photo, as it was', async () => {
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    state.bgImage = { ...raw, fingerprint: FP, roughScale: true };
+    save(); await flushSave();
+    expect((await stored(kv, id)).bgImage).toMatchObject({ roughScale: true });
+    _resetStorageForTests(); await initStorage(kv);
+    expect(state.bgImage).toMatchObject({ roughScale: true, ftPerPx: 0.25 });
+    const file = await buildBackupFile();
+    expect(parseImportFile(file.text)[0].data.bgImage).toMatchObject({ roughScale: true, dataUrl: IMG });
+    const info = { myPlants: [], app: { version: 'test', built: 'now', catalog: null }, device: {}, storage: {}, sync: {}, settings: {}, localData: [], otherKeys: [], errors: [] };
+    const support = JSON.stringify(buildSupportFile({ ...info, projects: await allExportedProjects(), includeImages: true, now: new Date() }));
+    expect(parseImportFile(support)[0].data.bgImage).toMatchObject({ roughScale: true });
+    // Unsaved, it's in the journal, and the journal put in place keeps it.
+    delete state.bgImage!.roughScale; state.bgImage!.ftPerPx = 0.3; save();
+    state.bgImage!.roughScale = true; save();
+    writeJournalIfDirty();
+    expect(journals()).toContain('"roughScale":true');
+    _resetStorageForTests(); await initStorage(kv);
+    expect(state.bgImage).toMatchObject({ roughScale: true, ftPerPx: 0.3 });
+    // A plan whose photo hasn't come down yet keeps it on the reference it waits with.
+    const { createProject, readProject } = await import('../src/storage');
+    const waiting = await createProject('Waiting', { ...sanitizeProjectData({}), photoElsewhere: photoRefOf({ ...raw, roughScale: true }, FP) });
+    _resetStorageForTests(); await initStorage(kv);
+    expect((await readProject(waiting))!.photoElsewhere).toMatchObject({ roughScale: true });
+  });
+  it('a synced placement of the same photo is the whole of how it sits: one without the flag clears it here, one with it sets it; "not to scale yet" alike', () => {
+    // (Found Nov 4, building this: the photo here kept its own uncalibrated where the incoming one had none, so a scale
+    // set on another device stayed "not to scale yet" here, and went back up so with this device's next edit, for every
+    // device. The release does so still: releasePlacePhoto, below.)
+    const base = { ...sanitizeProjectData({}), bgImage: { ...raw, imageId: 'img1', fingerprint: FP, uncalibrated: true as const } };
+    const calibrated = sanitizePhotoRef({ fingerprint: FP, ...raw, dataUrl: undefined, ftPerPx: 0.5 })!;
+    expect(placePhoto(base, FP, calibrated).bgImage).toEqual({ ...raw, imageId: 'img1', fingerprint: FP, ftPerPx: 0.5 });
+    expect(releasePlacePhoto(base, FP, calibrated).bgImage).toMatchObject({ ftPerPx: 0.5, uncalibrated: true });
+    const roughHere = { ...base, bgImage: { ...raw, imageId: 'img1', fingerprint: FP, roughScale: true as const } };
+    expect(placePhoto(roughHere, FP, calibrated).bgImage).not.toHaveProperty('roughScale');
+    expect(placePhoto(base, FP, { ...calibrated, roughScale: true }).bgImage).toEqual({ ...raw, imageId: 'img1', fingerprint: FP, ftPerPx: 0.5, roughScale: true });
+    // (Its bytes and storage id stay this device's; kept on this device only, still so.)
+    const kept = { ...base, bgImage: { ...base.bgImage, deviceOnly: true as const } };
+    expect(placePhoto(kept, FP, calibrated).bgImage).toMatchObject({ dataUrl: IMG, imageId: 'img1' });
+  });
+});
+
+describe('sides typed as numbers (measured, Nov 4)', () => {
+  const M = [{ side: 0, ft: 30 }, { side: 2, ft: 30 }];
+  const house = (extra: Record<string, unknown> = {}) => ({ id: 'house', type: 'rect', x: 0, y: 0, width: 30, height: 20, rotation: 12, color: '#78716c', label: 'House', opacity: 0.8, locked: false, role: 'building', status: 'existing', ...extra });
+  const fence = (extra: Record<string, unknown> = {}) => ({ id: 'fence', type: 'line', x: 0, y: 30, points: [[0, 0], [40, 0], [40, 25]], rotation: 0, color: '#57534e', label: 'Fence', opacity: 1, locked: false, role: 'boundary', ...extra });
+  const bed = (extra: Record<string, unknown> = {}) => ({ id: 'bed', type: 'poly', x: 0, y: -10, points: [[0, 0], [12, 0], [12, 4], [0, 4]], rotation: 0, color: '#a16207', label: 'Front bed', opacity: 0.4, locked: false, role: 'bed', ...extra });
+  const typedPlan = () => [house({ measured: M }), fence({ measured: [{ side: 1, ft: 25 }] }), bed({ measured: [{ side: 3, ft: 4 }, { side: 0, ft: 12 }] }), circle('oak')];
+
+  it('kept on a rectangle, an outline or a line, as typed; the release drops the field, and nothing else', () => {
+    const shapes = sanitizeProjectData({ shapes: typedPlan() }).shapes;
+    expect(shapes.map((s) => (s as { measured?: unknown }).measured)).toEqual([M, [{ side: 1, ft: 25 }], [{ side: 3, ft: 4 }, { side: 0, ft: 12 }], undefined]);
+    const release = JSON.parse(JSON.stringify(shapes)).map(releaseMigrateShape);
+    expect(release).toEqual(shapes.map((s) => { const { measured: _m, ...rest } = s as Shape & { measured?: unknown }; return rest; }));
+    // (Read again by this version: none, and the same again.)
+    const back = sanitizeProjectData({ shapes: JSON.parse(JSON.stringify(release)) }).shapes;
+    expect(back).toEqual(release);
+  });
+  it('is saved and opened again, in a backup file, a support file, the journal, and in what sync sends, as it was', async () => {
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = sanitizeProjectData({ shapes: typedPlan() }).shapes;
+    save(); await flushSave();
+    expect((await readProject(id))!.shapes).toEqual(state.shapes);
+    _resetStorageForTests(); await initStorage(kv);
+    const shapes = state.shapes;
+    expect(shapes.map((s) => (s as { measured?: unknown }).measured)).toEqual([M, [{ side: 1, ft: 25 }], [{ side: 3, ft: 4 }, { side: 0, ft: 12 }], undefined]);
+    const file = await buildBackupFile();
+    expect(parseImportFile(file.text)[0].data.shapes).toEqual(shapes);
+    const info = { myPlants: [], app: { version: 'test', built: 'now', catalog: null }, device: {}, storage: {}, sync: {}, settings: {}, localData: [], otherKeys: [], errors: [] };
+    const support = JSON.stringify(buildSupportFile({ ...info, projects: await allExportedProjects(), includeImages: false, now: new Date() }));
+    expect(parseImportFile(support)[0].data.shapes).toEqual(shapes);
+    const sent = syncedContent((await readProject(id))!);
+    expect(canonical(syncedContent(sanitizeProjectData(JSON.parse(JSON.stringify(sent)))))).toBe(canonical(sent));
+    expect((sent.shapes[0] as { measured?: unknown }).measured).toEqual(M);
+    // Unsaved, in the journal; put in place, kept.
+    (state.shapes[1] as { measured?: unknown }).measured = [{ side: 0, ft: 40 }, { side: 1, ft: 25 }];
+    save(); writeJournalIfDirty();
+    expect(journals()).toContain('"measured":[{"side":0,"ft":40},{"side":1,"ft":25}]');
+    _resetStorageForTests(); await initStorage(kv);
+    expect((state.shapes[1] as { measured?: unknown }).measured).toEqual([{ side: 0, ft: 40 }, { side: 1, ft: 25 }]);
+  });
+  it('a plan without them reads exactly as before, as the release reads it, and syncs with the same fingerprint: nothing gained, nothing to convert', () => {
+    const before = [house(), fence(), bed(), circle('oak')];
+    const now = sanitizeProjectData({ shapes: before }).shapes;
+    expect(now).toEqual(before.map(releaseMigrateShape));
+    for (const s of now) expect('measured' in s).toBe(false);
+    expect(canonical(syncedContent(sanitizeProjectData({ shapes: before })))).toBe(canonical(syncedContent(sanitizeProjectData({ shapes: before.map(releaseMigrateShape) }))));
+  });
+  it("a version from before Oct 11 run again: its edit comes in beside a plan whose sides were typed here since, not over it", async () => {
+    localStorage.setItem('lp-projects', JSON.stringify([{ id: 'p1', name: 'Yard', lastModified: 1000 }]));
+    localStorage.setItem('lp-project-p1', JSON.stringify({ shapes: [house()] }));
+    const kv = await freshStorage();
+    laterBy(1000);
+    state.shapes = sanitizeProjectData({ shapes: [house({ measured: M })] }).shapes;
+    save(); await flushSave();
+    const later = Date.now() + 60_000;
+    localStorage.setItem('lp-projects', JSON.stringify([{ id: 'p1', name: 'Yard', lastModified: later }]));
+    localStorage.setItem('lp-project-p1', JSON.stringify({ shapes: [house(), circle('after')] }));
+    _resetStorageForTests();
+    await initStorage(kv);
+    expect(state.projects.map((p) => p.name).sort()).toEqual(['Yard', 'Yard (from older version)']);
+    expect((await stored(kv, 'p1')).shapes).toEqual([expect.objectContaining({ id: 'house', measured: M })]);
+    const copy = state.projects.find((p) => p.name === 'Yard (from older version)')!;
+    expect((await readProject(copy.id))!.shapes.map((s) => [s.label, 'measured' in s])).toEqual([['House', false], ['after', false]]);
+  });
+});
+
+describe('the print choice for the plants under taller ones (print.under, Nov 4)', () => {
+  /** The plan's print settings as stored, by its id. */
+  const storedPrint = async (kv: Awaited<ReturnType<typeof openKV>>, id: string) => (await stored(kv, id)).print as Record<string, unknown>;
+  const info = { myPlants: [], app: { version: 'test', built: 'now', catalog: null }, device: {}, storage: {}, sync: {}, settings: {}, localData: [], otherKeys: [], errors: [] };
+  // (Where a plan never picked starts, as this device had it before plans kept it: read again for each test.)
+  afterEach(() => { localStorage.removeItem('lp-print-under'); loadViewSettings(); });
+
+  it('kept as picked, Show through too; anything else is none, the rest kept, never the plan; the release drops it, and nothing else', () => {
+    for (const under of ['windows', 'screen'] as const) {
+      expect(sanitizeProjectData({ print: { paper: 'a4', under } }).print).toMatchObject({ paper: 'a4', under });
+    }
+    for (const odd of ['outline', 'Screen', '', true, 1, null, {}, ['screen']]) {
+      const d = sanitizeProjectData({ shapes: [circle('oak')], print: { paper: 'a3', title: 'Front', northDeg: 20, under: odd } });
+      expect('under' in d.print!, String(odd)).toBe(false);
+      expect(d.print).toMatchObject({ paper: 'a3', title: 'Front', northDeg: 20 });
+      expect(d.shapes).toHaveLength(1);
+    }
+    const kept = sanitizeProjectData({ print: { paper: 'tabloid', includeGrid: false, under: 'screen' } }).print!;
+    const { under: _u, ...rest } = kept;
+    expect(releaseSanitizePrint(JSON.parse(JSON.stringify(kept)))).toEqual(rest);
+  });
+
+  it('a plan without it reads exactly as before, as the release reads it, and syncs with the same content: nothing gained', () => {
+    const old = { shapes: [circle('oak')], print: { paper: 'a4', orientation: 'landscape', title: 'Back', includePlantList: false, northDeg: 12 } };
+    const now = sanitizeProjectData(old);
+    expect(now.print).toEqual(releaseSanitizePrint(old.print));
+    expect('under' in now.print!).toBe(false);
+    expect(sanitizeProjectData({ shapes: [] }).print).toEqual(DEFAULT_PRINT);
+    expect(canonical(syncedContent(now))).toBe(canonical(syncedContent(sanitizeProjectData(JSON.parse(JSON.stringify(syncedContent(now)))))));
+    expect(canonical(syncedContent(now))).not.toContain('under');
+  });
+
+  it('is saved and opened again, in a backup file, a support file, the journal, and in what sync sends, as it was; each plan its own', async () => {
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    expect(printUnder()).toBe('windows');
+    setPrintUnder('screen');
+    await flushSave();
+    expect(await storedPrint(kv, id)).toMatchObject({ under: 'screen', paper: 'letter' });
+    _resetStorageForTests(); await initStorage(kv);
+    expect([state.print.under, printUnder()]).toEqual(['screen', 'screen']);
+    const file = await buildBackupFile();
+    expect(parseImportFile(file.text)[0].data.print).toMatchObject({ under: 'screen' });
+    const support = JSON.stringify(buildSupportFile({ ...info, projects: await allExportedProjects(), includeImages: false, now: new Date() }));
+    expect(parseImportFile(support)[0].data.print).toMatchObject({ under: 'screen' });
+    const sent = syncedContent((await readProject(id))!);
+    expect(sent.print).toMatchObject({ under: 'screen' });
+    expect(canonical(syncedContent(sanitizeProjectData(JSON.parse(JSON.stringify(sent)))))).toBe(canonical(sent));
+    // Show through picked: kept as picked.
+    setPrintUnder('windows');
+    await flushSave();
+    expect(await storedPrint(kv, id)).toMatchObject({ under: 'windows' });
+    // Unsaved, in the journal; put in place, kept.
+    setPrintUnder('screen');
+    writeJournalIfDirty();
+    expect(journals()).toContain('"under":"screen"');
+    _resetStorageForTests(); await initStorage(kv);
+    expect(printUnder()).toBe('screen');
+    // Each plan its own: a new one starts at Show through, and switching back finds As on screen.
+    const other = await createProject('Front');
+    expect(await switchProject(other)).toBe(true);
+    expect([state.print.under, printUnder()]).toEqual([undefined, 'windows']);
+    expect(await switchProject(id)).toBe(true);
+    expect(printUnder()).toBe('screen');
+    expect('under' in (await storedPrint(kv, other))).toBe(false);
+  });
+
+  it("a plan never picked starts from what this device had before plans kept it ('lp-print-under'), read as the app starts: nothing written to the plan for it, even saved with another edit; picking writes the plan's, never the device's", async () => {
+    localStorage.setItem('lp-print-under', 'screen'); // (as #228 left it, on Next)
+    loadViewSettings();
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    expect([state.print.under, printUnder()]).toEqual([undefined, 'screen']);
+    // Another edit, saved: the plan still has none picked.
+    state.shapes = sanitizeProjectData({ shapes: [circle('oak')] }).shapes;
+    save(); await flushSave();
+    expect('under' in (await storedPrint(kv, id))).toBe(false);
+    // A plan made since, or one from a file, starts from it too, nothing written.
+    const other = await createProject('Front');
+    await switchProject(other);
+    expect([state.print.under, printUnder()]).toEqual([undefined, 'screen']);
+    // Picked: the plan's, Show through too; the device's left as it was, and not read again for this plan.
+    setPrintUnder('windows');
+    await flushSave();
+    expect(await storedPrint(kv, other)).toMatchObject({ under: 'windows' });
+    expect(localStorage.getItem('lp-print-under')).toBe('screen');
+    _resetStorageForTests(); await initStorage(kv);
+    await switchProject(other);
+    expect(printUnder()).toBe('windows');
+    await switchProject(id);
+    expect(printUnder()).toBe('screen');
+    // A device that never had it (or had Show through): a plan never picked prints Show through.
+    localStorage.setItem('lp-print-under', 'windows');
+    loadViewSettings();
+    expect(printUnder()).toBe('windows');
+    localStorage.removeItem('lp-print-under');
+    loadViewSettings();
+    expect(printUnder()).toBe('windows');
+    expect('under' in (await storedPrint(kv, id))).toBe(false);
+  });
+
+  it('compared as this device prints it: a journal or a file differing only by Show through picked, against none picked, is nothing new; As on screen is; and on a device that had As on screen before, Show through picked is new', async () => {
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = sanitizeProjectData({ shapes: [circle('oak')] }).shapes;
+    save(); await flushSave();
+    const mine = await stored(kv, id);
+    expect('under' in (mine.print as object)).toBe(false);
+    // Another page of this version, Show through picked there, written after the plan last changed: nothing new, no copy.
+    const journalWith = (under: string) => JSON.stringify({ projectId: id, at: Date.now() + 1000, dbVersion: DB_VERSION, page: 'otherpage', seq: 2, data: { ...currentProjectData(), print: { ...state.print, under } } });
+    localStorage.setItem(`lp-journal:${id}@otherpage`, journalWith('windows'));
+    _resetStorageForTests();
+    expect((await initStorage(kv)).keptApart).toBeUndefined();
+    expect(await stored(kv, id)).toEqual(mine);
+    expect(journals()).toBe('');
+    // A file of it, Show through picked: already here; As on screen: not.
+    const data = currentProjectData();
+    expect(planContent({ ...data, print: { ...data.print!, under: 'windows' } })).toBe(planContent(data));
+    expect(planContent({ ...data, print: { ...data.print!, under: 'screen' } })).not.toBe(planContent(data));
+    // On a device that had As on screen before plans kept it, a plan never picked prints As on screen: Show through
+    // picked is new there (the journal put in place), and As on screen isn't.
+    localStorage.setItem('lp-print-under', 'screen');
+    loadViewSettings();
+    expect(planContent({ ...data, print: { ...data.print!, under: 'screen' } })).toBe(planContent(data));
+    expect(planContent({ ...data, print: { ...data.print!, under: 'windows' } })).not.toBe(planContent(data));
+    localStorage.setItem(`lp-journal:${id}@otherpage`, journalWith('windows'));
+    _resetStorageForTests();
+    expect((await initStorage(kv)).keptApart).toBeUndefined();
+    expect(await storedPrint(kv, id)).toMatchObject({ under: 'windows' });
+    expect(printUnder()).toBe('windows');
+  });
+});
+
+// An older version of the app saving over a newer one's data (Nov 1: a buried line lost its role and became a plain
+// shape, saved over by a tab left open on an older version). The guard is the database's version (src/db.ts
+// DB_VERSION), raised whenever what's stored changes so an older version would lose data saving over it.
+describe('an older version never saves over a newer one (src/db.ts DB_VERSION)', () => {
+  const STORES = ['meta', 'projects', 'images', 'kv'];
+  /** A connection of its own, as another page's (`version`: undefined, the database's own). */
+  const rawOpen = (name: string, version?: number, upgrade?: (db: IDBDatabase) => void) => new Promise<IDBDatabase>((resolve, reject) => {
+    const r = version === undefined ? indexedDB.open(name) : indexedDB.open(name, version);
+    r.onupgradeneeded = () => upgrade?.(r.result);
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+  /** A database at `version` holding `records`, as a page of that version left it; its connection, still open. */
+  async function dbAt(name: string, version: number, records: Record<string, Record<string, unknown>>): Promise<IDBDatabase> {
+    const db = await rawOpen(name, version, (d) => { for (const s of STORES) d.createObjectStore(s); });
+    const tx = db.transaction(STORES, 'readwrite');
+    for (const [s, recs] of Object.entries(records)) for (const [k, v] of Object.entries(recs)) tx.objectStore(s).put(v, k);
+    await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); });
+    return db;
+  }
+  /** Every store's records, by key. */
+  async function dump(db: IDBDatabase): Promise<Record<string, Record<string, unknown>>> {
+    const out: Record<string, Record<string, unknown>> = {};
+    for (const s of [...db.objectStoreNames]) {
+      const os = db.transaction(s).objectStore(s);
+      const [keys, values] = await Promise.all([os.getAllKeys(), os.getAll()].map((r) => new Promise<unknown[]>((res) => { r.onsuccess = () => res(r.result as unknown[]); })));
+      out[s] = Object.fromEntries(keys.map((k, i) => [String(k), values[i]]));
+    }
+    return out;
+  }
+  const localNow = () => Object.fromEntries(Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)!).map((k) => [k, localStorage.getItem(k)]));
+  const labels = (shapes: { label?: string }[]) => shapes.map((s) => s.label);
+  const shapesOf = (...l: string[]) => sanitizeProjectData({ shapes: l.map(circle) }).shapes;
+  const BG = { imageId: 'img1', naturalWidth: 4, naturalHeight: 4, ftPerPx: 1, cx: 0, cy: 0, rotation: 0, opacity: 0.6, visible: true };
+  const SW = { showCrowding: { on: true }, crowdWarnings: { on: true }, hardyWarnings: { on: false, at: 8 }, poisonWarnings: { on: true }, fruitWarnings: { on: true } };
+  const BURIED = { id: 'line1', type: 'line', x: 0, y: 0, points: [[0, 0], [10, 0]], rotation: 0, color: '#7c3aed', label: 'buried line', opacity: 0.8, locked: false, role: 'utility', utility: 'buried' };
+  // A device as release 3 (Nov 1) left it, at database version 1: a plan with a photo, a buried line, its ticks, yard
+  // and switches; sync's records with core and parts, a deletion still to send; the rest of kv.
+  const plan = (extra: Record<string, unknown>) => ({ zoom: 1, offsetX: 0, offsetY: 0, roleViews: {}, print: { paper: 'letter' }, sizeMode: 'typical', sunWarnings: true, phases: [], bgImage: null, photoElsewhere: null, ...extra });
+  const RELEASE3 = {
+    meta: { p1: { id: 'p1', name: 'Back Yard', lastModified: 1000, shapeCount: 2 }, p2: { id: 'p2', name: 'Front', lastModified: 900, shapeCount: 0 } },
+    projects: {
+      p1: plan({
+        shapes: [circle('oak'), BURIED], zoom: 1.5, bgImage: BG, location: null,
+        dismissed: { hardy: { 'pl:1': 'Zone 9' } }, bought: { 'pl:1': { n: 2, at: 5 } },
+        household: { ...NO_YARD, dogs: 'hideToxic', answered: true, at: 7 }, switches: SW,
+      }),
+      p2: plan({ shapes: [], household: { ...NO_YARD, answered: false }, switches: SW }),
+    },
+    images: { 'p1/img1': { dataUrl: IMG, createdAt: 3 } },
+    kv: {
+      current: 'p1', lastBackupAt: 11, migratedFromLocalStorage: 12, installId: 'abcdefghijklmnop1234', lastSizeMode: 'full',
+      clipboard: { shapes: [circle('clip')], sourceProjectId: 'p1', timestamp: 1 },
+      syncRecords: { p1: { revision: 4, hash: 'h1:x', photo: 'none', core: 'c1:y', parts: { bought: { 'pl:1': { n: 2, at: 5 } } } } },
+      syncTombstones: { gone: 2 }, syncDeleted: { gone: { revision: 2, hash: 'h2:z' } }, syncUser: 'u1',
+      tookFromDevice: { at: 6, household: { ...NO_YARD, answered: true }, switches: SW },
+      myPlants: [], myPlantSync: { records: {}, edited: {} },
+      'cleared/p2': { shapes: [circle('was')], bgImage: null, photoElsewhere: null, at: 9 },
+    },
+  };
+  afterEach(() => { setNewerVersionListener(() => {}); setOpenBlockedListener(null); });
+
+  it('the upgrade from 1 keeps every store and record as release 3 left them, and the plans open as they were', async () => {
+    expect(DB_VERSION).toBe(6);
+    const name = 'test-' + ++dbCount;
+    const old = await dbAt(name, 1, RELEASE3);
+    const before = await dump(old);
+    old.close();
+    _resetStorageForTests();
+    const kv = await openKV(name);
+    const raw = await rawOpen(name);
+    expect(raw.version).toBe(DB_VERSION);
+    expect(await dump(raw)).toEqual(before);
+    await initStorage(kv);
+    // (Opening them writes nothing but which plan is open, as it was.)
+    expect(await dump(raw)).toEqual(before);
+    expect(state.currentProjectId).toBe('p1');
+    expect(labels(state.shapes)).toEqual(['oak', 'buried line']);
+    expect(state.shapes[1]).toMatchObject({ role: 'utility', utility: 'buried' });
+    expect([state.bgImage?.dataUrl, state.zoom, state.bought, state.dismissed]).toEqual([IMG, 1.5, { 'pl:1': { n: 2, at: 5 } }, { hardy: { 'pl:1': 'Zone 9' } }]);
+    expect(household()).toEqual({ ...NO_YARD, dogs: 'hideToxic', answered: true, at: 7 });
+    expect(state.hardyWarnings).toBe(false);
+    expect([getSyncRecords(), getSyncTombstones(), getSyncDeletedRecord('gone'), getSyncUser()])
+      .toEqual([RELEASE3.kv.syncRecords, { gone: 2 }, { revision: 2, hash: 'h2:z' }, 'u1']);
+    expect(state.projects.map((p) => p.name)).toEqual(['Back Yard', 'Front']);
+    // A plan saved from now on, and a journal, carry this version.
+    state.shapes = [...state.shapes, ...shapesOf('new')]; save();
+    writeJournalIfDirty();
+    const ownJournal = Object.keys(localStorage).find((k) => k.startsWith('lp-journal:p1@'))!;
+    expect(JSON.parse(localStorage.getItem(ownJournal)!)).toMatchObject({ dbVersion: DB_VERSION, page: ownJournal.slice('lp-journal:p1@'.length) });
+    await flushSave();
+    expect((await stored(kv, 'p1')).dbVersion).toBe(DB_VERSION);
+    expect((await stored(kv, 'p1')).shapes).toEqual(['oak', 'line1', 'new'].map((id) => expect.objectContaining({ id })));
+    raw.close();
+  });
+
+  // A device as a version-2 page (old-tab-guard, Nov 1) leaves it: each plan stamped with the version, page and edit
+  // count that saved it; a plan kept apart from another (keptFrom); journals in localStorage, one a page.
+  const keptData = plan({ shapes: [circle('oak'), circle('older tab')], household: { ...NO_YARD, answered: false }, switches: SW });
+  const V2 = {
+    meta: { ...RELEASE3.meta, kept1: { id: 'kept1', name: 'Back Yard (from an older tab)', lastModified: 950, shapeCount: 2, keptFrom: 'p1' } },
+    projects: {
+      p1: { ...RELEASE3.projects.p1, dbVersion: 2, savedByPage: 'pageA', savedAt: 1000, savedSeq: 4 },
+      p2: { ...RELEASE3.projects.p2, dbVersion: 2, savedByPage: 'pageA', savedAt: 900, savedSeq: 1 },
+      kept1: { ...keptData, dbVersion: 2, savedByPage: 'pageB', savedAt: 950, savedSeq: 2 },
+    },
+    images: RELEASE3.images,
+    kv: RELEASE3.kv,
+  };
+  const v2Journal = (id: string, page: string, at: number, seq: number, data: Record<string, unknown>) =>
+    [`lp-journal:${id}@${page}`, JSON.stringify({ projectId: id, at, dbVersion: 2, page, seq, data })] as const;
+
+  it('the upgrade from 2 keeps every store and record as a version-2 page left them (its stamps, a plan kept apart), and its journals are replayed as before', async () => {
+    const name = 'test-' + ++dbCount;
+    const old = await dbAt(name, 2, V2);
+    const before = await dump(old);
+    old.close();
+    // Its journals: one its page saved since (nothing new), one of another page's for p2 (written after p2 last changed:
+    // in place), and one already kept apart as kept1 (not kept again).
+    localStorage.setItem(...v2Journal('p1', 'pageA', 990, 3, { ...RELEASE3.projects.p1, shapes: [circle('oak')] }));
+    const late = { ...RELEASE3.projects.p2, shapes: shapesOf('late in a version-2 tab') };
+    localStorage.setItem(...v2Journal('p2', 'pageC', Date.now(), 7, late));
+    localStorage.setItem(...v2Journal('p1', 'pageB', 940, 2, keptData));
+    _resetStorageForTests();
+    const kv = await openKV(name);
+    const raw = await rawOpen(name);
+    expect(raw.version).toBe(DB_VERSION);
+    expect(await dump(raw)).toEqual(before); // (the upgrade itself changes nothing)
+    const { keptApart } = await initStorage(kv);
+    expect(keptApart).toBeUndefined();
+    expect(journals()).toBe('');
+    const after = await dump(raw);
+    // Every record as it was, but p2, which its journal brought up to date: stamped as that page's, at version 2.
+    for (const s of STORES) {
+      const { p2: _was, ...rest } = before[s];
+      const { p2: _now, ...restNow } = after[s];
+      expect(restNow, s).toEqual(rest);
+    }
+    expect(after.projects.p2).toMatchObject({ dbVersion: 2, savedByPage: 'pageC', savedSeq: 7, shapes: late.shapes, household: (RELEASE3.projects.p2 as Record<string, unknown>).household });
+    expect(after.meta.p2).toMatchObject({ id: 'p2', name: 'Front', shapeCount: 1 });
+    // The plans open as they were; the one kept apart still says which it came from.
+    expect(state.projects.map((p) => p.name).sort()).toEqual(['Back Yard', 'Back Yard (from an older tab)', 'Front']);
+    expect(state.projects.find((p) => p.id === 'kept1')?.keptFrom).toBe('p1');
+    expect([state.currentProjectId, labels(state.shapes)]).toEqual(['p1', ['oak', 'buried line']]);
+    expect(state.shapes[1]).toMatchObject({ role: 'utility', utility: 'buried' });
+    expect(household()).toEqual({ ...NO_YARD, dogs: 'hideToxic', answered: true, at: 7 });
+    // Saved from now on, at this version.
+    state.shapes = [...state.shapes, ...shapesOf('new')]; save(); await flushSave();
+    expect((await stored(kv, 'p1')).dbVersion).toBe(DB_VERSION);
+    raw.close();
+  });
+
+  it("a journal that differs from its plan only by a bed's conditions cleared on purpose ({}) or a warning shown again (''), against none, is nothing new: the plan stays as it is", async () => {
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    const bedShape = (extra: Record<string, unknown> = {}) => ({ id: 'b', type: 'rect', x: 0, y: 0, width: 8, height: 4, rotation: 0, color: '#a16207', label: 'Bed', opacity: 0.4, locked: false, role: 'bed', ...extra });
+    const holly = (extra: Record<string, unknown> = {}) => ({ id: 'h', type: 'circle', x: 5, y: 5, radius: 3, color: '#14532d', label: 'Holly', opacity: 0.65, locked: false, role: 'plant', plantId: 'ilex-opaca', ...extra });
+    state.shapes = sanitizeProjectData({ shapes: [bedShape({ conditions: {} }), holly({ fruitDismissed: '' })] }).shapes;
+    save(); await flushSave();
+    const mine = await stored(kv, id);
+    // Another page of this version, its copy without the marks, written after the plan last changed.
+    const theirs = { ...currentProjectData(), shapes: sanitizeProjectData({ shapes: [bedShape(), holly()] }).shapes };
+    localStorage.setItem(`lp-journal:${id}@otherpage`, JSON.stringify({ projectId: id, at: Date.now() + 1000, dbVersion: DB_VERSION, page: 'otherpage', seq: 2, data: theirs }));
+    _resetStorageForTests();
+    const { keptApart } = await initStorage(kv);
+    expect(keptApart).toBeUndefined();
+    expect(await stored(kv, id)).toEqual(mine);
+    expect(state.shapes.map((s) => [s.conditions, s.fruitDismissed])).toEqual([[{}, undefined], [undefined, '']]);
+    expect(journals()).toBe('');
+  });
+
+  it("a version-2 page's journal, without fruitDismissed, over a plan saved here with it, is kept apart, not put over it (the review's M3)", async () => {
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    const said = 'Holly is a female: it needs a male of its kind nearby to fruit';
+    const holly = (extra: Record<string, unknown> = {}) => ({ id: 'h', type: 'circle', x: 5, y: 5, radius: 3, color: '#14532d', label: 'Holly', opacity: 0.65, locked: false, role: 'plant', plantId: 'ilex-opaca', ...extra });
+    // A version-2 tab read the plan (no field) and moved the holly; then this version dismissed it for the holly, and saved.
+    const older = { ...currentProjectData(), shapes: sanitizeProjectData({ shapes: [holly({ x: 9 })] }).shapes };
+    state.shapes = sanitizeProjectData({ shapes: [holly({ fruitDismissed: said })] }).shapes;
+    save(); await flushSave();
+    const mine = await stored(kv, id);
+    expect(mine.dbVersion).toBe(DB_VERSION);
+    // The version-2 tab closes later, leaving its journal as that version writes one: the same parts (yard, switches),
+    // so only its version tells it from this version's.
+    localStorage.setItem(...v2Journal(id, 'v2page', Date.now() + 1000, 3, older as unknown as Record<string, unknown>));
+    _resetStorageForTests();
+    const { keptApart } = await initStorage(kv);
+    expect(keptApart).toEqual(['My Garden (from an older tab)']);
+    expect(await stored(kv, id)).toEqual(mine);
+    expect(state.shapes[0]).toMatchObject({ x: 5, fruitDismissed: said });
+    const copy = state.projects.find((p) => p.name === keptApart![0])!;
+    expect((await readProject(copy.id))!.shapes).toEqual(older.shapes); // (its edit whole, beside)
+    expect(journals()).toBe('');
+  });
+
+  it('a version-2 page (its database layer as it is: tests/fixtures/db-v2.ts) is told: one open lets go for this version, its last write first; one opened after is refused, nothing read or written', async () => {
+    const name = 'test-' + ++dbCount;
+    const v2 = await openKVv2(name);
+    await v2.write([putV2('meta', 'p1', RELEASE3.meta.p1), putV2('projects', 'p1', V2.projects.p1)]);
+    const heard: string[] = [];
+    let lastWrite: Promise<void> | undefined;
+    v2.onNewerVersion!(() => { heard.push('last'); lastWrite = v2.write([putV2('projects', 'p1', { ...V2.projects.p1, shapes: [circle('oak'), circle('not yet saved')] })]); }, () => heard.push('closed'));
+    // This version opens the plans: the version-2 page closes them at once (its message: "FullGrown was updated in
+    // another tab or window. This page will reload into the new version.", src/main.ts there), its last write in first.
+    _resetStorageForTests();
+    let blocked = false;
+    setOpenBlockedListener((b) => { if (b) blocked = true; });
+    const kv = await openKV(name);
+    await lastWrite;
+    expect([heard, blocked]).toEqual([['last', 'closed'], false]);
+    await expect(v2.get('meta', 'p1')).rejects.toBeInstanceOf(NewerVersionErrorV2);
+    await initStorage(kv);
+    expect(labels(state.shapes)).toEqual(['oak', 'not yet saved']);
+    await flushSave();
+    // A version-2 page opened after (a stale cached copy): refused at once, never memory in its place (its src/main.ts
+    // says "A newer version of FullGrown saved the plans on this device."); every record as it was.
+    const raw = await rawOpen(name);
+    const before = await dump(raw);
+    raw.close();
+    await expect(openKVv2(name)).rejects.toBeInstanceOf(NewerVersionErrorV2);
+    const again = await rawOpen(name);
+    expect([again.version, await dump(again)]).toEqual([DB_VERSION, before]);
+    again.close();
+  });
+
+  // A device as a version-3 page (fruit-dismiss-one, Nov 2) leaves it: as version 2 does, stamped 3, and a plant with its
+  // own fruit-partner dismissal (the field version 3 added) beside a bed, which has no conditions yet.
+  const SAID = 'Holly is a female: it needs a male of its kind nearby to fruit';
+  const v3Shapes = [circle('oak'), BURIED, { ...circle('holly'), role: 'plant', plantId: 'ilex-opaca', fruitDismissed: SAID }, { id: 'bed', type: 'rect', x: 0, y: 0, width: 12, height: 4, rotation: 0, color: '#a16207', label: 'Front bed', opacity: 0.4, locked: false, role: 'bed' }];
+  const V3 = {
+    meta: { ...V2.meta, p1: { ...RELEASE3.meta.p1, shapeCount: 4 } },
+    projects: {
+      p1: { ...V2.projects.p1, shapes: v3Shapes, dbVersion: 3 },
+      p2: { ...V2.projects.p2, dbVersion: 3 },
+      kept1: { ...V2.projects.kept1, dbVersion: 3 },
+    },
+    images: RELEASE3.images,
+    kv: RELEASE3.kv,
+  };
+  const v3Journal = (id: string, page: string, at: number, seq: number, data: Record<string, unknown>) =>
+    [`lp-journal:${id}@${page}`, JSON.stringify({ projectId: id, at, dbVersion: 3, page, seq, data })] as const;
+
+  it('the upgrade from 3 keeps every store and record as a version-3 page left them (its stamps, a plant\'s own dismissal, a bed), and its journals are replayed as before', async () => {
+    const name = 'test-' + ++dbCount;
+    const old = await dbAt(name, 3, V3);
+    const before = await dump(old);
+    old.close();
+    // Its journals: one its page saved since (nothing new), one of another page's for p2 (written after p2 last changed:
+    // in place, a version-3 journal over a plan a version-3 page saved), one already kept apart as kept1.
+    localStorage.setItem(...v3Journal('p1', 'pageA', 990, 3, { ...V3.projects.p1, shapes: v3Shapes.slice(0, 3) }));
+    const late = { ...V3.projects.p2, shapes: shapesOf('late in a version-3 tab') };
+    localStorage.setItem(...v3Journal('p2', 'pageC', Date.now(), 7, late));
+    localStorage.setItem(...v3Journal('p1', 'pageB', 940, 2, keptData));
+    _resetStorageForTests();
+    const kv = await openKV(name);
+    const raw = await rawOpen(name);
+    expect(raw.version).toBe(DB_VERSION);
+    expect(await dump(raw)).toEqual(before); // (the upgrade itself changes nothing)
+    const { keptApart } = await initStorage(kv);
+    expect(keptApart).toBeUndefined();
+    expect(journals()).toBe('');
+    const after = await dump(raw);
+    for (const s of STORES) {
+      const { p2: _was, ...rest } = before[s];
+      const { p2: _now, ...restNow } = after[s];
+      expect(restNow, s).toEqual(rest);
+    }
+    expect(after.projects.p2).toMatchObject({ dbVersion: 3, savedByPage: 'pageC', savedSeq: 7, shapes: late.shapes });
+    // The plans open as they were: the holly's own dismissal kept, the bed with nothing gained.
+    expect(state.projects.map((p) => p.name).sort()).toEqual(['Back Yard', 'Back Yard (from an older tab)', 'Front']);
+    expect([state.currentProjectId, labels(state.shapes)]).toEqual(['p1', ['oak', 'buried line', 'holly', 'Front bed']]);
+    expect(state.shapes[2].fruitDismissed).toBe(SAID);
+    expect(state.shapes[3]).toMatchObject({ role: 'bed' });
+    expect('conditions' in state.shapes[3]).toBe(false);
+    // Saved from now on, at this version.
+    state.shapes = [...state.shapes, ...shapesOf('new')]; save(); await flushSave();
+    expect((await stored(kv, 'p1')).dbVersion).toBe(DB_VERSION);
+    raw.close();
+  });
+
+  it("a version-3 page's journal, without a bed's conditions, over a plan saved here with them, is kept apart, not put over it", async () => {
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    const ALL = { sun: 'unsure', soil: 'clay', moisture: 'average', drip: true };
+    const bed = (extra: Record<string, unknown> = {}) => ({ id: 'bed', type: 'rect', x: 0, y: 0, width: 12, height: 4, rotation: 0, color: '#a16207', label: 'Front bed', opacity: 0.4, locked: false, role: 'bed', ...extra });
+    // A version-3 tab read the plan (no field) and moved the bed; then this version set its conditions, and saved.
+    const older = { ...currentProjectData(), shapes: sanitizeProjectData({ shapes: [bed({ x: 9 })] }).shapes };
+    state.shapes = sanitizeProjectData({ shapes: [bed({ conditions: ALL })] }).shapes;
+    save(); await flushSave();
+    const mine = await stored(kv, id);
+    expect(mine.dbVersion).toBe(DB_VERSION);
+    // The version-3 tab closes later, leaving its journal as that version writes one: the same parts, so only its version
+    // tells it from this version's (at 3, it went in place: the field lost).
+    localStorage.setItem(...v3Journal(id, 'v3page', Date.now() + 1000, 3, older as unknown as Record<string, unknown>));
+    _resetStorageForTests();
+    const { keptApart } = await initStorage(kv);
+    expect(keptApart).toEqual(['My Garden (from an older tab)']);
+    expect(await stored(kv, id)).toEqual(mine);
+    expect(state.shapes[0]).toMatchObject({ x: 0, conditions: ALL });
+    const copy = state.projects.find((p) => p.name === keptApart![0])!;
+    expect((await readProject(copy.id))!.shapes).toEqual(older.shapes); // (its edit whole, beside)
+    expect(journals()).toBe('');
+  });
+
+  it('a version-3 page (its database layer as it is: tests/fixtures/db-v3.ts) is told: one open lets go for this version, its last write first; one opened after is refused, nothing read or written', async () => {
+    const name = 'test-' + ++dbCount;
+    const v3 = await openKVv3(name);
+    await v3.write([putV3('meta', 'p1', V3.meta.p1), putV3('projects', 'p1', V3.projects.p1)]);
+    const heard: string[] = [];
+    let lastWrite: Promise<void> | undefined;
+    v3.onNewerVersion!(() => { heard.push('last'); lastWrite = v3.write([putV3('projects', 'p1', { ...V3.projects.p1, shapes: [...v3Shapes, circle('not yet saved')] })]); }, () => heard.push('closed'));
+    // This version opens the plans: the version-3 page closes them at once, its last write in first.
+    _resetStorageForTests();
+    let blocked = false;
+    setOpenBlockedListener((b) => { if (b) blocked = true; });
+    const kv = await openKV(name);
+    await lastWrite;
+    expect([heard, blocked]).toEqual([['last', 'closed'], false]);
+    await expect(v3.get('meta', 'p1')).rejects.toBeInstanceOf(NewerVersionErrorV3);
+    await initStorage(kv);
+    expect(labels(state.shapes)).toEqual(['oak', 'buried line', 'holly', 'Front bed', 'not yet saved']);
+    await flushSave();
+    // A version-3 page opened after (a stale cached copy, or Next not yet updated): refused at once, every record as it was.
+    const raw = await rawOpen(name);
+    const before = await dump(raw);
+    raw.close();
+    await expect(openKVv3(name)).rejects.toBeInstanceOf(NewerVersionErrorV3);
+    const again = await rawOpen(name);
+    expect([again.version, await dump(again)]).toEqual([DB_VERSION, before]);
+    again.close();
+  });
+
+  // A device as a version-4 page (bed-conditions, #220, Nov 2–4: Next today) leaves it: as version 3 does, stamped 4,
+  // its bed with conditions, a photo with a scale set and a house typed by hand, neither with what version 5 adds.
+  const V4_BED = { ...v3Shapes[3], conditions: { soil: 'clay', drip: true } };
+  const v4Shapes = [...v3Shapes.slice(0, 3), V4_BED];
+  const V4 = {
+    meta: V3.meta,
+    projects: {
+      p1: { ...V3.projects.p1, shapes: v4Shapes, bgImage: BG, dbVersion: 4 },
+      p2: { ...V3.projects.p2, dbVersion: 4 },
+      kept1: { ...V3.projects.kept1, dbVersion: 4 },
+    },
+    images: RELEASE3.images,
+    kv: RELEASE3.kv,
+  };
+  const v4Journal = (id: string, page: string, at: number, seq: number, data: Record<string, unknown>) =>
+    [`lp-journal:${id}@${page}`, JSON.stringify({ projectId: id, at, dbVersion: 4, page, seq, data })] as const;
+
+  it('the upgrade from 4 keeps every store and record as a version-4 page left them (its stamps, a bed\'s conditions, a photo), its journals replayed as before; nothing gains a rough scale or a side typed', async () => {
+    const name = 'test-' + ++dbCount;
+    const old = await dbAt(name, 4, V4);
+    const before = await dump(old);
+    old.close();
+    localStorage.setItem(...v4Journal('p1', 'pageA', 990, 3, { ...V4.projects.p1, shapes: v4Shapes.slice(0, 3) }));
+    const late = { ...V4.projects.p2, shapes: shapesOf('late in a version-4 tab') };
+    localStorage.setItem(...v4Journal('p2', 'pageC', Date.now(), 7, late));
+    localStorage.setItem(...v4Journal('p1', 'pageB', 940, 2, keptData));
+    _resetStorageForTests();
+    const kv = await openKV(name);
+    const raw = await rawOpen(name);
+    expect(raw.version).toBe(DB_VERSION);
+    expect(await dump(raw)).toEqual(before); // (the upgrade itself changes nothing)
+    const { keptApart } = await initStorage(kv);
+    expect(keptApart).toBeUndefined();
+    expect(journals()).toBe('');
+    const after = await dump(raw);
+    for (const s of STORES) {
+      const { p2: _was, ...rest } = before[s];
+      const { p2: _now, ...restNow } = after[s];
+      expect(restNow, s).toEqual(rest);
+    }
+    expect(after.projects.p2).toMatchObject({ dbVersion: 4, savedByPage: 'pageC', savedSeq: 7, shapes: late.shapes });
+    expect([state.currentProjectId, labels(state.shapes)]).toEqual(['p1', ['oak', 'buried line', 'holly', 'Front bed']]);
+    expect(state.shapes[3]).toMatchObject({ role: 'bed', conditions: { soil: 'clay', drip: true } });
+    for (const s of state.shapes) expect('measured' in s).toBe(false);
+    expect(state.bgImage).toMatchObject({ ftPerPx: 1, dataUrl: IMG });
+    expect('roughScale' in state.bgImage!).toBe(false);
+    // Saved from now on, at this version, still with nothing gained.
+    state.shapes = [...state.shapes, ...shapesOf('new')]; save(); await flushSave();
+    const saved = await stored(kv, 'p1');
+    expect(saved.dbVersion).toBe(DB_VERSION);
+    expect(JSON.stringify(saved)).not.toMatch(/roughScale|measured|"under"/);
+    raw.close();
+  });
+
+  it("a version-4 page's journal, without a photo's rough scale or a house's typed sides, over a plan saved here with them, is kept apart, not put over it", async () => {
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    const M = [{ side: 0, ft: 30 }, { side: 2, ft: 30 }];
+    const house = (extra: Record<string, unknown> = {}) => ({ id: 'house', type: 'rect', x: 0, y: 0, width: 30, height: 20, rotation: 0, color: '#78716c', label: 'House', opacity: 0.8, locked: false, role: 'building', ...extra });
+    // A version-4 tab read the plan (neither field) and moved the house; then this version typed its width and set the
+    // photo's scale from a guess, and saved.
+    state.bgImage = { ...BG, dataUrl: IMG };
+    save(); await flushSave();
+    const older = { ...currentProjectData(), shapes: sanitizeProjectData({ shapes: [house({ x: 9 })] }).shapes, bgImage: { ...state.bgImage, dataUrl: '' } };
+    state.shapes = sanitizeProjectData({ shapes: [house({ measured: M })] }).shapes;
+    state.bgImage = { ...state.bgImage, ftPerPx: 0.5, roughScale: true };
+    save(); await flushSave();
+    const mine = await stored(kv, id);
+    expect(mine.dbVersion).toBe(DB_VERSION);
+    // Its journal, as that version writes one: the same parts, so only its version tells it from this version's (at 4,
+    // it went in place: both fields lost).
+    localStorage.setItem(...v4Journal(id, 'v4page', Date.now() + 1000, 3, older as unknown as Record<string, unknown>));
+    _resetStorageForTests();
+    const { keptApart } = await initStorage(kv);
+    expect(keptApart).toEqual(['My Garden (from an older tab)']);
+    expect(await stored(kv, id)).toEqual(mine);
+    expect(state.shapes[0]).toMatchObject({ x: 0, measured: M });
+    expect(state.bgImage).toMatchObject({ ftPerPx: 0.5, roughScale: true });
+    const copy = state.projects.find((p) => p.name === keptApart![0])!;
+    const apart = (await readProject(copy.id))!;
+    expect(apart.shapes).toEqual(older.shapes); // (its edit whole, beside)
+    expect([apart.bgImage?.ftPerPx, apart.bgImage && 'roughScale' in apart.bgImage]).toEqual([1, false]);
+    expect(journals()).toBe('');
+  });
+
+  it('a version-4 page (its database layer as it is: tests/fixtures/db-v4.ts) is told: one open lets go for this version, its last write first; one opened after is refused, nothing read or written', async () => {
+    const name = 'test-' + ++dbCount;
+    const v4 = await openKVv4(name);
+    await v4.write([putV4('meta', 'p1', V4.meta.p1), putV4('projects', 'p1', V4.projects.p1)]);
+    const heard: string[] = [];
+    let lastWrite: Promise<void> | undefined;
+    v4.onNewerVersion!(() => { heard.push('last'); lastWrite = v4.write([putV4('projects', 'p1', { ...V4.projects.p1, shapes: [...v4Shapes, circle('not yet saved')] })]); }, () => heard.push('closed'));
+    _resetStorageForTests();
+    let blocked = false;
+    setOpenBlockedListener((b) => { if (b) blocked = true; });
+    const kv = await openKV(name);
+    await lastWrite;
+    expect([heard, blocked]).toEqual([['last', 'closed'], false]);
+    await expect(v4.get('meta', 'p1')).rejects.toBeInstanceOf(NewerVersionErrorV4);
+    await initStorage(kv);
+    expect(labels(state.shapes)).toEqual(['oak', 'buried line', 'holly', 'Front bed', 'not yet saved']);
+    await flushSave();
+    // A version-4 page opened after (a stale cached copy, or Next not yet updated): refused at once, every record as it was.
+    const raw = await rawOpen(name);
+    const before = await dump(raw);
+    raw.close();
+    await expect(openKVv4(name)).rejects.toBeInstanceOf(NewerVersionErrorV4);
+    const again = await rawOpen(name);
+    expect([again.version, await dump(again)]).toEqual([DB_VERSION, before]);
+    again.close();
+  });
+
+  // A device as a version-5 page (photo-storage, #225, Nov 4: Next today, with #228's per-device print choice beside it)
+  // leaves it: as version 4 does, stamped 5, its house typed by hand and its photo's scale a rough guess; its print
+  // settings without what version 6 adds.
+  const V5_HOUSE = { id: 'house', type: 'rect', x: 0, y: 0, width: 30, height: 20, rotation: 0, color: '#78716c', label: 'House', opacity: 0.8, locked: false, role: 'building', measured: [{ side: 0, ft: 30 }, { side: 2, ft: 30 }] };
+  const v5Shapes = [...v4Shapes, V5_HOUSE];
+  const V5_PRINT = { ...DEFAULT_PRINT, paper: 'tabloid', title: 'Back Yard plan', includePlantList: false };
+  const V5 = {
+    meta: { ...V4.meta, p1: { ...V4.meta.p1, shapeCount: 5 } },
+    projects: {
+      p1: { ...V4.projects.p1, shapes: v5Shapes, bgImage: { ...BG, roughScale: true }, print: V5_PRINT, dbVersion: 5 },
+      p2: { ...V4.projects.p2, dbVersion: 5 },
+      kept1: { ...V4.projects.kept1, dbVersion: 5 },
+    },
+    images: RELEASE3.images,
+    kv: RELEASE3.kv,
+  };
+  const v5Journal = (id: string, page: string, at: number, seq: number, data: Record<string, unknown>) =>
+    [`lp-journal:${id}@${page}`, JSON.stringify({ projectId: id, at, dbVersion: 5, page, seq, data })] as const;
+
+  it('the upgrade from 5 keeps every store and record as a version-5 page left them (its stamps, typed sides, a rough scale, its print settings), its journals replayed as before; nothing gains a print choice, and a device\'s earlier one is only read', async () => {
+    localStorage.setItem('lp-print-under', 'screen'); // (#228 on Next: As on screen, kept on this device)
+    loadViewSettings();
+    const name = 'test-' + ++dbCount;
+    const old = await dbAt(name, 5, V5);
+    const before = await dump(old);
+    old.close();
+    localStorage.setItem(...v5Journal('p1', 'pageA', 990, 3, { ...V5.projects.p1, shapes: v5Shapes.slice(0, 4) }));
+    const late = { ...V5.projects.p2, shapes: shapesOf('late in a version-5 tab') };
+    localStorage.setItem(...v5Journal('p2', 'pageC', Date.now(), 7, late));
+    localStorage.setItem(...v5Journal('p1', 'pageB', 940, 2, keptData));
+    _resetStorageForTests();
+    const kv = await openKV(name);
+    const raw = await rawOpen(name);
+    expect(raw.version).toBe(6);
+    expect(await dump(raw)).toEqual(before); // (the upgrade itself changes nothing)
+    const { keptApart } = await initStorage(kv);
+    expect(keptApart).toBeUndefined();
+    expect(journals()).toBe('');
+    const after = await dump(raw);
+    for (const st of STORES) {
+      const { p2: _was, ...rest } = before[st];
+      const { p2: _now, ...restNow } = after[st];
+      expect(restNow, st).toEqual(rest);
+    }
+    expect(after.projects.p2).toMatchObject({ dbVersion: 5, savedByPage: 'pageC', savedSeq: 7, shapes: late.shapes });
+    expect([state.currentProjectId, labels(state.shapes)]).toEqual(['p1', ['oak', 'buried line', 'holly', 'Front bed', 'House']]);
+    expect(state.shapes[4]).toMatchObject({ measured: V5_HOUSE.measured });
+    expect(state.bgImage).toMatchObject({ roughScale: true, dataUrl: IMG });
+    expect(state.print).toEqual(V5_PRINT);
+    expect(printUnder()).toBe('screen'); // (where this device had it: read, not written)
+    // Saved from now on, at this version, still with nothing gained; the device's key as it was.
+    state.shapes = [...state.shapes, ...shapesOf('new')]; save(); await flushSave();
+    const saved = await stored(kv, 'p1');
+    expect(saved.dbVersion).toBe(6);
+    expect(saved.print).toEqual(V5_PRINT);
+    expect(localStorage.getItem('lp-print-under')).toBe('screen');
+    raw.close();
+    localStorage.removeItem('lp-print-under'); loadViewSettings();
+  });
+
+  it("a version-5 page's journal, without the print choice, over a plan saved here with it, is kept apart, not put over it", async () => {
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    // A version-5 tab read the plan (no field) and drew an oak; then this version picked As on screen, and saved.
+    const older = { ...currentProjectData(), shapes: shapesOf('oak') };
+    setPrintUnder('screen');
+    await flushSave();
+    const mine = await stored(kv, id);
+    expect([mine.dbVersion, (mine.print as { under?: string }).under]).toEqual([DB_VERSION, 'screen']);
+    // Its journal, as that version writes one: the same parts, so only its version tells it from this version's (at 5,
+    // it went in place: the choice lost).
+    localStorage.setItem(...v5Journal(id, 'v5page', Date.now() + 1000, 3, older as unknown as Record<string, unknown>));
+    _resetStorageForTests();
+    const { keptApart } = await initStorage(kv);
+    expect(keptApart).toEqual(['My Garden (from an older tab)']);
+    expect(await stored(kv, id)).toEqual(mine);
+    expect(printUnder()).toBe('screen');
+    const copy = state.projects.find((p) => p.name === keptApart![0])!;
+    const apart = (await readProject(copy.id))!;
+    expect(apart.shapes).toEqual(older.shapes); // (its edit whole, beside)
+    expect('under' in apart.print!).toBe(false);
+    expect(journals()).toBe('');
+  });
+
+  it('a version-5 page (its database layer as it is: tests/fixtures/db-v5.ts) is told: one open lets go for this version, its last write first; one opened after is refused, nothing read or written', async () => {
+    const name = 'test-' + ++dbCount;
+    const v5 = await openKVv5(name);
+    await v5.write([putV5('meta', 'p1', V5.meta.p1), putV5('projects', 'p1', V5.projects.p1)]);
+    const heard: string[] = [];
+    let lastWrite: Promise<void> | undefined;
+    v5.onNewerVersion!(() => { heard.push('last'); lastWrite = v5.write([putV5('projects', 'p1', { ...V5.projects.p1, shapes: [...v5Shapes, circle('not yet saved')] })]); }, () => heard.push('closed'));
+    _resetStorageForTests();
+    let blocked = false;
+    setOpenBlockedListener((b) => { if (b) blocked = true; });
+    const kv = await openKV(name);
+    await lastWrite;
+    expect([heard, blocked]).toEqual([['last', 'closed'], false]);
+    await expect(v5.get('meta', 'p1')).rejects.toBeInstanceOf(NewerVersionErrorV5);
+    await initStorage(kv);
+    expect(labels(state.shapes)).toEqual(['oak', 'buried line', 'holly', 'Front bed', 'House', 'not yet saved']);
+    await flushSave();
+    // A version-5 page opened after (a stale cached copy, or Next not yet updated): refused at once, every record as it was.
+    const raw = await rawOpen(name);
+    const before = await dump(raw);
+    raw.close();
+    await expect(openKVv5(name)).rejects.toBeInstanceOf(NewerVersionErrorV5);
+    const again = await rawOpen(name);
+    expect([again.version, await dump(again)]).toEqual([6, before]);
+    again.close();
+  });
+
+  it('a page open when a newer version opens the database writes its edits not yet saved first, then closes it and saves nothing more, not even a journal', async () => {
+    const name = 'test-' + ++dbCount;
+    _resetStorageForTests();
+    const kv = await openKV(name);
+    await initStorage(kv);
+    const id = state.currentProjectId!;
+    const heard: { last?: Promise<boolean> } = {};
+    setNewerVersionListener((last) => { heard.last = last; });
+    state.shapes = shapesOf('saved'); save(); await flushSave();
+    state.shapes = shapesOf('saved', 'not yet'); save(); // (waiting for the save's debounce)
+    // A newer version opens it, in another tab: it isn't kept waiting.
+    let blocked = false;
+    const newer = await new Promise<IDBDatabase>((resolve, reject) => {
+      const r = indexedDB.open(name, DB_VERSION + 1);
+      r.onblocked = () => { blocked = true; };
+      r.onsuccess = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
+    });
+    expect(blocked).toBe(false);
+    expect(await heard.last).toBe(true);
+    expect(supersededByNewer()).toBe(true);
+    const after = await dump(newer);
+    expect(labels((after.projects[id] as { shapes: Shape[] }).shapes)).toEqual(['saved', 'not yet']);
+    expect(journals()).toBe(''); // (written as it closed, cleared once the write was in)
+    // Nothing more from this page: an edit and its save, the page hiding, sync reading the open plan, a new plan.
+    state.shapes = shapesOf('after'); save();
+    expect(await flushSave()).toBe(false);
+    writeJournalIfDirty();
+    await expect(projectNow(id)).rejects.toBeInstanceOf(NewerVersionError);
+    await expect(createProject('More')).rejects.toBeInstanceOf(NewerVersionError);
+    await new Promise((r) => setTimeout(r, 300)); // (a save's debounce)
+    expect(await dump(newer)).toEqual(after);
+    expect(journals()).toBe('');
+    newer.close();
+  });
+
+  it("a page opened after a newer version has the database stops before reading or writing anything, and isn't put in memory", async () => {
+    const newer = await dbAt(DB_NAME, DB_VERSION + 1, RELEASE3);
+    const before = await dump(newer);
+    newer.close();
+    localStorage.setItem('lp-idb-in-use', '1');
+    localStorage.setItem('lp-journal:p1', JSON.stringify({ projectId: 'p1', at: Date.now() + 1000, dbVersion: DB_VERSION + 1, data: { shapes: [circle('newer')] } }));
+    const local = localNow();
+    _resetStorageForTests();
+    const t = Date.now();
+    await expect(initStorage()).rejects.toBeInstanceOf(NewerVersionError);
+    expect(Date.now() - t).toBeLessThan(250); // (not tried again)
+    expect(storageIsDurable()).toBe(false);
+    expect(localNow()).toEqual(local);
+    const raw = await rawOpen(DB_NAME);
+    expect(raw.version).toBe(DB_VERSION + 1);
+    expect(await dump(raw)).toEqual(before);
+    raw.close();
+  });
+
+  it("waits for an older page that holds the database and can't answer (frozen, say), says so, and goes on once it closes, nothing lost", async () => {
+    const name = 'test-' + ++dbCount;
+    const old = await dbAt(name, 1, RELEASE3); // (it never closes by itself)
+    const before = await dump(old);
+    const heard: boolean[] = [];
+    setOpenBlockedListener((b) => { heard.push(b); });
+    let opened = false;
+    const opening = openKV(name).then((k) => { opened = true; return k; });
+    await vi.waitFor(() => expect(heard).toEqual([true]));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(opened).toBe(false);
+    old.close();
+    const kv = await opening;
+    expect([heard, kv.durable]).toEqual([[true, false], true]);
+    const raw = await rawOpen(name);
+    expect(raw.version).toBe(DB_VERSION);
+    expect(await dump(raw)).toEqual(before);
+    raw.close();
+  });
+
+  it("an older tab's unsaved changes (its journal) are never put over a plan this version has saved: kept as a plan of their own, its photo too, both whole", async () => {
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    state.bgImage = { ...BG, dataUrl: IMG };
+    state.shapes = shapesOf('both'); save(); await flushSave();
+    // The older tab's copy, read then: as release 3 writes a journal (no version: 1), the photo's bytes on disk already.
+    const older = { ...currentProjectData(), shapes: shapesOf('both', 'older tab'), bgImage: { ...state.bgImage, dataUrl: '' } };
+    state.shapes = shapesOf('both', 'newer'); state.bought = { 'pl:1': { n: 1, at: 5 } }; save(); await flushSave();
+    const newerPlan = await stored(kv, id);
+    expect(newerPlan.dbVersion).toBe(DB_VERSION);
+    // (Written as it closed, after this version's last save; the ticks too, so only its version tells.)
+    localStorage.setItem('lp-journal:' + id, JSON.stringify({ projectId: id, at: Date.now() + 1000, data: { ...older, bought: { 'pl:1': { n: 1, at: 5 } } } }));
+    _resetStorageForTests();
+    const { keptApart } = await initStorage(kv);
+    expect(keptApart).toEqual(['My Garden (from an older tab)']);
+    expect(state.currentProjectId).toBe(id);
+    expect(labels(state.shapes)).toEqual(['both', 'newer']);
+    expect(await stored(kv, id)).toEqual(newerPlan);
+    const copy = state.projects.find((p) => p.name === keptApart![0])!;
+    const kept = (await readProject(copy.id))!;
+    expect([labels(kept.shapes), kept.bgImage?.dataUrl, copy.shapeCount]).toEqual([['both', 'older tab'], IMG, 2]);
+    expect(journals()).toBe('');
+    // (Once: the next start has nothing to keep, and a second one is named apart.)
+    _resetStorageForTests();
+    expect((await initStorage(kv)).keptApart).toBeUndefined();
+    localStorage.setItem('lp-journal:' + id, JSON.stringify({ projectId: id, at: Date.now() + 2000, data: older }));
+    _resetStorageForTests();
+    expect((await initStorage(kv)).keptApart).toEqual(['My Garden (from an older tab) (2)']);
+    expect(state.projects).toHaveLength(3);
+  });
+
+  it("a journal from before plans kept their ticks, yard and switches (release 2) is kept apart from a plan that has them, one release 3 saved too", async () => {
+    const name = 'test-' + ++dbCount;
+    (await dbAt(name, 1, RELEASE3)).close();
+    // (A release 2 tab, open since before the update, its plan read then: none of the three parts.)
+    const r2 = plan({ shapes: [circle('oak'), { ...BURIED, role: undefined, utility: undefined, label: 'release 2 line' }], bgImage: { ...BG, dataUrl: '' } });
+    localStorage.setItem('lp-journal:p1', JSON.stringify({ projectId: 'p1', at: Date.now(), data: r2 }));
+    _resetStorageForTests();
+    const kv = await openKV(name);
+    const { keptApart } = await initStorage(kv);
+    expect(keptApart).toEqual(['Back Yard (from an older tab)']);
+    expect(await stored(kv, 'p1')).toEqual(RELEASE3.projects.p1);
+    expect(labels(state.shapes)).toEqual(['oak', 'buried line']);
+    expect(state.bought).toEqual({ 'pl:1': { n: 2, at: 5 } });
+  });
+
+  it("a release 3 page's journal, over its plan as release 3 left it (this version opened since, saving nothing), is put in place as before", async () => {
+    const name = 'test-' + ++dbCount;
+    (await dbAt(name, 1, RELEASE3)).close();
+    const r3 = { ...RELEASE3.projects.p1, shapes: [circle('oak'), BURIED, circle('late')], bgImage: { ...BG, dataUrl: '' } };
+    localStorage.setItem('lp-journal:p1', JSON.stringify({ projectId: 'p1', at: Date.now(), data: r3 }));
+    _resetStorageForTests();
+    const kv = await openKV(name);
+    const { keptApart } = await initStorage(kv);
+    expect(keptApart).toBeUndefined();
+    expect(labels(state.shapes)).toEqual(['oak', 'buried line', 'late']);
+    expect(state.shapes[1]).toMatchObject({ role: 'utility', utility: 'buried' });
+    expect([state.bgImage?.dataUrl, state.bought, household().dogs]).toEqual([IMG, { 'pl:1': { n: 2, at: 5 } }, 'hideToxic']);
+    expect(state.projects).toHaveLength(2);
+    expect(journals()).toBe('');
+    // Stamped as the journal's own version, which wrote it (1: release 3): that tab's next journal, more of the same
+    // edits, goes in place too, not apart as a near-copy (the review, Nov 1).
+    expect((await stored(kv, 'p1')).dbVersion).toBe(1);
+    localStorage.setItem('lp-journal:p1', JSON.stringify({ projectId: 'p1', at: Date.now() + 1000, data: { ...r3, shapes: [...r3.shapes, circle('later')] } }));
+    _resetStorageForTests();
+    expect((await initStorage(kv)).keptApart).toBeUndefined();
+    expect(labels(state.shapes)).toEqual(['oak', 'buried line', 'late', 'later']);
+    expect(state.projects).toHaveLength(2);
+    // Saved here, it's this version's again.
+    save(); await flushSave();
+    expect((await stored(kv, 'p1')).dbVersion).toBe(DB_VERSION);
+  });
+
+  it('a journal from a newer version than this one is left as it is, for that version', async () => {
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    const j = JSON.stringify({ projectId: id, at: Date.now() + 1000, dbVersion: DB_VERSION + 1, data: { ...currentProjectData(), shapes: [circle('newer')] } });
+    localStorage.setItem('lp-journal:' + id, j);
+    _resetStorageForTests();
+    await initStorage(kv);
+    expect(state.shapes).toEqual([]);
+    state.shapes = shapesOf('here'); save(); await flushSave();
+    expect(localStorage.getItem('lp-journal:' + id)).toBe(j);
+  });
+
+  // The data-safety review of this guard (Nov 1): an older tab's edit, kept in its journal alone, is never dropped unseen.
+  const journalKeys = () => Object.keys(localStorage).filter((k) => k.startsWith('lp-journal:')).sort();
+  const keptLabels = async () => Promise.all(state.projects.filter((p) => p.name.includes('(from an older tab)'))
+    .map(async (p) => labels((await readProject(p.id))!.shapes)));
+
+  it("a save here never clears another tab's journal, nor an older version's (the only copy of its edit); this page's own goes once saved", async () => {
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = shapesOf('saved'); save(); await flushSave();
+    // A release 3 tab's edit pending at the upgrade: its save failed (the database closed), so only its journal has it.
+    const r3 = JSON.stringify({ projectId: id, at: Date.now() - 1000, data: { ...currentProjectData(), shapes: [circle('saved'), circle('r3 late')] } });
+    localStorage.setItem('lp-journal:' + id, r3);
+    // Another tab of this version, with its own.
+    const other = JSON.stringify({ projectId: id, at: Date.now() - 1000, dbVersion: DB_VERSION, page: 'otherpage', data: { ...currentProjectData(), shapes: [circle('saved'), circle('other tab')] } });
+    localStorage.setItem(`lp-journal:${id}@otherpage`, other);
+    // This page: an edit, its own journal (the page hidden), then saved. Three journals, none over another.
+    state.shapes = shapesOf('saved', 'here'); save(); writeJournalIfDirty();
+    expect(journalKeys()).toHaveLength(3);
+    expect(await flushSave()).toBe(true);
+    expect(journalKeys()).toEqual([`lp-journal:${id}`, `lp-journal:${id}@otherpage`]);
+    expect([localStorage.getItem('lp-journal:' + id), localStorage.getItem(`lp-journal:${id}@otherpage`)]).toEqual([r3, other]);
+    // The next start: both written before the plan last changed, by pages that didn't save it since: kept apart.
+    _resetStorageForTests();
+    const { keptApart } = await initStorage(kv);
+    expect(keptApart).toHaveLength(2);
+    expect(labels(state.shapes)).toEqual(['saved', 'here']);
+    expect((await keptLabels()).sort()).toEqual([['saved', 'other tab'], ['saved', 'r3 late']]);
+    expect(journals()).toBe('');
+  });
+
+  it('a journal written before its plan changed again (renamed, synced) is kept apart, not dropped; one the same as the plan is only removed', async () => {
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = shapesOf('saved'); save(); await flushSave();
+    const same = currentProjectData();
+    localStorage.setItem('lp-journal:' + id, JSON.stringify({ projectId: id, at: Date.now() - 1000, data: { ...same, shapes: [circle('saved'), circle('r3 late')] } }));
+    await new Promise((r) => setTimeout(r, 5));
+    await renameProject(id, 'Back yard');
+    _resetStorageForTests();
+    expect((await initStorage(kv)).keptApart).toEqual(['Back yard (from an older tab)']);
+    expect(await keptLabels()).toEqual([['saved', 'r3 late']]);
+    expect(labels(state.shapes)).toEqual(['saved']);
+    // The same as the plan, written before its last change or after: removed, with nothing written and nothing kept.
+    const before = [await stored(kv, id), await kv.get('meta', id)];
+    for (const at of [Date.now() - 1000, Date.now() + 1000]) {
+      localStorage.setItem('lp-journal:' + id, JSON.stringify({ projectId: id, at, data: same }));
+      _resetStorageForTests();
+      expect((await initStorage(kv)).keptApart).toBeUndefined();
+      expect(journals()).toBe('');
+      expect([await stored(kv, id), await kv.get('meta', id)]).toEqual(before);
+    }
+    expect(state.projects).toHaveLength(2);
+  });
+
+  it("a page's own journal with no more edits than its own later save of the plan is only removed; another page's, or one with more, is kept apart", async () => {
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = shapesOf('saved', 'more'); save(); await flushSave();
+    const rec = await stored(kv, id);
+    const page = rec.savedByPage as string;
+    expect(page).toMatch(/^[A-Za-z0-9]{8,}$/);
+    expect(typeof rec.savedSeq).toBe('number');
+    const older = (p: string, seq: number) => JSON.stringify({ projectId: id, at: (rec.savedAt as number) - 1000, dbVersion: DB_VERSION, page: p, seq, data: { ...currentProjectData(), shapes: [circle('saved')] } });
+    localStorage.setItem(`lp-journal:${id}@${page}`, older(page, rec.savedSeq as number));
+    _resetStorageForTests();
+    expect((await initStorage(kv)).keptApart).toBeUndefined();
+    expect([journals(), state.projects.length]).toEqual(['', 1]);
+    localStorage.setItem(`lp-journal:${id}@elsewhere`, older('elsewhere', 0));
+    _resetStorageForTests();
+    expect((await initStorage(kv)).keptApart).toEqual(['My Garden (from an older tab)']);
+    expect(await keptLabels()).toEqual([['saved']]);
+    // (Its own page, with an edit more than the save had: kept too.)
+    localStorage.setItem(`lp-journal:${id}@${page}`, older(page, (rec.savedSeq as number) + 1).replace('"label":"saved"', '"label":"one more"'));
+    _resetStorageForTests();
+    expect((await initStorage(kv)).keptApart).toEqual(['My Garden (from an older tab) (2)']);
+  });
+
+  // The second review (Nov 1).
+  it('two journals for one plan, from pages that never saw each other\'s edit: the newer goes in place and the older is kept apart, whichever localStorage lists first', async () => {
+    for (const first of ['older', 'newer'] as const) {
+      const name = 'test-' + ++dbCount;
+      (await dbAt(name, 1, RELEASE3)).close();
+      const base = RELEASE3.projects.p1;
+      const t = Date.now();
+      const older = ['lp-journal:p1', JSON.stringify({ projectId: 'p1', at: t + 1000, data: { ...base, shapes: [circle('oak'), BURIED, circle('release 3 edit')] } })];
+      const newer = ['lp-journal:p1@pageB', JSON.stringify({ projectId: 'p1', at: t + 2000, dbVersion: DB_VERSION, page: 'pageB', seq: 3, data: { ...base, shapes: [circle('oak'), BURIED, circle('newer edit')] } })];
+      for (const [k, v] of first === 'older' ? [older, newer] : [newer, older]) localStorage.setItem(k, v);
+      const listed = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)!).filter((k) => k.startsWith('lp-journal:'));
+      expect(listed[0]).toBe(first === 'older' ? 'lp-journal:p1' : 'lp-journal:p1@pageB');
+      _resetStorageForTests();
+      const { keptApart } = await initStorage(await openKV(name));
+      expect(keptApart).toEqual(['Back Yard (from an older tab)']);
+      expect(labels(state.shapes)).toEqual(['oak', 'buried line', 'newer edit']);
+      expect(await keptLabels()).toEqual([['oak', 'buried line', 'release 3 edit']]);
+      expect(journals()).toBe('');
+    }
+  });
+
+  it("a page's own journal is never dropped for its time: the clock set back after a save, or a save and an edit in the same millisecond", async () => {
+    // The clock set back a minute between the save and the edit's journal: the journal looks older than the save.
+    let kv = await freshStorage();
+    let id = state.currentProjectId!;
+    state.shapes = shapesOf('saved'); save(); await flushSave();
+    laterBy(-60_000);
+    state.shapes = shapesOf('saved', 'after the clock moved'); save(); writeJournalIfDirty();
+    vi.useRealTimers();
+    _resetStorageForTests();
+    await initStorage(kv);
+    expect([labels(state.shapes), await keptLabels()]).toEqual([['saved'], [['saved', 'after the clock moved']]]);
+    // The save and the edit's journal in one millisecond, then the plan renamed: the edit was after the save.
+    kv = await freshStorage();
+    id = state.currentProjectId!;
+    vi.useFakeTimers({ toFake: ['Date'] });
+    state.shapes = shapesOf('saved'); save(); await flushSave();
+    state.shapes = shapesOf('saved', 'same moment'); save(); writeJournalIfDirty();
+    vi.setSystemTime(Date.now() + 5);
+    await renameProject(id, 'Renamed');
+    vi.useRealTimers();
+    _resetStorageForTests();
+    expect((await initStorage(kv)).keptApart).toEqual(['Renamed (from an older tab)']);
+    expect(await keptLabels()).toEqual([['saved', 'same moment']]);
+  });
+
+  it('a release 3 tab left open with an unsaved edit, writing its journal again each time it is hidden, is kept apart once, not once a start', async () => {
+    const name = 'test-' + ++dbCount;
+    (await dbAt(name, 1, RELEASE3)).close();
+    _resetStorageForTests();
+    let kv = await openKV(name);
+    await initStorage(kv);
+    state.shapes = [...state.shapes, ...shapesOf('here')]; save(); await flushSave();
+    const r3 = (at: number, extra: string[]) => JSON.stringify({ projectId: 'p1', at, data: { ...RELEASE3.projects.p1, shapes: [circle('oak'), BURIED, ...extra.map(circle)] } });
+    localStorage.setItem('lp-journal:p1', r3(Date.now() - 1000, ['r3 late']));
+    _resetStorageForTests();
+    expect((await initStorage(kv)).keptApart).toEqual(['Back Yard (from an older tab)']);
+    // Hidden again: the same edit, written again later.
+    localStorage.setItem('lp-journal:p1', r3(Date.now() + 1000, ['r3 late']));
+    _resetStorageForTests();
+    kv = await openKV(name);
+    expect((await initStorage(kv)).keptApart).toBeUndefined();
+    expect(journals()).toBe('');
+    expect(await keptLabels()).toEqual([['oak', 'buried line', 'r3 late']]);
+    // One more edit there since: that's kept.
+    localStorage.setItem('lp-journal:p1', r3(Date.now() + 2000, ['r3 late', 'r3 later']));
+    _resetStorageForTests();
+    expect((await initStorage(kv)).keptApart).toEqual(['Back Yard (from an older tab) (2)']);
+  });
+
+  it("waits at most a moment for its turn at the journals (Web Locks), then goes on without it", async () => {
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = shapesOf('saved'); save(); await flushSave();
+    localStorage.setItem('lp-journal:' + id, JSON.stringify({ projectId: id, at: Date.now() + 1000, data: { ...currentProjectData(), shapes: shapesOf('saved', 'older tab') } }));
+    // (A page holding the turn that never lets go: frozen, say. The request ends only when its signal says so.)
+    const asked: AbortSignal[] = [];
+    const request = (_n: string, opts: { signal?: AbortSignal }) => new Promise((_resolve, reject) => {
+      asked.push(opts.signal!);
+      opts.signal!.addEventListener('abort', () => reject(new DOMException('gave up', 'AbortError')));
+    });
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: { request } });
+    _setJournalLockWaitForTests(50);
+    try {
+      _resetStorageForTests();
+      const t = Date.now();
+      expect((await initStorage(kv)).keptApart).toEqual(['My Garden (from an older tab)']);
+      expect(asked).toHaveLength(1);
+      expect(Date.now() - t).toBeLessThan(2000);
+    } finally {
+      delete (navigator as unknown as { locks?: unknown }).locks;
+      _setJournalLockWaitForTests();
+    }
+  });
+
+
+  it("two pages starting at once (a browser restoring its tabs) keep an older tab's journal apart once, with Web Locks or without", async () => {
+    for (const withLocks of [false, true]) {
+      const name = 'test-' + ++dbCount;
+      _resetStorageForTests();
+      await initStorage(await openKV(name));
+      const id = state.currentProjectId!;
+      state.shapes = shapesOf('newer'); save(); await flushSave();
+      localStorage.setItem('lp-journal:' + id, JSON.stringify({ projectId: id, at: Date.now() + 1000, data: { ...currentProjectData(), shapes: [circle('older tab')] } }));
+      let locked = 0;
+      if (withLocks) {
+        // (A stand-in for the browser's Web Locks: one holder at a time, in turn.)
+        let tail: Promise<unknown> = Promise.resolve();
+        const request = (_name: string, ...rest: unknown[]) => {
+          const cb = rest[rest.length - 1] as () => Promise<unknown>;
+          locked++; const run = tail.then(cb); tail = run.catch(() => {}); return run;
+        };
+        Object.defineProperty(navigator, 'locks', { configurable: true, value: { request } });
+      }
+      try {
+        // Two pages, each its own copy of the app's code and state, starting together.
+        const page = async () => { vi.resetModules(); return { storage: await import('../src/storage'), db: await import('../src/db') }; };
+        const a = await page(), b = await page();
+        const results = await Promise.all([a, b].map(async (p) => p.storage.initStorage(await p.db.openKV(name))));
+        const kept = (await (await openKV(name)).getAll<{ name: string }>('meta')).filter((m) => m.name.includes('(from an older tab)'));
+        expect(kept).toHaveLength(1);
+        if (withLocks) expect([locked, results.flatMap((r) => r.keptApart ?? [])]).toEqual([2, ['My Garden (from an older tab)']]);
+        expect(journals()).toBe('');
+      } finally {
+        if (withLocks) delete (navigator as unknown as { locks?: unknown }).locks;
+      }
+    }
+  });
+
+  it("the last write's journal goes once it's in, even with an edit after it (a drag let go under the message)", async () => {
+    const name = 'test-' + ++dbCount;
+    _resetStorageForTests();
+    await initStorage(await openKV(name));
+    const id = state.currentProjectId!;
+    state.shapes = shapesOf('a'); save(); await flushSave();
+    state.shapes = shapesOf('a', 'b'); save();
+    const heard: { last?: Promise<boolean> } = {};
+    setNewerVersionListener((last) => { heard.last = last; state.shapes = shapesOf('a', 'b', 'dragged'); save(); });
+    const newer = await rawOpen(name, DB_VERSION + 1);
+    expect(await heard.last).toBe(true);
+    expect(journals()).toBe('');
+    expect(labels(((await dump(newer)).projects[id] as { shapes: Shape[] }).shapes)).toEqual(['a', 'b']);
+    newer.close();
+  });
+
+  it("a raw copy of the database at a newer version holds every record as stored, and changes nothing; none is made where there's no database", async () => {
+    const newer = await dbAt(DB_NAME, DB_VERSION + 1, RELEASE3);
+    const before = await dump(newer);
+    newer.close();
+    const file = (await buildRawCopyFile())!;
+    expect(file.filename).toMatch(/^fullgrown-raw-copy-.+\.json$/);
+    const parsed = JSON.parse(file.text);
+    expect(parsed).toMatchObject({ format: RAW_COPY_FORMAT, databaseVersion: DB_VERSION + 1 });
+    expect(parsed.stores).toEqual(JSON.parse(JSON.stringify(before)));
+    expect(parsed.stores.images['p1/img1'].dataUrl).toBe(IMG);
+    const raw = await rawOpen(DB_NAME);
+    expect(raw.version).toBe(DB_VERSION + 1);
+    expect(await dump(raw)).toEqual(before);
+    raw.close();
+    expect(await buildRawCopyFile('nothing-here')).toBeNull();
+    expect((await indexedDB.databases()).map((d) => d.name)).not.toContain('nothing-here');
+  });
+});
+
+describe("two tabs or windows of this version on one plan (Jason, Nov 6: the bug hunt's tablet tester lost a bed drawn in one, saved over by the other)", () => {
+  /** A page: its own copy of the app's code and state, on the database `name`, open on its last plan. */
+  async function page(name: string) {
+    vi.resetModules();
+    const storage = await import('../src/storage');
+    const db = await import('../src/db');
+    const { state: st } = await import('../src/state');
+    await storage.initStorage(await db.openKV(name));
+    const said: { name: string; kept: string | null; gone: boolean }[] = [];
+    storage.setTabChangeListener((c) => said.push(c));
+    const heard: (string | null)[] = [];
+    storage.setSavedHereListener((id) => heard.push(id));
+    /** An edit, as the app makes one: the shapes changed, then saved. */
+    const edit = async (...l: string[]) => { st.shapes = storage.sanitizeProjectData({ shapes: l.map(circle) }).shapes; storage.save(); await storage.flushSave(); };
+    return { storage, state: st, said, heard, edit, shapes: () => st.shapes.map((x) => x.label) };
+  }
+  const storedNow = async (name: string, id: string) => ((await (await openKV(name)).get<{ shapes: { label: string }[] }>('projects', id))?.shapes ?? []).map((x) => x.label);
+  const names = async (name: string) => (await (await openKV(name)).getAll<{ name: string }>('meta')).map((m) => m.name).sort();
+
+  it("the tab opened first, behind, never saves over the other's newer copy: its change is kept as a plan of its own, and the newer copy opens there", async () => {
+    const name = 'test-' + ++dbCount;
+    const a = await page(name);
+    await a.edit('house', 'bed');
+    const b = await page(name);
+    const id = b.state.currentProjectId!;
+    expect(b.shapes()).toEqual(['house', 'bed']);
+    await b.edit('house', 'bed', 'new bed'); // (drawn in the second tab)
+    // The first, not told (a frozen page hears nothing), deletes a plant there: its save finds the newer copy.
+    await a.edit('house');
+    expect(await storedNow(name, id)).toEqual(['house', 'bed', 'new bed']);
+    expect(a.shapes()).toEqual(['house', 'bed', 'new bed']);
+    expect(a.state.history).toEqual([]); // (an undo would put the older copy back)
+    expect(await names(name)).toEqual(['My Garden', 'My Garden (from another tab)']);
+    const kept = a.state.projects.find((p) => p.name === 'My Garden (from another tab)')!;
+    expect(await storedNow(name, kept.id)).toEqual(['house']);
+    expect(a.said).toEqual([{ name: 'My Garden', kept: 'My Garden (from another tab)', gone: false }]);
+    // And from then on, it saves as usual: over the copy it took in, nothing kept apart.
+    await a.edit('house', 'bed', 'new bed', 'path');
+    expect(await storedNow(name, id)).toEqual(['house', 'bed', 'new bed', 'path']);
+    expect(await names(name)).toHaveLength(2);
+  });
+
+  it('told of the save, a tab with nothing unsaved takes the newer copy in; then its own changes save over it, nothing kept apart', async () => {
+    const name = 'test-' + ++dbCount;
+    const a = await page(name);
+    await a.edit('house');
+    const b = await page(name);
+    const id = b.state.currentProjectId!;
+    await b.edit('house', 'bed');
+    expect(b.heard).toContain(id); // (what src/tabs.ts passes on to the others)
+    expect(await a.storage.catchUpWithOtherTabs()).toBe(true);
+    expect(a.shapes()).toEqual(['house', 'bed']);
+    expect(a.said).toEqual([]); // (nothing of its own to say)
+    expect(await a.storage.catchUpWithOtherTabs()).toBe(false); // (nothing newer now)
+    await a.edit('house', 'bed', 'path');
+    expect(await b.storage.catchUpWithOtherTabs()).toBe(true);
+    expect(b.shapes()).toEqual(['house', 'bed', 'path']);
+    expect(await names(name)).toEqual(['My Garden']);
+  });
+
+  it('told of the save with a change of its own not saved yet: that change is kept apart, not lost and not saved over the newer copy', async () => {
+    const name = 'test-' + ++dbCount;
+    const a = await page(name);
+    await a.edit('house');
+    const b = await page(name);
+    const id = b.state.currentProjectId!;
+    await b.edit('house', 'bed');
+    a.state.shapes = a.storage.sanitizeProjectData({ shapes: [circle('house'), circle('tree')] }).shapes; a.storage.save(); // (not yet saved)
+    await a.storage.catchUpWithOtherTabs();
+    expect(await storedNow(name, id)).toEqual(['house', 'bed']);
+    expect(a.shapes()).toEqual(['house', 'bed']);
+    const kept = (await (await openKV(name)).getAll<{ id: string; name: string }>('meta')).find((m) => m.name === 'My Garden (from another tab)')!;
+    expect(await storedNow(name, kept.id)).toEqual(['house', 'tree']);
+    expect(a.storage.hasUnsavedChanges()).toBe(false);
+  });
+
+  it("only where it looks at the plan from changed here (a pan): the newer copy is taken in, nothing kept apart", async () => {
+    const name = 'test-' + ++dbCount;
+    const a = await page(name);
+    await a.edit('house');
+    const b = await page(name);
+    await b.edit('house', 'bed');
+    a.state.offsetX = 40; a.storage.saveView(); await a.storage.flushSave();
+    expect(a.shapes()).toEqual(['house', 'bed']);
+    expect(a.state.offsetX).toBe(40); // (its own view kept)
+    expect(await names(name)).toEqual(['My Garden']);
+    expect(a.said).toEqual([{ name: 'My Garden', kept: null, gone: false }]);
+  });
+
+  it('the open plan deleted in another tab: not made again by a save here; a change here is kept as a plan of its own, and another plan opens', async () => {
+    const name = 'test-' + ++dbCount;
+    const a = await page(name);
+    await a.edit('house');
+    const gone = a.state.currentProjectId!;
+    const b = await page(name);
+    const other = await b.storage.createProject('Front yard');
+    await b.storage.switchProject(other);
+    await b.storage.deleteProject(gone);
+    await a.edit('house', 'tree');
+    await vi.waitFor(() => expect(a.said).toHaveLength(1)); // (another plan opened after the save)
+    await a.storage.flushSave();
+    expect(await (await openKV(name)).get('projects', gone)).toBeUndefined();
+    expect(await names(name)).toEqual(['Front yard', 'My Garden (from another tab)']);
+    expect(a.state.currentProjectId).not.toBe(gone);
+    expect(a.said).toEqual([{ name: 'My Garden', kept: 'My Garden (from another tab)', gone: true }]);
+  });
+
+  it('two tabs saving turn about, each told of the other, never keep anything apart', async () => {
+    const name = 'test-' + ++dbCount;
+    const a = await page(name);
+    const b = await page(name);
+    for (let i = 0; i < 4; i++) {
+      const [me, them] = i % 2 ? [b, a] : [a, b];
+      await me.edit(...Array.from({ length: i + 1 }, (_, k) => `s${k}`));
+      await them.storage.catchUpWithOtherTabs();
+      expect(them.shapes()).toHaveLength(i + 1);
+    }
+    expect(await names(name)).toEqual(['My Garden']);
   });
 });

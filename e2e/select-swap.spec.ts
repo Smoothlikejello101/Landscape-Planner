@@ -29,7 +29,7 @@ test('the selection pill deselects; a plant selects all of it on view, and swaps
   await page.locator('.sel-pill button.edit').click();
   await expect(page.getByTestId('select-all-same')).toHaveText('Select all 3');
   await page.getByTestId('select-all-same').click();
-  await expect(page.locator('#toast')).toContainText('All 3 Turkey corn selected.');
+  await expect(page.locator('#toast')).toContainText('All 3 Turkey Corn selected.');
   await expect(page.locator('.multi-bar .count')).toHaveText('3 selected');
 
   // Swap all three: the picker says what it's for; they keep their places.
@@ -41,9 +41,12 @@ test('the selection pill deselects; a plant selects all of it on view, and swaps
   const row = page.locator('.sheet .proj-row', { hasText: 'Buttonbush' }).first();
   await expect(row.getByTestId('plant-place')).toHaveText('Swap');
   await row.getByTestId('plant-place').click();
-  // (Bigger, and now crowding each other: the crowding notice says so in place of the toast. Jason, Oct 31.)
-  await expect(page.locator('#toast, [data-testid=crowd-notice]').filter({ hasText: /3 swapped for Buttonbush\.|Buttonbush/ })).toHaveCount(1);
-  await page.locator('.sheet .iconbtn[aria-label=Close]').click();
+  // (Bigger, and now crowding each other: the crowding notice says so in place of the toast, Jason, Oct 31; one notice
+  // for the three, Nov 5.)
+  await expect(page.getByTestId('crowd-notice').getByTestId('notice-line')).toHaveText('3 swapped plants are now close to others');
+  // (Swapped: the sheet closes, the three still selected. Jason, Nov 5.)
+  await expect(page.locator('.sheet')).toHaveCount(0);
+  await expect(page.locator('.multi-bar .count')).toHaveText('3 selected');
   await page.locator('button[title=Layers]').click();
   await expect(layerRows(page, 'Buttonbush')).toHaveCount(3);
   await expect(layerRows(page, 'Turkey corn')).toHaveCount(0);
@@ -57,11 +60,13 @@ test('the selection pill deselects; a plant selects all of it on view, and swaps
   await expect(page.getByTestId('swap-banner')).toContainText('swap it for');
   await page.getByTestId('plant-search').fill('Turkey corn');
   await page.locator('.sheet .proj-row', { hasText: 'Turkey corn' }).first().getByTestId('plant-place').click();
-  await expect(page.locator('#toast')).toContainText('Swapped for Turkey corn.');
-  await expect(page.locator('.sheet .title')).toContainText('Turkey corn');
+  await expect(page.locator('#toast')).toContainText('Swapped for Turkey Corn.');
+  // (Swapped: the sheet closes, the plant swapped in selected.)
+  await expect(page.locator('.sheet')).toHaveCount(0);
+  await expect(page.locator('.sel-pill')).toContainText('Turkey Corn');
 });
 
-test('closing the swap picker goes back to the plant\'s sheet; the plant swapped in comes first in Recent (the UI review)', async ({ page }) => {
+test('closing the swap picker goes back to the plant\'s sheet; the plant swapped in is in "In this plan" (the UI review; Recent went Nov 4)', async ({ page }) => {
   await openFresh(page);
   await pickToPlace(page, 'Turkey corn');
   await tapFromCenter(page, 0, 0);
@@ -72,15 +77,60 @@ test('closing the swap picker goes back to the plant\'s sheet; the plant swapped
   await page.locator('.sheet-header').getByRole('button', { name: 'Back to properties' }).click();
   // Its sheet, as it was before Swap: nothing swapped.
   await expect(page.getByTestId('swap-plant')).toBeVisible();
-  await expect(page.locator('.sheet .title')).toContainText('Turkey corn');
-  // Swapped, the plant swapped in is the newest in Recent.
+  await expect(page.locator('.sheet .title')).toContainText('Turkey Corn');
+  // Swapped, the plant swapped in is the plan's, the one swapped out not.
   await page.getByTestId('swap-plant').click();
   await page.getByTestId('plant-search').fill('Buttonbush');
   await page.locator('.sheet .proj-row', { hasText: 'Buttonbush' }).first().getByTestId('plant-place').click();
   await expect(page.locator('#toast, [data-testid=crowd-notice]').filter({ hasText: 'Buttonbush' })).toHaveCount(1);
-  await page.locator('.sheet .iconbtn[aria-label=Close]').click();
+  await expect(page.locator('.sheet')).toHaveCount(0); // (swapped: the sheet closes. Jason, Nov 5)
   await page.locator('.tool-btn.plants').click();
-  await expect(page.getByTestId('recent-plants').locator('.recent-plant').first()).toContainText('Buttonbush');
+  await expect(page.getByTestId('recent-plants')).toHaveCount(0);
+  await page.getByTestId('in-plan').click();
+  await expect(page.locator('.picker-sheet .plant-item .pname')).toHaveText([/^Buttonbush/]);
+});
+
+/** Three Turkey corn 6 ft apart, all swapped for Buttonbush at once: now close to each other. */
+async function threeSwappedBig(page: Page) {
+  await openFresh(page);
+  await pickToPlace(page, 'Turkey corn');
+  for (const x of [-6, 0, 6]) await tapFromCenter(page, x, 0);
+  await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
+  await tapFromCenter(page, 0, 0);
+  await page.locator('.sel-pill button.edit').click();
+  await page.getByTestId('select-all-same').click();
+  await page.locator('.multi-bar button', { hasText: 'Edit' }).click();
+  await page.getByTestId('swap-all').click();
+  await page.getByTestId('plant-search').fill('Buttonbush');
+  await page.locator('.sheet .proj-row', { hasText: 'Buttonbush' }).first().getByTestId('plant-place').click();
+}
+const rings = (page: Page) => page.locator('#canvas-svg [data-role=close], #canvas-svg [data-role=crowded]');
+
+test('several swapped together and now too close: one notice; Nudge apart moves each clear, one step (Jason, Nov 5)', async ({ page }) => {
+  await threeSwappedBig(page);
+  const notice = page.getByTestId('crowd-notice');
+  await expect(notice.getByTestId('notice-line')).toHaveText('3 swapped plants are now close to others');
+  await expect(notice).toHaveClass(/tone-amber/);
+  await notice.getByTestId('notice-line').click();
+  await expect(notice.getByTestId('notice-detail')).toContainText('Buttonbush: Close to Buttonbush');
+  await expect(notice.getByTestId('notice-detail')).toContainText("Nudge apart moves each clear of what it's close to, where there's room.");
+  expect(await rings(page).count()).toBeGreaterThan(0);
+  // Nudge apart: every one clear, as one step, said once.
+  await notice.getByRole('button', { name: 'Nudge apart' }).click();
+  await expect(page.getByTestId('nudge-notice')).toContainText(/^Nudged (two|three) plants apart, \d+(\.\d)?( to \d+(\.\d)?)? ft each\./);
+  await expect(rings(page)).toHaveCount(0);
+  // One Undo takes back every nudge (the swap stays).
+  await page.getByTestId('nudge-notice').getByRole('button', { name: 'Undo' }).click();
+  await expect.poll(() => rings(page).count()).toBeGreaterThan(0);
+});
+
+test('several swapped together and now too close: Dismiss leaves each of them, one step (Jason, Nov 5)', async ({ page }) => {
+  await threeSwappedBig(page);
+  expect(await rings(page).count()).toBeGreaterThan(0);
+  await page.getByTestId('crowd-notice').getByRole('button', { name: 'Dismiss' }).click();
+  await expect(rings(page)).toHaveCount(0);
+  await page.locator('button[title=Undo]').click();
+  await expect.poll(() => rings(page).count()).toBeGreaterThan(0);
 });
 
 test('a sheet opened from another has ← where its × was, saying where it goes back to; opened on its own, × (the UI review, 2026-11-01)', async ({ page }) => {

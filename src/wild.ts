@@ -253,6 +253,13 @@ export interface HostsHere { genus: string; n: number; butterflies: string[]; st
  * How many native caterpillar species recorded on the plant's genus live in the garden's state, and the butterflies
  * among them (Shropshire & Tallamy, genus-level); null where none do, or the state isn't known yet.
  */
+/**
+ * The records hostsHere reads, as they are now (the same object while they're the same), or null when it reads none:
+ * for what keeps the answers it gave (src/search.ts indexed).
+ */
+export function hostsSource(): object | null {
+  return loaded && loaded.zip === state.location?.zip && loaded.county ? loaded : null;
+}
 export function hostsHere(p: { host_genus?: { genus: string } }): HostsHere | null {
   const genus = p.host_genus?.genus;
   if (!genus || !loaded || loaded.zip !== state.location?.zip || !loaded.county) return null;

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { DB_VERSION } from '../src/db';
 import { autoDialogs, canvasBox, closeSheet, drag, field, openFilters, openWarnings } from './helpers';
 
 /** Each plan's stored "last modified" time, by name. */
@@ -62,11 +63,64 @@ test('projects made in the previous version migrate intact', async ({ page }) =>
   await expect(page.locator('#canvas-svg text', { hasText: 'Old bed' })).toHaveCount(1);
   await expect(page.locator('#canvas-svg rect[data-shape-id]')).toHaveAttribute('transform', /rotate\(15 /);
   await expect(page.locator('#canvas-svg image')).toHaveCount(1);
+  // Beds' conditions (Plant this bed, database version 4) are answers people give: a plan from before gains none. Nor
+  // (database version 5) a side typed as a number, or a rough scale for its photo: nothing is worked out for old ones.
+  // Nor (database version 6) a print choice for the plants under taller ones: it prints Show through, none picked.
+  const plans = await storedPlans(page);
+  for (const [name, plan] of Object.entries(plans)) {
+    for (const s of plan.shapes as Record<string, unknown>[]) {
+      expect(s, `${name}: ${String(s.label)}`).not.toHaveProperty('conditions');
+      expect(s, `${name}: ${String(s.label)}`).not.toHaveProperty('measured');
+    }
+    if (plan.bgImage) expect(plan.bgImage, name).not.toHaveProperty('roughScale');
+    expect(plan.print, name).toMatchObject({ paper: 'letter' });
+    expect(plan.print, name).not.toHaveProperty('under');
+  }
+  expect(Object.values(plans).filter((p) => p.bgImage)).toHaveLength(1); // (the photo is there, as it was)
 
   // Data now lives in IndexedDB: a reload must not re-run the migration.
   await page.reload();
   await page.locator('.project-btn').click();
   await expect(page.locator('.proj-row')).toHaveCount(2);
+});
+
+// Versions before Oct 11 kept plans in localStorage and never open IndexedDB, so the database's version (src/db.ts
+// DB_VERSION, raised to stop tabs left open on an older version) means nothing to them: one run again after this version
+// has raised it starts as it always did, with no wait and no error, and what it saves comes in at this version's next
+// start: beside the plan, which has the yard and warning switches the older copy can't have (docs/storage.md).
+test('the previous version, run again after this one raised the database version, starts as ever, and its edit comes in at the next start, beside the plan', async ({ page }) => {
+  autoDialogs(page, 'Front Yard');
+  await page.goto('/legacy/index.html');
+  await expect(page.locator('.project-btn .pname')).toHaveText('My Garden');
+  await page.locator('.tool-btn.circle').click(); // the previous version's toolbar
+  await field(page, 'Label').fill('Old oak');
+  await closeSheet(page);
+  await page.waitForTimeout(600); // old version saves on a 250 ms debounce
+  await page.goto('/');
+  await expect(page.locator('#canvas-svg text', { hasText: 'Old oak' })).toHaveCount(1);
+  const version = () => page.evaluate(() => new Promise<number>((resolve) => {
+    const open = indexedDB.open('landscape-planner');
+    open.onsuccess = () => { resolve(open.result.version); open.result.close(); };
+  }));
+  expect(await version()).toBe(DB_VERSION);
+
+  // The previous version again, as a tab from before Oct 11 would be.
+  await page.goto('/legacy/index.html');
+  await expect(page.locator('.project-btn .pname')).toHaveText('My Garden');
+  await page.locator('.tool-btn.circle').click();
+  await field(page, 'Label').fill('Later oak');
+  await closeSheet(page);
+  await page.waitForTimeout(600);
+  await page.goto('/');
+  await expect(page.locator('.project-btn .pname')).toHaveText('My Garden');
+  await expect(page.locator('#canvas-svg text', { hasText: 'Old oak' })).toHaveCount(1);
+  await expect(page.locator('#canvas-svg text', { hasText: 'Later oak' })).toHaveCount(0);
+  await page.locator('.project-btn').click();
+  await page.locator('.proj-row', { hasText: 'My Garden (from older version)' }).click();
+  await expect(page.locator('.project-btn .pname')).toHaveText('My Garden (from older version)');
+  await expect(page.locator('#canvas-svg text', { hasText: 'Later oak' })).toHaveCount(1);
+  await expect(page.locator('#canvas-svg text', { hasText: 'Old oak' })).toHaveCount(1);
+  expect(await version()).toBe(DB_VERSION);
 });
 
 /** Each plan's stored data, by name: the parts this test looks at. */
@@ -123,7 +177,7 @@ test("plans from before open with nothing ticked and with who was in this device
   await openFilters(page);
   await expect(page.getByTestId('protect-kids')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('dogs-hideToxic')).toBeChecked();
+  await expect(page.getByTestId('active-chip')).toHaveText(['No plants rated toxic to people', 'No plants rated toxic to dogs']);
   await closeSheet(page);
   await page.waitForTimeout(600);
   // Nothing ticked, nothing else changed: not even when each plan last changed.

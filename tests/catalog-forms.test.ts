@@ -34,19 +34,19 @@ describe("a plant's flowers, leaves and shape", () => {
   });
 
   it('says what the flowers and leaves look like in a line', () => {
-    expect(flowerFormText({ shape: ['cup'], petals: ['4-5'], size: ['1-3'], inflorescence: ['panicle'] })).toBe('Cup-shaped · 4–5 petals · 1–3 in · in panicles');
+    expect(flowerFormText({ shape: ['cup'], petals: ['4-5'], size: ['1-3'], inflorescence: ['panicle'] })).toBe('Cup-shaped · 4–5 petals · 1–3 in · in branched clusters (panicles)');
     expect(flowerFormText({ inflorescence: ['cyme'], petals: ['4-5'], size: ['<1'] })).toBe('4–5 petals · under 1 in · in clusters (cymes)');
     expect(flowerFormText({ shape: ['tubular'], inflorescence: ['solitary'], size: ['>6'] })).toBe('Tubular · over 6 in · borne singly');
     expect(flowerFormText({ inflorescence: ['insignificant'] })).toBe('Flowers not showy');
     expect(flowerFormText(undefined)).toBe('');
-    expect(leafFormText({ type: ['simple'], shape: ['ovate'], margin: ['serrate'], arrangement: ['opposite'], length: ['3-6'] })).toBe('Simple · ovate · toothed · opposite · 3–6 in');
+    expect(leafFormText({ type: ['simple'], shape: ['ovate'], margin: ['serrate'], arrangement: ['opposite'], length: ['3-6'] })).toBe('Single leaves · egg-shaped · toothed · in pairs along the stem · 3–6 in'); // (plain words: Kayla, Nov 4)
     expect(leafFormText({ type: ['needles'], length: ['<1'] })).toBe('Needles · under 1 in');
     expect(habitText({ habit_form: ['erect', 'multi-stemmed', 'open', 'spreading'], texture: ['coarse'] })).toBe('Erect, multi-stemmed, open, spreading · coarse texture');
     expect(habitText({ texture: ['fine', 'medium'] })).toBe('Fine to medium texture');
     expect(habitText({})).toBe('');
     expect(habitText({ habit_form: ['climbing'], climbs_by: ['twining', 'scrambler'] })).toBe('Climbing · climbs by twining or scrambling');
     expect(leafFormText({ arrangement: ['complex'] })).toBe(''); // (nothing it says in words)
-    expect(leafFormText({ type: ['simple'], shape: ['elliptical', 'obovate', 'ovate', 'oblong'], margin: ['serrate', 'dentate', 'entire'] })).toBe('Simple · elliptical, obovate or ovate · toothed or smooth-edged');
+    expect(leafFormText({ type: ['simple'], shape: ['elliptical', 'obovate', 'ovate', 'oblong'], margin: ['serrate', 'dentate', 'entire'] })).toBe('Single leaves · oval, egg-shaped (wide end out) or egg-shaped · toothed or smooth-edged');
   });
 
   it('writes them as read, and nothing of a part or word it doesn\'t know', () => {
@@ -95,9 +95,9 @@ describe('edible parts and fruit set, in a plant\'s details (Jason, Oct 30)', ()
   it('says which parts are edible, and the poison note beside them', () => {
     expect(edibleText({ edible: true, edible_parts: ['fruit', 'flowers'] })).toBe('Fruit, flowers');
     expect(edibleText({ edible: true })).toBe('Yes');
-    expect(edibleText({ edible: true, edible_parts: ['fruit'], poison: { severity: 'low', parts: ['seeds'] } })).toBe('Fruit, though it\'s also listed as poisonous to people (above)');
+    expect(edibleText({ edible: true, edible_parts: ['fruit'], poison: { severity: 'low', parts: ['seeds'] } })).toBe('Fruit, though it\'s also listed as toxic to people (above)');
     expect(edibleText({ edible: true, edible_parts: ['fruit'], poison_parents: { via: 'name', parents: [{ name: 'Morus rubra', poison: { severity: 'low' } }] } }))
-      .toBe('Fruit, though a parent is listed as poisonous to people (above)'); // (a hybrid none rates: Jason, Oct 30)
+      .toBe('Fruit, though a parent is listed as toxic to people (above)'); // (a hybrid none rates: Jason, Oct 30)
     expect(edibleText({})).toBe('');
   });
   it('says what it takes to fruit, a cultivar\'s sex first', () => {

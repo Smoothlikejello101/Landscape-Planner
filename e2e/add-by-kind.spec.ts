@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, closeSheet, field, openFresh, shapeCount, openSections, tapFromCenter, tapping } from './helpers';
+import { addKind, closeSheet, field, openFresh, shapeCount, openSections, tapFromCenter, tapping, planPoint } from './helpers';
 
 // Adding things by what they are: the bottom bar, the Add sheet, and drawing
 // each kind by tapping.
@@ -8,8 +8,9 @@ import { addKind, closeSheet, field, openFresh, shapeCount, openSections, tapFro
 // canvas pixel 24*k is k-10 ft.
 const FT = 24;
 async function tapFt(page: Page, kx: number, ky: number) {
-  const box = (await page.locator('#canvas-svg').boundingBox())!;
-  await page.mouse.click(box.x + kx * FT, box.y + ky * FT);
+  // (In feet, at the view as it is: a strip of words above the plan, or the Building tool opening where a house fits.)
+  const p = await planPoint(page, kx - 10, ky - 10);
+  await page.mouse.click(p.x, p.y);
 }
 const bar = (page: Page) => page.getByTestId('draw-bar');
 const banner = (page: Page) => page.getByTestId('draw-banner');
@@ -24,7 +25,7 @@ test('the bottom bar names garden things; the Add sheet holds the rest', async (
   await expect(sheet.getByTestId('recent-kinds')).toHaveCount(0); // nothing added yet
   await sheet.locator('.sheet-header button').click();
   await page.locator('.tool-btn.plants').click();
-  await expect(page.locator('.sheet-header .title')).toContainText('Plant Picker');
+  await expect(page.getByTestId('picker')).toBeVisible();
 });
 
 test('a building from three taps: tilted to follow the first side, labeled House, then Building', async ({ page }) => {
@@ -48,9 +49,9 @@ test('a building from three taps: tilted to follow the first side, labeled House
   await expect(page.locator('#canvas-svg rect[data-shape-id]')).toHaveAttribute('transform', /rotate\(-36\.9 /);
   await closeSheet(page);
 
-  // The second building in a plan isn't the house.
+  // The second building in a plan isn't the house. (Big enough to tap at the house's scale, the view the first opened at.)
   await addKind(page, 'building');
-  await tapFt(page, 1, 12); await tapFt(page, 5, 12); await tapFt(page, 5, 15);
+  await tapFt(page, 1, 12); await tapFt(page, 9, 12); await tapFt(page, 9, 18);
   await expect(page.locator('.sel-pill .name')).toHaveText('Building');
   // ...and Building now shows under Recent.
   await page.getByTestId('add-btn').click();
@@ -111,9 +112,9 @@ test('an existing tree: the trunk, then the canopy edge; spread by hand, trunk i
   await addKind(page, 'tree');
   await page.getByTestId('unknown-tree').click();
   await expect(bar(page).locator('[data-method]')).toHaveText(['Round canopy', 'Shaped canopy']);
-  await expect(banner(page)).toHaveText(tapping('Existing tree: Tap the trunk', true));
+  await expect(banner(page)).toHaveText(tapping('Existing Tree: Tap the trunk', true));
   await tapFt(page, 10, 10);
-  await expect(banner(page)).toHaveText(tapping('Existing tree: Tap the edge of the canopy', true));
+  await expect(banner(page)).toHaveText(tapping('Existing Tree: Tap the edge of the canopy', true));
   await tapFt(page, 10, 18);
   await expect(page.locator('.sel-pill .name')).toHaveText('Tree');
   // Drawn with its trunk: 16 ft spread → 0.75 ft trunk (a twentieth, to the quarter foot).
@@ -121,12 +122,12 @@ test('an existing tree: the trunk, then the canopy edge; spread by hand, trunk i
   await expect(trunk).toHaveAttribute('r', String(0.375 * FT));
   await expect(page.locator('#canvas-svg [data-role=trunk-spokes]')).toHaveCount(1);
   await page.locator('.sel-pill .edit').click(); await openSections(page);
-  await expect(field(page, 'Spread (ft)')).toHaveValue('16');
+  await expect(field(page, 'Width when grown (ft)')).toHaveValue('16');
   await expect(page.getByTestId('trunk-size')).toHaveAttribute('placeholder', '0.75');
   await page.getByTestId('trunk-size').fill('2');
   await expect(page.getByTestId('trunk-size')).toBeFocused(); // typing never rebuilds the sheet
   await expect(trunk).toHaveAttribute('r', String(1 * FT));
-  await field(page, 'Spread (ft)').fill('20');
+  await field(page, 'Width when grown (ft)').fill('20');
   await expect(trunk).toHaveAttribute('r', String(1 * FT)); // set by hand: stays
   // Not a tree after all (or a tree drawn before trunks): one switch.
   await page.getByTestId('is-tree').locator('input').uncheck();
@@ -141,7 +142,7 @@ test('a tree pruned into a shape: the trunk, then its outline', async ({ page })
   await page.getByTestId('unknown-tree').click();
   await bar(page).locator('[data-method=canopy]').click();
   await tapFt(page, 10, 10); // trunk
-  await expect(banner(page)).toHaveText(tapping('Existing tree: Tap around the edge of the canopy', true));
+  await expect(banner(page)).toHaveText(tapping('Existing Tree: Tap around the edge of the canopy', true));
   await tapFt(page, 6, 8); await tapFt(page, 14, 8); await tapFt(page, 14, 13); await tapFt(page, 6, 13);
   await tapFt(page, 6, 8); // back on the first edge point: done
   await expect(bar(page)).toHaveCount(0);
@@ -150,8 +151,8 @@ test('a tree pruned into a shape: the trunk, then its outline', async ({ page })
   await expect(page.locator('#canvas-svg [data-role=trunk]')).toHaveCount(1);
   await page.locator('.sel-pill .edit').click(); await openSections(page);
   // Its widest reach from the trunk: 5 ft (to the far corners) → 10 ft.
-  await expect(field(page, 'Spread, widest (ft)')).toHaveValue('10');
-  await field(page, 'Spread, widest (ft)').fill('20'); // grows about the trunk
+  await expect(field(page, 'Width when grown, widest (ft)')).toHaveValue('10');
+  await field(page, 'Width when grown, widest (ft)').fill('20'); // grows about the trunk
   await expect(outline).toHaveAttribute('points', `${2 * FT},${6 * FT} ${18 * FT},${6 * FT} ${18 * FT},${16 * FT} ${2 * FT},${16 * FT}`);
   await closeSheet(page);
   await page.locator('.sel-pill .edit').click();
@@ -167,8 +168,8 @@ test('sun exposure and notes open their properties; others stay closed', async (
   await openFresh(page);
   await addKind(page, 'sun', 'circle');
   await tapFt(page, 10, 10); await tapFt(page, 14, 10);
-  await expect(page.locator('.sheet-header .title')).toHaveText('Sun exposure');
-  await expect(page.getByTestId('what-it-is')).toContainText('Sun exposure');
+  await expect(page.locator('.sheet-header .title')).toHaveText('Sun Exposure');
+  await expect(page.getByTestId('what-it-is')).toContainText('Sun Exposure');
   await closeSheet(page);
   await addKind(page, 'note');
   await tapFt(page, 4, 4);
@@ -199,8 +200,8 @@ test.describe('with a keyboard', () => {
     await page.keyboard.press('b');
     await expect(banner(page)).toHaveText(tapping('Bed: Tap each corner', true));
     await tapFt(page, 2, 2); await tapFt(page, 8, 2); await tapFt(page, 8, 8);
-    const box = (await page.locator('#canvas-svg').boundingBox())!;
-    await page.mouse.move(box.x + 2 * FT, box.y + 9 * FT);
+    const hover = await planPoint(page, -8, -1);
+    await page.mouse.move(hover.x, hover.y);
     await expect(page.locator('#canvas-svg [data-role=draw-hover]')).toHaveCount(1);
     await page.keyboard.press('Enter');
     expect(await shapeCount(page)).toBe(1);
@@ -263,4 +264,40 @@ test('a path drawn as an outline stays a path with its name cleared, and an unna
   await expect(page.locator('.sel-pill .name')).toHaveText('Path');
   await page.locator('.sel-pill .edit').click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Path');
+});
+
+// The general bug hunt, Nov 1 (bug 2): the path's width row came up after its first point and shrank the plan, so the
+// next press landed on the bar instead, and points were lost. Every drawing bar keeps its height and its controls
+// where they are from the first press on, the plan's edge with them, at a phone's width and a computer's.
+test('drawing: the bar and its buttons stay put from the first press on, the plan keeping its room (the general bug hunt, Nov 1)', async ({ page }) => {
+  test.setTimeout(120_000);
+  const sizes = [{ width: 360, height: 640 }, page.viewportSize()!];
+  const cases: [string, string, number][] = [['path', 'path', 3], ['path', 'poly', 3], ['driveway', 'path', 3], ['building', 'rect', 2], ['building', 'poly', 3], ['bed', 'poly', 3], ['bed', 'rect', 2], ['fence', 'line', 3], ['patio', 'rect', 2]];
+  for (const size of sizes) {
+    await page.setViewportSize(size);
+    await openFresh(page);
+    for (const [kind, method, taps] of cases) {
+      const what = `${kind} as ${method} at ${size.width}`;
+      await addKind(page, kind, kind === 'fence' ? undefined : method); // (a fence is drawn one way: no choice to make)
+      const where = () => page.evaluate(() => {
+        const bar = document.querySelector('[data-testid=draw-bar]')!.getBoundingClientRect();
+        const plan = document.querySelector('#canvas-wrap')!.getBoundingClientRect();
+        const buttons = [...document.querySelectorAll<HTMLElement>('[data-testid=draw-bar] button')].filter((b) => b.offsetParent)
+          .map((b) => { const r = b.getBoundingClientRect(); return `${(b.textContent ?? '').trim() || b.dataset.testid}@${Math.round(r.x)},${Math.round(r.y)}`; });
+        return { bar: [Math.round(bar.top), Math.round(bar.height)], plan: Math.round(plan.bottom), buttons };
+      });
+      const start = await where();
+      const pts: [number, number][] = [[-4, -5], [4, -5], [4, -1], [-4, 0]];
+      for (let i = 0; i < taps; i++) {
+        await tapFromCenter(page, ...pts[i]);
+        const now = await where();
+        expect(now.bar, `${what}: the bar after press ${i + 1}`).toEqual(start.bar);
+        expect(now.plan, `${what}: the plan's edge after press ${i + 1}`).toBe(start.plan);
+        // (Each button there from the start where it was; Done may come on, a typed side's field may wake.)
+        for (const b of start.buttons) expect(now.buttons, `${what}: ${b} after press ${i + 1}`).toContain(b);
+      }
+      await page.getByTestId('draw-bar').getByRole('button', { name: 'Cancel' }).click();
+      await expect(page.getByTestId('draw-bar')).toHaveCount(0);
+    }
+  }
 });

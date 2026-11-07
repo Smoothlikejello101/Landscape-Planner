@@ -5,7 +5,10 @@ import { state } from './state';
 import { save } from './storage';
 import type { HistorySnapshot, Shape } from './types';
 import { deepClone } from './util';
+import { mayMark } from './marks';
 import { describeShapes } from './ui/delete-selected';
+import { labelShown } from './names';
+import { forgetChangedSides } from './measured';
 
 // Undo/redo: in-memory snapshots of shapes + background image, per project.
 // The background's dataUrl string is shared between snapshots (strings are
@@ -21,6 +24,14 @@ let pendingLabel: string | undefined;
  * status, Clear all); the rest are a plain "Undo".
  */
 export function pushHistory(label?: string) {
+  // (A step still waiting to be pushed (a field typed in, a slider: pushHistoryDebounced) is in this one now: its timer
+  // mustn't push it again later, as a step Undo would undo with nothing to see. CI on #209 caught "Just these 2" undone
+  // by a second Undo only: a Show again 600 ms before had left its timer running. Callers that can, flush first:
+  // flushHistoryDebounce, so that edit stays a step of its own.)
+  if (historyTimer) { clearTimeout(historyTimer); historyTimer = null; }
+  // (A side typed as a number that this step left at another length is forgotten, for good: src/measured.ts. Saved
+  // with the step's own save.)
+  for (const s of state.shapes) forgetChangedSides(s);
   // (What's bought stays as it was but for planting: a planted plant deleted gives no tick back. src/plant-list.ts.)
   const before = state.history[state.historyIndex];
   if (before) boughtKept(before.shapes);
@@ -55,7 +66,7 @@ export function cancelHistoryDebounce() {
 }
 /** What a step did it to, for its label: one shape by its name ("Front bed"), several by what they are ("3 plants"). */
 export function stepNamed(shapes: Shape[]): string {
-  const one = shapes.length === 1 ? shapes[0].label?.trim().replace(/\s+/g, ' ') : '';
+  const one = shapes.length === 1 ? labelShown(shapes[0]).trim().replace(/\s+/g, ' ') : '';
   if (one) return one.length > 30 ? one.slice(0, 29).trimEnd() + '\u2026' : one; // (a note's text can be long)
   return describeShapes(shapes).replace(/^1 /, 'a ');
 }
@@ -73,6 +84,8 @@ function applySnapshot(snap: HistorySnapshot) {
   const before = state.shapes;
   state.shapes = deepClone(snap.shapes);
   boughtKept(before);
+  fruitShownAgain(before);
+  conditionsCleared(before);
   // "Keep this photo on this device only" isn't an undoable edit: the same photo keeps its setting.
   const keep = state.bgImage && snap.bgImage && state.bgImage.dataUrl === snap.bgImage.dataUrl ? state.bgImage.deviceOnly : snap.bgImage?.deviceOnly;
   state.bgImage = snap.bgImage ? { ...snap.bgImage } : null;
@@ -87,10 +100,13 @@ function applySnapshot(snap: HistorySnapshot) {
 export function undo() {
   flushHistoryDebounce();
   if (state.historyIndex <= 0) return;
+  const step = state.history[state.historyIndex];
   state.historyIndex--;
   state.linkOffer = null; // (the circles it named may have changed back)
   state.statusAsk = null; // (and the statuses it asked about)
   applySnapshot(state.history[state.historyIndex]);
+  // (Whether it was put back, for Redo: one made across the plan since stands, and Redo leaves it, words alike or not.)
+  if (step.narrowed) step.narrowed.putBack = narrowedBack(step.narrowed, true);
   save();
 }
 export function redo() {
@@ -99,8 +115,52 @@ export function redo() {
   state.historyIndex++;
   state.linkOffer = null;
   state.statusAsk = null;
-  applySnapshot(state.history[state.historyIndex]);
+  const step = state.history[state.historyIndex];
+  applySnapshot(step);
+  if (step.narrowed?.putBack) { narrowedBack(step.narrowed, false); step.narrowed.putBack = false; }
   save();
+}
+/**
+ * A step that narrowed a warning dismissed across the plan ("Just these 2": src/dismissals.ts warnForNewOnes), undone:
+ * that dismissal back (`back`), unless the plant has one across the plan again since; redone: gone again, if Undo put
+ * it back (its `putBack`: not one made since with the same words, the second review, Nov 1) and it's still that one.
+ * Whether it changed anything.
+ */
+function narrowedBack(n: NonNullable<HistorySnapshot['narrowed']>, back: boolean): boolean {
+  const m = { ...(state.dismissed?.[n.kind] ?? {}) };
+  if (back ? m[n.plantId] !== undefined : m[n.plantId] !== n.said) return false;
+  if (back) m[n.plantId] = n.said; else delete m[n.plantId];
+  const next = { ...(state.dismissed ?? {}) };
+  if (Object.keys(m).length) next[n.kind] = m; else delete next[n.kind];
+  state.dismissed = next; // (kept, even empty, once the plan has had any: so it syncs too, as in src/dismissals.ts)
+  return true;
+}
+/**
+ * A copy's own fruit-partner dismissal that Undo or Redo takes away is left '', shown again on purpose, as Show again
+ * leaves it: so sync doesn't fill it back from another device's copy (src/sync/engine.ts withFruitDismissals). Only
+ * where the server's copy had it as this device last synced (src/marks.ts mayMark): one dismissed here and never sent,
+ * then undone, has none again.
+ */
+function fruitShownAgain(before: Shape[]) {
+  const had = new Map(before.filter((s) => !!s.fruitDismissed).map((s) => [s.id, s.plantId]));
+  if (!had.size) return;
+  for (const s of state.shapes) {
+    if (s.fruitDismissed === undefined && had.has(s.id) && had.get(s.id) === s.plantId && mayMark('fruit', s.id)) s.fruitDismissed = '';
+  }
+}
+/**
+ * A bed's conditions that Undo or Redo takes away (the step that set them undone, say) are left {}, cleared on purpose,
+ * as clearing them leaves them: so sync doesn't fill them back from another device's copy (src/sync/engine.ts
+ * withBedConditions). Only on a bed still a bed: one that stops being one has none (src/mutations.ts setRoleForIds).
+ * And only where the server's copy had them as this device last synced (src/marks.ts mayMark): answers set here and
+ * never sent, then undone, are none again, not {}.
+ */
+function conditionsCleared(before: Shape[]) {
+  const had = new Set(before.filter((s) => s.role === 'bed' && s.conditions !== undefined).map((s) => s.id));
+  if (!had.size) return;
+  for (const s of state.shapes) {
+    if (s.role === 'bed' && s.conditions === undefined && had.has(s.id) && mayMark('conditions', s.id)) s.conditions = {};
+  }
 }
 /**
  * Whether there's a step to undo: one taken, or one still being gathered (a run of arrow nudges, typing in a field),

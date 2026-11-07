@@ -9,15 +9,18 @@ test('add a plant from its tag, place it, and switch to full size', async ({ pag
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Limelight');
+  await expect(page.getByTestId('plant-search')).toHaveAttribute('spellcheck', 'false');
   const add = page.getByTestId('add-own-plant');
   await expect(add).toHaveText('Add “Limelight” as my plant');
   await add.click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Add a plant');
   await expect(page.getByTestId('pf-name')).toHaveValue('Limelight');
+  // (Spell checking off where a plant's name is typed, Jason, Nov 5: its menu hid the keyboard and moved the sheet.)
+  for (const id of ['pf-name', 'pf-botanical', 'pf-from']) await expect(page.getByTestId(id)).toHaveAttribute('spellcheck', 'false');
   await page.getByTestId('pf-name').fill("Hydrangea 'Limelight'");
   const spread = page.getByTestId('pf-spread');
   const spreadLabel = page.locator('.field', { has: spread }).locator('label');
-  await expect(spreadLabel).toContainText('Spread (width), required');
+  await expect(spreadLabel).toContainText('Width when grown, required');
   await page.getByTestId('pf-save').click();
   // What's missing shows on the field's own label, above it, where the keyboard that opens doesn't cover it.
   await expect(page.getByTestId('pf-spread-missing')).toContainText('enter one number or a range like 6-8');
@@ -154,7 +157,7 @@ test('a plant copied, or added, in Switch plant is the plant in hand once saved;
   await tapFromCenter(page, 0, 0);
   // Copied.
   await bar.getByTestId('place-switch').click();
-  await expect(page.locator('.sheet-header .title')).toHaveText('Switch plant');
+  await expect(page.locator('.picker-sheet [data-testid=plant-place]').first()).toHaveText(/^Switch/); // (Switch plant: no title row since Nov 4)
   await page.getByTestId('plant-search').fill('Sawara-cypress');
   await page.locator('.proj-row', { hasText: 'Sawara-cypress' }).first().getByRole('button', { name: /Copy as my plant/ }).click();
   await page.getByTestId('pf-name').fill('False cypress');
@@ -234,7 +237,7 @@ test('closing Add a plant or a copy with its × goes back to the picker, the sea
   await page.getByTestId('add-own-plant').click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Add a plant');
   await page.locator('.sheet-header').getByRole('button', { name: 'Back to the plant list' }).click();
-  await expect(page.locator('.sheet-header .title')).toContainText('Plant Picker');
+  await expect(page.getByTestId('picker')).toBeVisible();
   await expect(page.getByTestId('plant-search')).toHaveValue('Aunt Lou’s keeper');
   await expect(page.getByTestId('add-own-plant')).toBeVisible();
   // A copy of a catalog plant, likewise.
@@ -261,23 +264,23 @@ test('turn a labeled circle into a plant, then edit the plant', async ({ page })
   await expect(page.getByTestId('pf-save')).toHaveText('Save and use for this circle');
   await page.getByTestId('pf-save').click();
   // The circle is now that plant, at its size, its properties open (as after picking from the list).
-  await expect(page.getByTestId('plant-size-note')).toContainText('Its spread: 5 ft');
+  await expect(page.getByTestId('plant-size-note')).toContainText('Its width when grown: 5 ft');
   await expect(field(page, 'Label')).toHaveValue('Ninebark');
-  await expect(field(page, 'Spread (ft)')).toHaveValue('5');
+  await expect(field(page, 'Width when grown (ft)')).toHaveValue('5');
 
   // Editing the library plant offers to resize it on the plan.
   await page.getByRole('button', { name: 'Edit "Ninebark" in My plants' }).click();
   await page.getByTestId('pf-spread').fill('8 ft');
   await page.getByTestId('pf-save').click();
   await page.locator('.sel-pill button.edit').click();
-  await expect(field(page, 'Spread (ft)')).toHaveValue('8');
+  await expect(field(page, 'Width when grown (ft)')).toHaveValue('8');
 
   // Sized by hand: a reset button appears.
-  await field(page, 'Spread (ft)').fill('6');
+  await field(page, 'Width when grown (ft)').fill('6');
   await closeSheet(page);
   await page.locator('.sel-pill button.edit').click();
   await page.getByTestId('reset-size').click();
-  await expect(field(page, 'Spread (ft)')).toHaveValue('8');
+  await expect(field(page, 'Width when grown (ft)')).toHaveValue('8');
 });
 
 test('a new plant made for a circle keeps the circle\'s size, as the form shows it', async ({ page }) => {
@@ -297,7 +300,7 @@ test('a new plant made for a circle keeps the circle\'s size, as the form shows 
   await expect(hint).not.toContainText('From the circle'); // (3.5 inches isn't the circle)
   await page.getByTestId('pf-spread-ft').click();
   await page.getByTestId('pf-save').click();
-  await expect(field(page, 'Spread (ft)')).toHaveValue('3.5');
+  await expect(field(page, 'Width when grown (ft)')).toHaveValue('3.5');
 });
 
 test('a plant of mine the catalog now has: compare, switch (placed plants follow), undo', async ({ page }) => {
@@ -318,7 +321,7 @@ test('a plant of mine the catalog now has: compare, switch (placed plants follow
   await offer.getByTestId('switch-offer').click();
   const sheet = page.getByTestId('switch-sheet');
   await expect(sheet.locator('.sheet-header .title')).toHaveText('Now in the catalog');
-  await expect(sheet.locator('.switch-row.differs', { hasText: 'Spread' })).toContainText('5 ft');
+  await expect(sheet.locator('.switch-row.differs', { hasText: 'Width when grown' })).toContainText('5 ft');
   await expect(sheet).toContainText('1 placed in this plan');
   await expect(sheet.getByTestId('switch-resize')).toBeChecked();
   await sheet.getByTestId('switch-go').click();
@@ -364,4 +367,35 @@ test('a plant of mine: its flower colors as chips, kept without bloom months, th
   await page.locator('.sel-pill button.edit').click();
   await page.getByRole('button', { name: 'Edit "Mystery rose" in My plants' }).click();
   await expect(page.getByTestId('pf-flowers').locator('.color-chip.on')).toHaveText(['White']);
+});
+
+// The picker bug hunt, Nov 1 (B10): a copied Eastern redcedar started in the brown every tree is listed in, its dot
+// brown in Recent (since gone, Nov 4) and on the placing bar, while its original is drawn, and spotted, dark green.
+test('a copy of a catalog plant starts in the color its original is drawn in, not its type\'s (the picker bug hunt, Nov 1)', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Eastern redcedar');
+  const row = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Eastern Redcedar/ }) }).first();
+  const leaves = await row.getByTestId('row-dot').locator('circle').first().getAttribute('fill');
+  expect(leaves).toMatch(/^#[0-9a-f]{6}$/);
+  await row.getByRole('button', { name: /Copy as my plant/ }).click();
+  await expect(page.getByTestId('pf-form')).toHaveValue('Tree');
+  await expect(page.getByTestId('pf-color')).toHaveValue(leaves!);
+  // Kept if the type changes: it's the original's, not the type's.
+  await page.getByTestId('pf-form').selectOption('Shrub');
+  await expect(page.getByTestId('pf-color')).toHaveValue(leaves!);
+  await page.getByTestId('pf-form').selectOption('Tree');
+  await page.getByTestId('pf-name').fill('Hedge cedar');
+  await page.getByTestId('pf-save').click();
+  // On the placing bar, the same; and its spot in the picker's My plants.
+  const bg = (l: ReturnType<Page['locator']>) => l.evaluate((e) => getComputedStyle(e).backgroundColor);
+  const rgb = (hex: string) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`;
+  await expect(page.getByTestId('place-bar')).toBeVisible();
+  expect(await bg(page.getByTestId('place-switch').locator('.sw-dot'))).toBe(rgb(leaves!));
+  await tapFromCenter(page, 0, 0);
+  await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Hedge cedar');
+  const mine = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Hedge cedar/i }) }).first();
+  await expect(mine.getByTestId('row-dot').locator('circle').first()).toHaveAttribute('fill', leaves!);
 });

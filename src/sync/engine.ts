@@ -26,6 +26,8 @@
 //   known by a fingerprint of its bytes). A project whose photo can't be
 //   fetched yet arrives without it and gets it at a later pass.
 
+import { MEASURED_TOL } from '../measured';
+
 export interface ProjectContent { [key: string]: unknown }
 /**
  * A project as sync read it. `token` marks the moment: sync changes or
@@ -55,6 +57,21 @@ export interface SyncRecord {
    * so what the server has of them isn't known here (an upload settles with the server first).
    */
   parts?: ProjectContent;
+  /**
+   * The shapes, by id, that had a bed's conditions or a fruit-partner dismissal in the server's copy this record
+   * describes (Nov 4): where a mark of something taken away ({} or '') may go on this device, since another device can
+   * have that field (src/marks.ts mayMark). Absent: none had either (and in every record from before it: release 3
+   * never had the fields, and Next doesn't sync).
+   */
+  marks?: { conditions?: string[]; fruit?: string[] };
+  /**
+   * The core's fingerprint with every bed's conditions left out (bareHash, Nov 5), made with `core` from the same copy:
+   * a server's copy with no conditions at all (an older version's, which drops them from every bed) is compared by it,
+   * so conditions filled in from here aren't taken for a change there (asRecordedButConditions). Absent in a record from
+   * before it, and in any an older version wrote (it keeps only the fields it knows): such a copy is compared as before,
+   * a needless copy at worst.
+   */
+  bare?: string;
 }
 export interface ServerProject { id: string; name: string; revision: number; updated_by: string | null; updated_at: string; deleted_at: string | null }
 export type PushResult =
@@ -185,8 +202,73 @@ export function planOf(c: ProjectContent): ProjectContent {
   const { photo: _p, ...rest } = c;
   return rest;
 }
+/**
+ * A plan as fingerprinted: a fruit-partner warning shown again on purpose (`fruitDismissed: ''`) reads as none. So a
+ * dismissal taken back before the plan synced (Undo, Show again) isn't taken for a change, which against another
+ * device's edit made a conflict copy (the second review, Nov 1); dismissed words to '' still differ, as words to none
+ * do, so a Show again still goes up. Likewise a bed's conditions cleared on purpose (`conditions: {}`, Nov 2): set to
+ * {} is a change, as set to none is; none to {} isn't. And Show through picked for the plants under taller ones
+ * (`print.under: 'windows'`, Nov 4) reads as none picked, which prints the same: As on screen and back before the plan
+ * synced isn't a change of its own, while As on screen to Show through still is, and goes up. A plan with none of these
+ * is fingerprinted exactly as before (the same object).
+ */
+function forHash(c: ProjectContent): ProjectContent {
+  let out = c;
+  if (Array.isArray(c.shapes)) {
+    const cleared = withoutClearedMarks(c.shapes);
+    const shapes = withoutMeasured(cleared ?? c.shapes) ?? cleared;
+    if (shapes) out = { ...out, shapes };
+  }
+  const print = c.print;
+  if (isObject(print) && print.under === 'windows') {
+    const { under: _u, ...rest } = print;
+    out = { ...out, print: rest };
+  }
+  return out;
+}
+/**
+ * The shapes with their sides typed as numbers (`measured`, Nov 4: src/measured.ts) left out, for the fingerprints;
+ * null when none has them. This version changes them only with the shape's sides (typing a rectangle's Width, drawing
+ * it, reshaping it), which the fingerprint sees anyway; an older version drops them from every plan it sends. Seen,
+ * a device on the release ticking a plant bought, or moving the photo, would read on this device as a change to the
+ * plan there, and a copy of it would be made if this device had reshaped a shape since. (Withdrawn from the plan by
+ * an older version, they're kept from here: withMeasuredSides. Typed again as the same length, they go up with the
+ * next edit.)
+ */
+function withoutMeasured<T>(shapes: readonly T[]): T[] | null {
+  const has = (s: unknown) => !!s && typeof s === 'object' && 'measured' in s;
+  if (!shapes.some(has)) return null;
+  return shapes.map((s) => { if (!has(s)) return s; const { measured: _m, ...rest } = s as Record<string, unknown>; return rest as T; });
+}
+
+// ---------- Marks of something taken away on purpose ----------
+// Kept on a shape so sync can tell them from a copy an older version sent without the field (docs/storage.md): a
+// fruit-partner warning shown again (`fruitDismissed: ''`) and a bed's conditions cleared (`conditions: {}`). Where two
+// copies of a plan are compared for what they hold (the fingerprints here, a journal against its plan in
+// src/storage.ts, an imported plan against one already here in src/backup.ts), each reads as none.
+/** Whether a shape carries either mark. */
+function marked(s: unknown): boolean {
+  if (!s || typeof s !== 'object') return false;
+  const o = s as { fruitDismissed?: unknown; conditions?: unknown };
+  const k = o.conditions;
+  return o.fruitDismissed === '' || (!!k && typeof k === 'object' && !Array.isArray(k) && Object.keys(k).length === 0);
+}
+
+/** The shapes with those marks read as none; null when none has one (so a caller can keep its object as it was). */
+export function withoutClearedMarks<T>(shapes: readonly T[]): T[] | null {
+  if (!shapes.some(marked)) return null;
+  return shapes.map((s) => {
+    if (!marked(s)) return s;
+    const rest = { ...(s as Record<string, unknown>) };
+    if (rest.fruitDismissed === '') delete rest.fruitDismissed;
+    const k = rest.conditions;
+    if (!!k && typeof k === 'object' && !Array.isArray(k) && Object.keys(k).length === 0) delete rest.conditions;
+    return rest as T;
+  });
+}
+
 /** Fingerprint of the name and plan (the photo apart). Records made before photos synced hold exactly this. */
-export const planHash = (name: string, c: ProjectContent) => fingerprint(name, planOf(c));
+export const planHash = (name: string, c: ProjectContent) => fingerprint(name, forHash(planOf(c)));
 /** Parts of a plan that settle on their own when two devices change them (settleParts), not a conflict. */
 const OWN_PARTS = ['bought', 'household', 'switches'] as const;
 /** The plan without its photo and the parts that settle on their own: what two devices changing is a conflict. */
@@ -201,10 +283,21 @@ function partsOf(c: ProjectContent): ProjectContent {
   for (const k of OWN_PARTS) if (c[k] !== undefined) out[k] = JSON.parse(JSON.stringify(c[k]));
   return out;
 }
-/** Fingerprint of the name and the plan's core (coreOf). */
-export const coreHash = (name: string, c: ProjectContent) => fingerprint(name, coreOf(c));
+/** Fingerprint of the name and the plan's core (coreOf), '' read as none (forHash). */
+export const coreHash = (name: string, c: ProjectContent) => fingerprint(name, forHash(coreOf(c)));
 /** A record's core fingerprint; one from before the parts that settle on their own had none, its plan neither part. */
 const coreOfRecord = (rec: SyncRecord) => rec.core ?? rec.hash;
+/** Whether a shape has a bed's conditions, answers or {} (any shape: reading keeps them on a bed only). */
+const hasConditions = (s: unknown) => !!s && typeof s === 'object' && 'conditions' in s;
+/**
+ * The core's fingerprint (coreHash) with every bed's conditions left out, answers and {} alike: a record's `bare`. A plan
+ * with none has the same as its core.
+ */
+export function bareHash(name: string, c: ProjectContent): string {
+  if (!Array.isArray(c.shapes) || !c.shapes.some(hasConditions)) return coreHash(name, c);
+  const shapes = c.shapes.map((s) => { if (!hasConditions(s)) return s; const { conditions: _k, ...rest } = s as Record<string, unknown>; return rest; });
+  return coreHash(name, { ...c, shapes });
+}
 /**
  * Whether a plan's core (`c`, named `name`) is as the record has it. A record without `core` holds the whole plan's
  * fingerprint: one from a version before the parts (the plan had none, so that's its core), or one of this version's
@@ -231,7 +324,10 @@ export function photoKey(c: ProjectContent): string | undefined {
   if (!ph) return 'none';
   if (ph.deviceOnly === true) return 'kept';
   if (typeof ph.fingerprint !== 'string') return 'none';
-  const { fingerprint: fp, ...placement } = ph as Record<string, unknown>;
+  // (A rough scale, Nov 4, left out: it's set and cleared only with the scale, which is here; the release drops it from
+  // the photo it sends with any edit of its own, which would read as the photo changed there, a copy made against a
+  // scale set again here. Kept from here meanwhile: withRoughScale. A photo without one is fingerprinted as before.)
+  const { fingerprint: fp, roughScale: _r, ...placement } = ph as Record<string, unknown>;
   return `${fp}@${fingerprint('', placement)}`;
 }
 /** The fingerprint of the photo content shows (none if it shows none, or keeps it on one device). */
@@ -242,11 +338,31 @@ export function photoFp(c: ProjectContent): string | undefined {
 /** The record for content as the server has it at `revision`. */
 const recordFor = (name: string, c: ProjectContent, revision: number): SyncRecord => {
   const photo = photoKey(c);
-  const rec: SyncRecord = { revision, hash: planHash(name, c), core: coreHash(name, c) };
+  const rec: SyncRecord = { revision, hash: planHash(name, c), core: coreHash(name, c), bare: bareHash(name, c) };
   const parts = partsOf(c);
   if (Object.keys(parts).length) rec.parts = parts;
+  const marks = marksOf(c);
+  if (marks) rec.marks = marks;
   return photo === undefined ? rec : { ...rec, photo };
 };
+/**
+ * The shapes of a copy of a plan with a bed's conditions or a fruit-partner dismissal (marks included), by id: a
+ * record's `marks`. Only from the server's copy (what another device can take): a download's record describes the copy
+ * as kept here, with this device's own parts filled in, so it takes them from the server's copy itself.
+ */
+export function marksOf(c: ProjectContent): SyncRecord['marks'] {
+  if (!Array.isArray(c.shapes)) return undefined;
+  const conditions: string[] = [], fruit: string[] = [];
+  for (const s of c.shapes) {
+    if (!s || typeof s !== 'object') continue;
+    const o = s as { id?: unknown; role?: unknown; conditions?: unknown; fruitDismissed?: unknown };
+    if (typeof o.id !== 'string') continue;
+    if (o.role === 'bed' && o.conditions !== undefined) conditions.push(o.id);
+    if (o.fruitDismissed !== undefined) fruit.push(o.id);
+  }
+  if (!conditions.length && !fruit.length) return undefined;
+  return { ...(conditions.length ? { conditions } : {}), ...(fruit.length ? { fruit } : {}) };
+}
 /** Size in bytes of a data URL's contents. */
 const byteSize = (dataUrl: string) => { const b64 = dataUrl.slice(dataUrl.indexOf(',') + 1); return Math.floor((b64.length * 3) / 4) - (b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0); };
 
@@ -261,7 +377,190 @@ export function withLocalParts(server: ProjectContent, mine: ProjectContent | un
   if (!mine) return server;
   let out = server;
   for (const k of NEWER_PARTS) if (!(k in server) && k in mine) out = { ...out, [k]: mine[k] };
-  return withChosenColors(withStructures(withVineSupports(withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine), mine), mine), mine);
+  return withPrintUnder(withRoughScale(withMeasuredSides(withBedConditions(withFruitDismissals(withChosenColors(withStructures(withVineSupports(withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine), mine), mine), mine), mine), mine), mine), mine), mine);
+}
+/**
+ * A plan's print choice for the plants under taller ones (`print.under`, Nov 4: src/view-settings.ts printUnder), which
+ * an older version drops from the print settings it sends (its sanitizePrint builds them from the fields it knows):
+ * kept from here when the server's copy's print settings say nothing of it at all. Once picked, this version keeps one
+ * (Show through too), so a copy without one is a plan never picked anywhere, or an older version's copy, or a copy of
+ * that. Where the server's has one, it stands. The server's copy goes without it until a device that has it sends the
+ * plan again (any edit). (Filled in from here, it isn't taken for a change there: asRecordedButUnder.)
+ */
+function withPrintUnder(server: ProjectContent, mine: ProjectContent): ProjectContent {
+  const there = server.print, here = mine.print;
+  if (!isObject(there) || 'under' in there || !isObject(here) || (here.under !== 'windows' && here.under !== 'screen')) return server;
+  return { ...server, print: { ...there, under: here.under } };
+}
+/**
+ * Whether the server's copy (`server`, as read here, this device's choice filled in) is the plan as this device's
+ * record has it but for the print choice for the plants under taller ones, which the copy as sent (`sent`) doesn't have
+ * at all: an older version's copy, with that field dropped and nothing else in the plan's core changed there (a tick,
+ * the photo moved, or no edit of its own). Filled from here, the choice picked again here would read as changed there,
+ * and a copy would be made against any other edit of the plan here (as for a bed's conditions: found Nov 4, building
+ * this; asRecordedButConditions, Nov 5). Tried as recorded: none picked (or Show through: the same), or As on screen.
+ */
+function asRecordedButUnder(rec: SyncRecord, name: string, server: ProjectContent, sent: ProjectContent, mine: ProjectContent): boolean {
+  return underAsRecorded(server, sent).some((c) => coreAsRecorded(rec, name, c, mine));
+}
+/**
+ * The server's copy (`server`, as read here) with each print choice for the plants under taller ones it may have had as
+ * recorded, where the copy as sent (`sent`) says nothing of it at all (asRecordedButUnder): none picked (or Show through:
+ * the same), and As on screen. None where it says something of it.
+ */
+function underAsRecorded(server: ProjectContent, sent: ProjectContent): ProjectContent[] {
+  if (!isObject(sent.print) || 'under' in sent.print || !isObject(server.print)) return [];
+  const { under: _u, ...rest } = server.print;
+  return [rest, { ...rest, under: 'screen' }].map((print) => ({ ...server, print }));
+}
+/**
+ * Whether the server's copy (`server`, as read here, this device's parts filled in) is the plan as this device's record
+ * has it but for beds' conditions, of which the copy as sent (`sent`) has none at all, on any shape: an older version's
+ * copy (the release, an older tab), which drops them from every bed, with nothing else in the plan's core changed there
+ * (a tick, the photo moved, or no edit of its own). Filled in from here (withBedConditions), they are this device's
+ * conditions as they are now: changed here since the record, the server's copy read as changed there, and a copy was
+ * made against any other edit of the plan here (found Nov 4, building asRecordedButUnder). So the record's core without
+ * them (`bare`) is compared with the copy's, as read here, without them; with the print choice for the plants under
+ * taller ones as recorded too, where the copy dropped that as well (the same versions drop both).
+ *
+ * Why this can't take a real change there for none: every other part of the core (the name, every other field of every
+ * shape, the print settings) must be exactly as recorded, and the copy says nothing of conditions. A version that drops
+ * them can't have changed them; a device of this version sends every bed's it has, so a copy from it with none at all is
+ * one from a device that had none on any bed: one that took the plan after an older version dropped them (nothing to
+ * take away), or one that took them away where its record said the server's copy had none (src/marks.ts mayMark: no
+ * {}). That last is the window docs/storage.md keeps: a copy made for it held this device's conditions, filled in, in the
+ * original as in the copy, so neither kept that device's change. A record without `bare` (from before it, or written by
+ * an older version) isn't compared this way.
+ */
+function asRecordedButConditions(rec: SyncRecord, name: string, server: ProjectContent, sent: ProjectContent): boolean {
+  if (rec.core === undefined || rec.bare === undefined || !Array.isArray(sent.shapes) || sent.shapes.some(hasConditions)) return false;
+  return [server, ...underAsRecorded(server, sent)].some((c) => bareHash(name, c) === rec.bare);
+}
+/**
+ * Whether `here` has a print choice for the plants under taller ones that `there`'s print settings say nothing of at
+ * all. The fingerprints read Show through picked as none picked, but a server's copy without it isn't one that has it:
+ * a device still holding As on screen, from before an older version dropped it, would fill its own back in
+ * (withPrintUnder) and send it with its next edit, over the pick (the review's R1, Nov 4).
+ */
+function pickNotThere(here: ProjectContent, there: ProjectContent): boolean {
+  return isObject(here.print) && 'under' in here.print && isObject(there.print) && !('under' in there.print);
+}
+/**
+ * Whether `here` has a mark of something taken away on purpose, a bed's conditions cleared ({}) or a fruit-partner
+ * warning shown again (''), where `there`'s copy of that shape says nothing of that field at all. The fingerprints read
+ * either as none, but a server's copy without the field isn't one that has the mark: a device still holding the answers
+ * or the dismissal, from before an older version dropped them, would fill its own back in (withBedConditions,
+ * withFruitDismissals) and send it with its next edit, over the mark, everywhere (found Nov 5, as pickNotThere: the
+ * review's R1). `there` is the server's copy as it sent it, not as read here: a field there in a form this version
+ * can't read (and drops, reading it) is still something there, never sent over for a mark.
+ */
+function markNotThere(here: ProjectContent, there: ProjectContent): boolean {
+  if (!Array.isArray(here.shapes) || !Array.isArray(there.shapes)) return false;
+  type Marked = { id?: unknown; role?: unknown; conditions?: unknown; fruitDismissed?: unknown };
+  const theirs = new Map<unknown, Marked>();
+  for (const s of there.shapes as Marked[]) if (s && typeof s === 'object') theirs.set(s.id, s);
+  return (here.shapes as Marked[]).some((s) => {
+    const t = s && typeof s === 'object' ? theirs.get(s.id) : undefined;
+    if (!t) return false;
+    const cleared = s.role === 'bed' && isObject(s.conditions) && Object.keys(s.conditions).length === 0 && !('conditions' in t);
+    return cleared || (s.fruitDismissed === '' && !('fruitDismissed' in t));
+  });
+}
+/**
+ * The sides of a shape typed as numbers (`measured`, Nov 4: src/measured.ts), which an older version drops from every
+ * shape it sends, side by side: the server's copy's own entries stand, and one here for a side they don't name is kept
+ * only where that side is provably the same side, and still the length typed (within MEASURED_TOL): a rectangle with
+ * that dimension the same (its Width for sides 0 and 2, its Length for 1 and 3), or an outline or a line with as many
+ * points and both ends of that side exactly where they are here. Moved or turned there, each side is the same; a point
+ * added or taken out there (the sides perhaps renumbered), none is kept, so a number never lands on another side, nor
+ * on a side another device changed (the honest rule: docs/storage.md). So a typed Length here stays beside a Width
+ * typed on another device that never had it (the review's R4: an older version had sent the plan without them).
+ * Nothing marks them taken away on purpose: this version takes a side away only when its length changes, which this
+ * tells.
+ */
+function withMeasuredSides(server: ProjectContent, mine: ProjectContent): ProjectContent {
+  if (!Array.isArray(server.shapes) || !Array.isArray(mine.shapes)) return server;
+  const kept = new Map<unknown, Sided>();
+  for (const s of mine.shapes as Sided[]) if (s && Array.isArray(s.measured) && s.measured.length) kept.set(s.id, s);
+  if (!kept.size) return server;
+  let filled = false;
+  const shapes = (server.shapes as Sided[]).map((s) => {
+    const k = s && typeof s === 'object' ? kept.get(s.id) : undefined;
+    if (!k) return s;
+    const theirs: unknown[] = Array.isArray(s.measured) ? s.measured : [];
+    const named = new Set(theirs.map((m) => (m && typeof m === 'object' ? (m as { side?: unknown }).side : undefined)));
+    const add = (k.measured as { side?: unknown; ft?: unknown }[]).filter((m) => m && !named.has(m.side) && sameSide(s, k, m));
+    if (!add.length) return s;
+    filled = true;
+    return { ...s, measured: [...JSON.parse(JSON.stringify(theirs)), ...add.map((m) => ({ side: m.side, ft: m.ft }))] };
+  });
+  return filled ? { ...server, shapes } : server;
+}
+type Sided = { id?: unknown; type?: unknown; width?: unknown; height?: unknown; points?: unknown; measured?: unknown };
+/**
+ * Whether side `m.side` of the server's copy (`there`) is provably that side here (`here`), and the length typed: see
+ * withMeasuredSides.
+ */
+function sameSide(there: Sided, here: Sided, m: { side?: unknown; ft?: unknown }): boolean {
+  const i = m.side, ft = m.ft;
+  if (typeof i !== 'number' || !Number.isInteger(i) || i < 0 || typeof ft !== 'number' || there.type !== here.type) return false;
+  const near = (len: number) => Math.abs(len - ft) <= MEASURED_TOL + 1e-9;
+  if (there.type === 'rect') {
+    const dim = i % 2 === 0 ? 'width' : 'height', len = there[dim];
+    return i < 4 && typeof len === 'number' && len === here[dim] && near(len);
+  }
+  if (there.type !== 'poly' && there.type !== 'line') return false;
+  const a = there.points, b = here.points;
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  const n = a.length, j = (i + 1) % n;
+  if (i >= (there.type === 'poly' ? n : n - 1)) return false;
+  const at = (p: unknown): [number, number] | null => (Array.isArray(p) && typeof p[0] === 'number' && typeof p[1] === 'number' ? [p[0], p[1]] : null);
+  const p = at(a[i]), q = at(a[j]), p2 = at(b[i]), q2 = at(b[j]);
+  if (!p || !q || !p2 || !q2 || p[0] !== p2[0] || p[1] !== p2[1] || q[0] !== q2[0] || q[1] !== q2[1]) return false;
+  return near(Math.hypot(q[0] - p[0], q[1] - p[1]));
+}
+/**
+ * A photo's rough scale (`roughScale`, Nov 4), which an older version drops from the photo it sends: kept from here
+ * when the server's copy is the same photo (its fingerprint) at exactly the same scale and says neither that it's rough
+ * nor that it isn't to scale yet. Only setting the scale sets or clears it, and setting it again gives another scale,
+ * so the same scale without it is an older version's copy (moved, turned, made fainter, or the plan edited). Where the
+ * server's has it, or another scale, it stands.
+ */
+function withRoughScale(server: ProjectContent, mine: ProjectContent): ProjectContent {
+  type Placed = { fingerprint?: unknown; ftPerPx?: unknown; uncalibrated?: unknown; roughScale?: unknown };
+  const there = server.photo as Placed | null | undefined, here = mine.photo as Placed | null | undefined;
+  if (!isObject(there) || !isObject(here) || here.roughScale !== true || 'roughScale' in there || 'uncalibrated' in there) return server;
+  if (typeof there.fingerprint !== 'string' || there.fingerprint !== here.fingerprint || typeof there.ftPerPx !== 'number' || there.ftPerPx !== here.ftPerPx) return server;
+  return { ...server, photo: { ...there, roughScale: true } };
+}
+/**
+ * A bed's conditions (Nov 2: its soil, moisture, drip, and sun where no sun area covers it), which an older version
+ * drops from a shape it sends: kept from here when the server's copy of that shape, still a bed (its id and role), has
+ * none at all. Without it, a device on an older version with an edit of its own sends the plan over newer conditions,
+ * its merge not seeing them, and every device then loses them. The server's copy goes without them until a device that
+ * has them sends the plan again. {} (cleared on purpose) is kept the same way, so a device that cleared them says so
+ * again as it next sends the plan; where the server has some, {} or answers, they stand. (Filled in from here into a
+ * copy with none at all, they aren't taken for a change there: asRecordedButConditions.)
+ *
+ * What's left (as for fruitDismissed, docs/storage.md): a device offline through another device's change to a bed's
+ * conditions (set, changed or cleared), with a device on an older version sending the plan between, still has its own,
+ * which the server's copy no longer contradicts: it keeps them, and they go to everyone if it sends the plan before the
+ * device that made the change does. Only while one of the account's devices is on database version 3 or before
+ * (docs/storage.md has the other windows).
+ */
+function withBedConditions(server: ProjectContent, mine: ProjectContent): ProjectContent {
+  if (!Array.isArray(server.shapes) || !Array.isArray(mine.shapes)) return server;
+  type Bed = { id?: unknown; role?: unknown; conditions?: unknown };
+  const kept = new Map<unknown, unknown>();
+  for (const s of mine.shapes as Bed[]) if (s && s.role === 'bed' && isObject(s.conditions)) kept.set(s.id, s.conditions);
+  if (!kept.size) return server;
+  let filled = false;
+  const shapes = (server.shapes as Bed[]).map((s) => {
+    if (!s || typeof s !== 'object' || s.role !== 'bed' || 'conditions' in s || !kept.has(s.id)) return s;
+    filled = true;
+    return { ...s, conditions: JSON.parse(JSON.stringify(kept.get(s.id))) };
+  });
+  return filled ? { ...server, shapes } : server;
 }
 /**
  * A shape's sub-features (doors, windows, gates: src/features.ts), which an older version leaves out of a shape it
@@ -309,6 +608,35 @@ function withUtilities(server: ProjectContent, mine: ProjectContent): ProjectCon
     if (typeof k.utilityDismissed === 'string' && k.utilityDismissed && !('utilityDismissed' in s)) out = { ...out, utilityDismissed: k.utilityDismissed };
     if (out !== s) filled = true;
     return out;
+  });
+  return filled ? { ...server, shapes } : server;
+}
+/**
+ * A plant's fruit-partner warning dismissed for it alone (fruitDismissed, Nov 1), which an older version drops from a
+ * shape it sends: kept from here when the server's copy of that shape, the same plant (its id and plantId), has none at
+ * all. Without it, a device on the release with an edit of its own sends the plan over a newer dismissal, its merge not
+ * seeing it (the review of the change, Nov 1), and every device then lost it. The server's copy goes without it until a
+ * device that has it sends the plan again.
+ *
+ * '' (shown again on purpose) is kept the same way: a device that showed it again says so again, as it next sends the
+ * plan, where the release dropped that too (the second review, Nov 1). Where the server has one, '' or words, it stands.
+ * What's left: a device offline through another device's Show again, with a device on the release sending the plan
+ * between, still has the words, which the server's copy no longer contradicts: it keeps them, and they come back for
+ * everyone if it sends the plan before the device that showed it again does. Only while one of the account's devices
+ * is still on the release (docs/storage.md).
+ */
+function withFruitDismissals(server: ProjectContent, mine: ProjectContent): ProjectContent {
+  if (!Array.isArray(server.shapes) || !Array.isArray(mine.shapes)) return server;
+  type Fruit = { id?: unknown; plantId?: unknown; fruitDismissed?: unknown };
+  const kept = new Map<unknown, Fruit>();
+  for (const s of mine.shapes as Fruit[]) if (s && typeof s.fruitDismissed === 'string' && typeof s.plantId === 'string') kept.set(s.id, s);
+  if (!kept.size) return server;
+  let filled = false;
+  const shapes = (server.shapes as Fruit[]).map((s) => {
+    const k = s && typeof s === 'object' ? kept.get(s.id) : undefined;
+    if (!k || s.plantId !== k.plantId || 'fruitDismissed' in s) return s;
+    filled = true;
+    return { ...s, fruitDismissed: k.fruitDismissed };
   });
   return filled ? { ...server, shapes } : server;
 }
@@ -634,8 +962,14 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
       await local.remove(copy.id, copy.token);
       return;
     }
-    const n = local.normalize(serverName, asOnServer);
-    // What the server has (anything else here goes up next time), still holding this device's photo if the original kept it.
+    // What the server has (anything else here goes up next time), still holding this device's photo if the original kept
+    // it. But the print choice for the plants under taller ones, where the server's copy says nothing of it, as the
+    // original has it, filled in from here (withPrintUnder), as a download records it: recorded without it, that fill
+    // was a change made here at the next pass, and another edit there first made a second copy (the review's R2, Nov 4).
+    // A bed's conditions filled in (withBedConditions) aren't recorded so: an edit there to the plan's core before the
+    // original next goes up still makes that second copy; a tick or the photo moved there doesn't, with an edit here or
+    // none (asRecordedButConditions, Nov 5). docs/storage.md.
+    const n = local.normalize(serverName, withPrintUnder(asOnServer, serverContent));
     await local.setRecord(p.id, recordAfter(n.name, n.content, serverRev, records[p.id], photoKey(serverContent)));
     report.conflicts.push({ name: serverName, copyName: copyLabel, otherDevice: by });
     const copied: LocalProject = { id: copy.id, name: copyLabel, content: p.content, token: copy.token };
@@ -659,7 +993,9 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     const localPhoto = photoKey(p.content) ?? 'none', serverPhoto = photoKey(n.content);
     // (The other side's parts as each has them: the server's as it sent them, without this device's filled in.)
     const sentHere = local.normalize(serverName, sent).content;
-    const planHere = !rec || !coreAsRecorded(rec, p.name, p.content, sentHere), planThere = !rec || !coreAsRecorded(rec, n.name, n.content, p.content);
+    const planHere = !rec || !coreAsRecorded(rec, p.name, p.content, sentHere);
+    const planThere = !rec || !(coreAsRecorded(rec, n.name, n.content, p.content) || asRecordedButUnder(rec, n.name, n.content, sent, p.content)
+      || asRecordedButConditions(rec, n.name, n.content, sent));
     const photoHere = localPhoto !== basePhoto, photoThere = serverPhoto !== undefined && serverPhoto !== basePhoto;
     const photoClash = photoHere && photoThere && localPhoto !== serverPhoto;
     if ((planHere && planThere && localPlan !== serverPlan) || photoClash) {
@@ -688,7 +1024,8 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     }
     // Whether the server already has the result: judged by what it sent, not with this device's parts filled in.
     const raw = local.normalize(serverName, sent);
-    const samePlan = merged.name === raw.name && planHash(merged.name, merged.content) === planHash(raw.name, raw.content);
+    const samePlan = merged.name === raw.name && planHash(merged.name, merged.content) === planHash(raw.name, raw.content)
+      && !pickNotThere(merged.content, raw.content) && !markNotThere(merged.content, sent);
     const mergedPhoto = photoKey(merged.content) ?? 'none', rawPhoto = photoKey(raw.content) ?? 'none';
     if (samePlan && (mergedPhoto === rawPhoto || (rawPhoto === 'kept' && rec?.held && mergedPhoto === rec.photo))) {
       await local.setRecord(p.id, recordAfter(raw.name, raw.content, serverRev, rec, mergedPhoto)); // the server has it (or the held photo stands)
@@ -766,7 +1103,11 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
           if (!ok) return;
           filled.add(id);
           const n = local.normalize(g.name, content);
-          await local.setRecord(id, recordAfter(n.name, local.normalize(g.name, whole).content, g.revision, rec, rec?.photo));
+          // (Its marks from the server's copy, not this device's own parts filled in: src/marks.ts.)
+          const r = recordAfter(n.name, local.normalize(g.name, whole).content, g.revision, rec, rec?.photo);
+          const marks = marksOf(g.content);
+          if (marks) r.marks = marks; else delete r.marks;
+          await local.setRecord(id, r);
           report.downloaded++;
           if (undeleted.has(id)) report.undeleted.push(n.name);
         });

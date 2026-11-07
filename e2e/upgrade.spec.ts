@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { DB_VERSION } from '../src/db';
 import { createServer, type Server } from 'node:http';
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -82,7 +83,7 @@ test('upgrading from the previous installed version keeps data and works offline
   await page.reload();
   await expect(page.locator('#canvas-svg text', { hasText: 'Planted before upgrade' })).toHaveCount(1);
   await page.locator('.tool-btn.plants').click();
-  await expect(page.locator('.sheet-header .title')).toContainText(/Plant Picker \(\d,\d{3}\)/);
+  await expect(page.getByTestId('picker-count')).toContainText(/\d,\d{3} plants/);
   await context.setOffline(false);
 });
 
@@ -148,6 +149,67 @@ test('⋮\'s Check for updates says when it\'s up to date, finds a later release
   ]);
   await page.locator('button[title=More]').click();
   await expect(page.locator('.menu-version')).toContainText('-next', { timeout: 15_000 });
+});
+
+// A page told a newer version has taken the plans (src/db.ts DB_VERSION: another tab opened them at a higher version)
+// reloads when the person agrees, into the version waiting to update; never by itself. (The newer database is pretended
+// here, so the version reloaded into is older than it too, and says so.)
+test('a page a newer version took the plans from reloads, when asked, into the version waiting to update, and never by itself', async ({ page }) => {
+  const url = `http://localhost:${PORT}/`;
+  const scriptOf = (html: string) => /<script type="module"[^>]*src="([^"]+)"/.exec(html)![1];
+  mode = 'new';
+  await page.goto(url);
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();
+  await expect(page.locator('.project-btn .pname')).toBeVisible();
+  mode = 'next';
+  await page.evaluate(async () => (await navigator.serviceWorker.getRegistration())!.update());
+  await expect(page.locator('#update-banner')).toBeVisible({ timeout: 15_000 });
+  let loads = 0;
+  page.on('load', () => { loads++; });
+  // Another tab opens the plans at a higher version (a connection of its own, as another tab's would be).
+  await page.evaluate((newer) => new Promise<void>((resolve, reject) => {
+    const r = indexedDB.open('landscape-planner', newer);
+    r.onsuccess = () => { r.result.close(); resolve(); };
+    r.onerror = () => reject(r.error);
+  }), DB_VERSION + 1);
+  await expect(page.getByTestId('newer-tab')).toBeVisible();
+  await page.waitForTimeout(2000);
+  expect(loads).toBe(0);
+  await Promise.all([page.waitForEvent('load'), page.getByTestId('newer-tab').getByTestId('ask-ok').click()]);
+  await expect(page.getByTestId('newer-version')).toBeVisible({ timeout: 15_000 });
+  const src = await page.evaluate(() => document.querySelector('script[type=module][src]')!.getAttribute('src'));
+  expect(src).toBe(scriptOf(readFileSync(join(NEXT_DIR, 'index.html'), 'utf8')));
+  expect(src).not.toBe(scriptOf(readFileSync('dist/index.html', 'utf8')));
+  // (Still older than the database: it says so, and stays.)
+  await page.waitForTimeout(2000);
+  await expect(page.getByTestId('newer-version')).toBeVisible();
+});
+
+// The same message put away (Esc; Back, a tap beside it, or another question over it do the same) only reloads the
+// page: the version waiting to update isn't put in without the person's Update or Reload (CLAUDE.md; the review, Nov 1).
+test('the message put away only reloads the page: the version waiting to update still waits', async ({ page }) => {
+  const url = `http://localhost:${PORT}/`;
+  const scriptOf = (html: string) => /<script type="module"[^>]*src="([^"]+)"/.exec(html)![1];
+  mode = 'new';
+  await page.goto(url);
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();
+  await expect(page.locator('.project-btn .pname')).toBeVisible();
+  mode = 'next';
+  await page.evaluate(async () => (await navigator.serviceWorker.getRegistration())!.update());
+  await expect(page.locator('#update-banner')).toBeVisible({ timeout: 15_000 });
+  await page.evaluate((newer) => new Promise<void>((resolve, reject) => {
+    const r = indexedDB.open('landscape-planner', newer);
+    r.onsuccess = () => { r.result.close(); resolve(); };
+    r.onerror = () => reject(r.error);
+  }), DB_VERSION + 1);
+  await expect(page.getByTestId('newer-tab')).toBeVisible();
+  await Promise.all([page.waitForEvent('load'), page.keyboard.press('Escape')]);
+  await expect(page.getByTestId('newer-version')).toBeVisible({ timeout: 15_000 });
+  // The same version as before, the newer one still waiting.
+  expect(await page.evaluate(() => document.querySelector('script[type=module][src]')!.getAttribute('src'))).toBe(scriptOf(readFileSync('dist/index.html', 'utf8')));
+  expect(await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())?.waiting)).toBe(true);
 });
 
 test("a later release brings the kept state records up to date as it installs, so it opens with them", async ({ page }) => {

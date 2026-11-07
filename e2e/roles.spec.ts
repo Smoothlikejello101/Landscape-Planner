@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { openFresh, closeSheet, canvasBox, drag, field, addPlainShape, setRole } from './helpers';
+import { openFresh, closeSheet, canvasBox, drag, field, addPlainShape, setRole, shapeNamed } from './helpers';
 
 async function addRect(page: Page, label: string, role?: string) {
   await addPlainShape(page, 'rect');
@@ -8,7 +8,7 @@ async function addRect(page: Page, label: string, role?: string) {
   await closeSheet(page);
 }
 const centerOf = async (page: Page, label: string) => {
-  const b = (await page.locator('[data-shape-group]', { has: page.locator('text', { hasText: label }) }).locator('[data-shape-id]').boundingBox())!;
+  const b = (await shapeNamed(page, label).boundingBox())!;
   return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
 };
 
@@ -39,9 +39,11 @@ test('a role sets the default look and the drawing order', async ({ page }) => {
   await addRect(page, 'Plant spot', 'Plant');
   await addRect(page, 'Afternoon shade', 'Sun exposure');
   // Shade is drawn under plants even though it was added later.
-  const order = await page.locator('[data-shape-group] text').evaluateAll((ns) => ns.map((n) => n.textContent));
+  // (Each shape's name, in the order the shapes are drawn: a shape's own, or its name drawn over the plants.)
+  const order = await page.locator('[data-shape-group]').evaluateAll((gs) => gs.map((g) =>
+    (document.querySelector(`[data-name-of="${g.getAttribute('data-shape-group')}"]`) ?? g).querySelector('text')?.textContent));
   expect(order).toEqual(['Afternoon shade', 'Plant spot']);
-  const shade = page.locator('[data-shape-group]', { has: page.locator('text', { hasText: 'Afternoon shade' }) }).locator('[data-shape-id]');
+  const shade = shapeNamed(page, 'Afternoon shade');
   await expect(shade).toHaveAttribute('fill', '#334155');
   await expect(shade).toHaveAttribute('fill-opacity', '0.3');
 });

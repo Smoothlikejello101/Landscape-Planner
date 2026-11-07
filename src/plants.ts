@@ -20,7 +20,7 @@ import { bloomMonths } from './bloom';
 import { bloomWindow, catkins, showyFlowers } from './seasons';
 import { byMatch, matchPlant, readQuery, unsearchable } from './search';
 import { applyYard, household, type Yard } from './yard';
-import { noteRecentPlant } from './place';
+import { setCatalogNames, setWrittenName, titleCase } from './names';
 
 /**
  * One plant: a row of the catalog (plants.json), or one of the user's own
@@ -126,6 +126,10 @@ export interface Plant {
   fruit_color?: string[];
   fruit_season?: string[];
   clay_ok?: boolean;
+  /** The soil textures it grows in, as NC State lists them: clay, loam, sand (src/catalog.ts SOIL_TEXTURES). */
+  soil_texture?: string[];
+  /** Its other soils in NC State's field: organic (high organic matter), rocky (shallow rocky). Shown, never a filter. */
+  soil_also?: string[];
   wet_feet?: boolean;
   dry_shade?: boolean;
   taproot?: boolean;
@@ -212,6 +216,10 @@ type SunLevel = 'Full' | 'Part' | 'Shade';
 export let PLANTS: Plant[] = [];
 export let PLANT_META: PlantMeta | null = null;
 export const plantsById: Record<string, Plant> = {};
+/**
+ * The dog filter: '' off; 'hideToxic' on. 'nonToxic' ("only plants rated safe", gone Nov 5: the only safe ratings were
+ * the earlier list's) is still read where a plan or device kept it, as 'hideToxic' (src/yard.ts applyYard).
+ */
 export type DogFilter = '' | 'hideToxic' | 'nonToxic';
 /** Plants of mine switched to a catalog plant: their id → the catalog plant's (src/my-plants.ts keeps these). */
 export const aliases: Record<string, string> = {};
@@ -239,7 +247,28 @@ const NA_NATIVE = ['N. American native', 'Regional native', 'Local ecotype possi
 /** A list filter's empty default: frozen, so a filter is only ever changed by a new list, never in place. */
 const NONE = Object.freeze([]) as unknown as string[];
 export const PLANT_FILTER_DEFAULTS = {
-  q: '', form: '', water: '', sun: '',
+  q: '', form: '',
+  /** Water needs: '' any; one of the catalog's values, or several, any of them, with commas ('Low,Moderate'). */
+  water: '',
+  sun: '',
+  /**
+   * The sun across a bed, as its sunniest and shadiest ('Full-Part'): a plant whose own sun range takes in some of it
+   * passes (Jason, Nov 2, answer A: "some"). Set only by a bed the picker plants for (src/bed-plant.ts), never the
+   * person's own.
+   */
+  sunRange: '',
+  /**
+   * A clay bed: plants rated for clay, and plants no source rates for clay (listed below a divider: noSoilRating; Jason,
+   * Nov 2, answer D); not one rated otherwise, nor one NC State rates only for other soils (Jason, Nov 5: clayRating).
+   * Set only by a bed the picker plants for; the person's own is `clayOk`.
+   */
+  clayBed: false,
+  /**
+   * A loam, sandy or rocky bed ('loam', 'sand', 'rocky'): plants NC State rates for that soil, and plants no source
+   * rates for soil texture (below a divider, as for clay: noSoilRating); not one rated only for other soils (Jason,
+   * Nov 4; rocky, NC State's shallow rocky soil, Nov 5): soilRating. Set only by a bed the picker plants for.
+   */
+  soilBed: '' as '' | 'loam' | 'sand' | 'rocky',
   /** Blooming in: a month ('1' to '12') or a season ('spring', 'summer', 'fall', 'winter'): src/plants.ts bloomMatch. */
   bloomMonth: '',
   /** '' any; '@here' native to the garden's state (Kew's checklist); '@na' native to North America (the earlier list's word). */
@@ -261,11 +290,13 @@ export const PLANT_FILTER_DEFAULTS = {
   height: '',
   /** Mature width (spread), the same way (Jason, Oct 31: as height, "something you'd expect"). */
   width: '',
-  /** Toxic to dogs: '' any; 'hideToxic' leaves out plants with a warning (unrated ones stay); 'nonToxic' only plants rated non-toxic. */
+  /**
+   * "Hide plants rated toxic to:" People (`noPoison`), Dogs, Cats, Horses (Jason, Nov 5): each leaves out the plants rated
+   * toxic to them (toxicTo), and nothing else; one not rated stays (not "safe", just not rated). Dogs: '' off, any
+   * other value on (DogFilter).
+   */
   dogs: '' as DogFilter,
-  /** Leaves out plants NC State lists as a problem for cats, for horses (one not listed stays: not "safe", just not flagged). */
   cats: false, horses: false,
-  /** Only plants whose NC State page was read and lists no poison to people (one not rated is left out too, as the dog filter keeps only plants known safe). */
   noPoison: false,
   /**
    * Deer resistant (its rating); low maintenance (NC State's level); drought tolerant (NC State: drought or dry soil);
@@ -291,6 +322,11 @@ export const PLANT_FILTER_DEFAULTS = {
    * the fruit-partner notice's "All 7…" (Jason, Oct 30). Empty: any.
    */
   partnersOf: '',
+  /**
+   * Takes hot afternoon sun: rated for full sun, so 2 hours or more of sun between 1 and 6 pm doesn't scorch it
+   * (src/sun.ts checkPlantSun). Set only by a Swap opened from a sun warning, beside the spot's sun (Jason, Nov 2).
+   */
+  afternoonSun: false,
   /** Let what other sources say count where it differs from the value shown (a match only by it is flagged). */
   withReported: true,
 };
@@ -316,13 +352,32 @@ export function treeFiltersAside() {
   beforeAside = structuredClone(plantFilter);
   Object.assign(plantFilter, PLANT_FILTER_DEFAULTS, { q: plantFilter.q });
 }
+/** Whether the picker's filters are a Swap's from a warning (swapFiltersAside), till it closes. */
+let swapAside = false;
+export const swapFiltersOn = (): boolean => swapAside && beforeAside !== null;
 /**
- * The picker closed (src/ui/render.ts): opened on a plant's partners, or for a tree, its filters as they were before.
- * Left on, the partners filter hid every plant the next search looked for ("Nothing matches": round 3, Owen).
+ * Swap opened from a warning (Jason's UI review, Nov 2: "Swap opened already filtered by the rule that failed"): the
+ * picker's filters set aside, as for "Which tree?", and `set` on, with who's in the yard (their safety filters, as the
+ * picker always has them) and Hardy in zone as the gardener keeps it; no search. Back as they were once it closes
+ * (partnersClosed), so none of it is left in the picker's own filters, and nothing set in it is kept on this device
+ * (src/ui/plants-panel.ts: neither "Hardy in zone" nor who's in the yard, for a filter taken off).
+ */
+export function swapFiltersAside(set: Partial<PlantFilter>) {
+  beforeAside ??= structuredClone(plantFilter);
+  swapAside = true;
+  Object.assign(plantFilter, PLANT_FILTER_DEFAULTS, { hardyHere: beforeAside.hardyHere });
+  applyYard(plantFilter, household());
+  Object.assign(plantFilter, set);
+}
+/**
+ * The picker closed (src/ui/render.ts): opened on a plant's partners, for a tree, or to swap from a warning, its
+ * filters as they were before. Left on, the partners filter hid every plant the next search looked for ("Nothing
+ * matches": round 3, Owen).
  */
 export function partnersClosed() {
   if (beforeAside) Object.assign(plantFilter, beforeAside);
   beforeAside = null;
+  swapAside = false;
   applyYard(plantFilter, household()); // (who's in the yard as the plan has it now: set while naming a tree, it's kept)
 }
 /** Whether a filter is on (set to something other than its default; a list filter, with anything in it). */
@@ -389,6 +444,25 @@ export function plantTakesSun(p: Plant, level: string): boolean {
   if (most == null || least == null) return false;
   return most <= want && want <= least;
 }
+/** A bed's sun as `sunRange` keeps it ('Full-Part': its sunniest, then its shadiest), read; null for none. */
+export function sunRangeOf(v: string): [SunLevel, SunLevel] | null {
+  const [a, b] = v.split('-') as SunLevel[];
+  return a in SUN_RANK && b in SUN_RANK && SUN_RANK[a] <= SUN_RANK[b] ? [a, b] : null;
+}
+/**
+ * How a plant's sun range meets a bed's (`range`, 'Full-Part'): all of it; only its sunny end, or its shady end; only
+ * the part-shade middle of a bed from full sun to shade; or none of it (null, as for a plant with no sun on record).
+ */
+export function sunFit(p: Pick<Plant, 'sun_most' | 'sun_least'>, range: string): 'all' | 'sunny' | 'shady' | 'middle' | null {
+  const r = sunRangeOf(range);
+  if (!r || !p.sun_most || !p.sun_least) return null;
+  const bm = SUN_RANK[r[0]], bl = SUN_RANK[r[1]], pm = SUN_RANK[p.sun_most], pl = SUN_RANK[p.sun_least];
+  if (pm == null || pl == null || pl < bm || pm > bl) return null;
+  if (pm <= bm && pl >= bl) return 'all';
+  return pm <= bm ? 'sunny' : pl >= bl ? 'shady' : 'middle';
+}
+/** The water needs a filter takes (one, or any of several: 'Low,Moderate'). */
+export const waterWanted = (v: string): string[] => v.split(',').filter(Boolean);
 
 /** Load the plant index (served next to index.html). */
 export function loadPlants(): Promise<void> {
@@ -407,10 +481,19 @@ export function loadPlants(): Promise<void> {
       PLANTS = (old.plants || []).map((p) => (p.form ? { ...p, form: currentForm(p.form) } : p));
       PLANT_META = old.meta || null;
     }
+    // The catalog's names in Title Case, as the app shows them (src/names.ts; Jason, Nov 4). In memory only: the file is
+    // as its sources write it, and a plan's labels as they were placed.
+    for (const p of PLANTS) {
+      setWrittenName(p.id, p.common);
+      p.common = titleCase(p.common, p.botanical);
+      if (p.short) p.short = titleCase(p.short, p.botanical);
+    }
     shareDogWarnings(PLANTS);
     for (const p of PLANTS) plantsById[p.id] = p;
     // (A plant placed from a record since folded into another shows that one's facts.)
     for (const [from, to] of Object.entries(movedIds)) if (!plantsById[from] && plantsById[to]) plantsById[from] = plantsById[to];
+    // (A placed plant's label shown by its catalog name where it is that name: src/names.ts labelShown.)
+    setCatalogNames((id) => (id.startsWith('u-') ? undefined : plantsById[id]?.common));
     catalogSettled = true;
     for (const fn of catalogHooks) fn();
     applyAliases(); // (plants of mine switched to these)
@@ -434,10 +517,12 @@ export const countWord = (n: number): string => n.toLocaleString('en-US');
  * state's law bans, left out, turn up when searched for (so the gap never reads as a filter left on). `where`: the
  * state's name.
  */
-export function pickerCount(shown: number, offered: number, bannedOut: number, bannedShown = 0, where = 'here'): string {
+export function pickerCount(shown: number, offered: number, bannedOut: number, bannedShown = 0, where = 'here', fit?: string): string {
   // (Out of the plants offered, the title's number, always: a search adds the banned ones it finds by name beside it,
   // not to the total (testers, Oct 30: "3,725" in the title, "of 3,747" once they searched).)
-  const head = shown === offered ? `All ${countWord(offered)} plants` : `${countWord(shown)} of ${countWord(offered)} plants match`;
+  // (For a bed whose conditions filter the list, `fit`: "1,147 of 3,745 plants fit Front bed".)
+  const head = fit ? `${shown === offered ? 'All ' : `${countWord(shown)} of `}${countWord(offered)} plants fit ${fit}`
+    : shown === offered ? `All ${countWord(offered)} plants` : `${countWord(shown)} of ${countWord(offered)} plants match`;
   const banned = where === 'here' ? 'banned here' : `banned in ${where}`;
   const found = bannedShown ? `, and ${countWord(bannedShown)} plant${bannedShown === 1 ? '' : 's'} ${banned} found by name` : '';
   return head + found + (bannedOut ? ` \u00b7 ${countWord(bannedOut)} plant${bannedOut === 1 ? '' : 's'} ${banned} ${bannedOut === 1 ? 'shows' : 'show'} only when searched by name` : '');
@@ -472,12 +557,13 @@ function partnersOfSet(of: string): Set<string> {
 export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): boolean {
   // What the state's law bans is never suggested; it turns up when searched by name (to map one already in the yard).
   if (bannedLeftOut(f) && bannedHere(p)) return false;
-  if (f.dogs === 'hideToxic' && toxicToDogs(p)) return false;
-  if (f.dogs === 'nonToxic' && !nonToxicToDogs(p)) return false;
-  if (f.cats && p.problem_for?.includes('cats')) return false;
-  if (f.horses && p.problem_for?.includes('horses')) return false;
-  // (A hybrid none rates whose parent is rated: not "not listed", whatever its own page says.)
-  if (f.noPoison && (!(p.prov?.poison?.unknown && !p.poison) || parentRated(p))) return false;
+  // "Hide plants rated toxic to:" (Jason, Nov 5): only what's rated toxic to them goes; a plant not rated stays. (Until Nov 5,
+  // People hid plants NC State hasn't rated too, and Dogs could keep only those the earlier list calls safe: what was
+  // left read as safe.) Dogs kept as 'nonToxic' from then is Dogs on.
+  if (f.noPoison && toxicTo(p, 'people')) return false;
+  if (f.dogs && toxicTo(p, 'dogs')) return false;
+  if (f.cats && toxicTo(p, 'cats')) return false;
+  if (f.horses && toxicTo(p, 'horses')) return false;
   // (Plants at the edge of their range count: the list marks them. So does a plant rated for cooler zones that's
   // recorded growing wild in the garden's county or one bordering it: it has been found living through those
   // summers. Not one rated for warmer zones: a record of an escaped garden annual says nothing about winters.)
@@ -489,8 +575,15 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   }
   if (f.partnersOf && !partnersOfSet(f.partnersOf).has(p.id)) return false;
   if (f.form && !formsOf(p).includes(f.form)) return false;
-  if (f.water && p.water !== f.water) return false;
+  if (f.water && !waterWanted(f.water).includes(p.water ?? '')) return false;
   if (f.sun && !plantTakesSun(p, f.sun)) return false;
+  // (A bed's sun: some of it, Jason's answer A. A bed's clay: rated for clay, or not rated at all, answer D; not one
+  // rated only for other soils, as loam and sandy (Jason, Nov 5): clayRating.)
+  if (f.sunRange && !sunFit(p, f.sunRange)) return false;
+  if (f.clayBed && clayRating(p) === 'no') return false;
+  // (A loam, sandy or rocky bed: rated for it, or not rated for soil texture at all; not one rated only for others.)
+  if (f.soilBed && soilRating(p, f.soilBed) === 'no') return false;
+  if (f.afternoonSun && p.sun_most !== 'Full') return false;
   // ("@here": native to the garden's state, by Kew's checklist; until its state is known, no filter. "@na": native to
   // North America, the earlier list's word, its regional and local-ecotype natives included.)
   if (f.native === '@here') { if (gardenStateName()) { const n = nativeHere(p); if (!n || n.status === 'I') return false; } }
@@ -546,20 +639,50 @@ export function oldDogWarning(p: Plant): string | null {
   return p.dog && p.dog !== 'Safe' && p.dog !== 'Unverified' ? p.dog : null;
 }
 /**
- * Non-toxic to dogs: listed non-toxic by the ASPCA (not merely unlisted:
- * unlisted isn't safe); until a plant has been checked against the ASPCA,
- * the earlier list's "Safe". Any warning from the earlier list still holds
- * until the audit removes it, so the two can only agree to call a plant safe.
- */
-export function nonToxicToDogs(p: Plant): boolean {
-  if (oldDogWarning(p) || p.dogVia || p.problem_for?.includes('dogs')) return false;
-  return p.tox?.dog ? p.tox.dog === 'nontoxic' : p.dog === 'Safe';
-}
-/**
  * Any warning for dogs: listed toxic, NC State's "Problem for Dogs", the earlier list's warning, or that warning given
  * for its species' other record.
  */
 export const toxicToDogs = (p: Plant): boolean => p.tox?.dog === 'toxic' || !!p.problem_for?.includes('dogs') || !!oldDogWarning(p) || !!p.dogVia;
+/** Who "Hide plants rated toxic to:" hides plants for (src/yard.ts YARD_CHIPS: People is the yard's `kids`). */
+export type ToxicTo = 'people' | 'dogs' | 'cats' | 'horses';
+export const TOXIC_TO: ToxicTo[] = ['people', 'dogs', 'cats', 'horses'];
+/**
+ * Rated toxic to them, by any source: people, NC State's rating (eaten or on the skin; a hybrid none rates, its rated
+ * parents': poisonRating) or another source's class; dogs, any dog warning, the earlier list's among them
+ * (toxicToDogs); cats and horses, NC State's "Problem for", or another source's listing. Hiding errs safe: a toxic
+ * rating from the earlier list hides a plant, though nothing it calls safe is taken as safe.
+ */
+export function toxicTo(p: Plant, who: ToxicTo): boolean {
+  if (who === 'people') return !!poisonRating(p) || (!!p.tox?.people && p.tox.people !== 'unlisted');
+  if (who === 'dogs') return toxicToDogs(p);
+  return !!p.problem_for?.includes(who) || p.tox?.[who === 'cats' ? 'cat' : 'horse'] === 'toxic';
+}
+/**
+ * Whether any source rates it for them at all: toxic (toxicTo), or read and listing nothing (NC State's page, whose
+ * poison facts and "Problem for" come together; another source's "unlisted"; the earlier list's word on dogs, its
+ * "Safe" too). Not the same as safe either way: the note under "Hide plants rated toxic to:" counts those that aren't
+ * rated at all (toxicNote).
+ */
+export function ratedFor(p: Plant, who: ToxicTo): boolean {
+  if (toxicTo(p, who)) return true;
+  if (who === 'people') return !!p.prov?.poison || !!p.tox?.people;
+  if (p.prov?.poison?.src.includes('ncsu') || p.prov?.problem_for) return true;
+  if (p.tox?.[who === 'dogs' ? 'dog' : who === 'cats' ? 'cat' : 'horse']) return true;
+  return who === 'dogs' && !!p.dog && p.dog !== 'Unverified';
+}
+/** How many catalog plants no source rates for one or more of `who` (all four, with none chosen). */
+export function unratedCount(who: ToxicTo[], plants: Plant[] = PLANTS): number {
+  const any = who.length ? who : TOXIC_TO;
+  return plants.filter((p) => any.some((w) => !ratedFor(p, w))).length;
+}
+/**
+ * The line under "Hide plants rated toxic to:" (the picker's, and the guided introduction's step 6): what it hides, by whose
+ * word, and that what's left isn't called safe, with how many plants aren't rated for those chosen (Jason, Nov 5).
+ */
+export function toxicNote(who: ToxicTo[], plants: Plant[] = PLANTS): string {
+  const n = unratedCount(who, plants);
+  return `Hides plants NC State or an earlier list rates toxic to them. Not rated toxic isn’t the same as safe: ${countWord(n)} plant${n === 1 ? ' has' : 's have'} no rating yet.`;
+}
 /**
  * A plant's species from its botanical name ("Asclepias tuberosa (clay strain)", "Ilex verticillata 'Red Sprite'":
  * "Asclepias tuberosa", "Ilex verticillata"; a hybrid keeps its ×). Null for a genus alone ("Hosta 'Halcyon'").
@@ -620,7 +743,7 @@ export function planCounts(): Map<string, number> {
  * authorities only.
  */
 const FILTER_FACTS: [keyof PlantFilter, string[], string][] = [
-  ['sun', ['sun_most', 'sun_least'], 'sun'], ['hardyHere', ['zone_min', 'zone_max'], 'hardiness zones'], ['water', ['water'], 'water'],
+  ['sun', ['sun_most', 'sun_least'], 'sun'], ['sunRange', ['sun_most', 'sun_least'], 'sun'], ['afternoonSun', ['sun_most', 'sun_least'], 'sun'], ['hardyHere', ['zone_min', 'zone_max'], 'hardiness zones'], ['water', ['water'], 'water'],
   ['deerResistant', ['deer'], 'deer resistance'], ['height', ['height'], 'height'], ['width', ['width'], 'width'], ['bloomMonth', ['bloom'], 'bloom time'],
   ['form', ['form'], 'form'],
 ];
@@ -659,16 +782,16 @@ export function reportedMatch(p: Plant, f: PlantFilter, inPlan?: Set<string>): s
 export const reportedOnly = new Map<string, string[]>();
 /**
  * Which facts each filter reads (for whether a match rests only on the earlier list), and what it's called. The
- * labels the other-sources filters share are theirs (FILTER_FACTS). Not the dog filter, which says unverified in its
- * own words, nor poison to people (always sourced), the search or "In this plan".
+ * labels the other-sources filters share are theirs (FILTER_FACTS). Not "Hide plants rated toxic to:", which only hides (an
+ * earlier list's warning for dogs among what it hides errs safe, and its note says so), the search or "In this plan".
  */
 const FILTER_READS: [keyof PlantFilter, (p: Plant, f: PlantFilter) => string[], string][] = [
-  ['form', () => ['form'], 'form'], ['sun', () => ['sun_most', 'sun_least'], 'sun'], ['water', () => ['water'], 'water'],
+  ['form', () => ['form'], 'form'], ['sun', () => ['sun_most', 'sun_least'], 'sun'], ['sunRange', () => ['sun_most', 'sun_least'], 'sun'], ['afternoonSun', () => ['sun_most'], 'sun'], ['water', () => ['water'], 'water'],
   // (Months where the garden is come from flowering records; a native filter for the garden's state, from Kew's checklist.)
   ['bloomMonth', (p, f) => (bloomMatch(p, f.bloomMonth) === 'earlier' ? ['bloom'] : []), 'bloom time'], ['native', (_p, f) => (f.native === '@here' ? [] : ['native']), 'native status'],
   ['deerResistant', () => ['deer'], 'deer resistance'], ['spread', () => ['self_seed', 'habit'], 'how it spreads'], ['height', () => ['height'], 'height'],
   ['width', () => ['width'], 'width'],
-  ['wetFeet', () => ['wet_feet'], 'wet feet'], ['clayOk', () => ['clay_ok'], 'clay'],
+  ['wetFeet', () => ['wet_feet'], 'wet soil'], ['clayOk', () => ['clay_ok'], 'clay'], ['clayBed', (p) => (p.soil_texture?.includes('clay') ? ['soil_texture'] : ['clay_ok']), 'clay'], ['soilBed', (p, f) => (f.soilBed === 'rocky' && p.soil_also?.includes('rocky') ? ['soil_also'] : ['soil_texture']), 'soil'],
   ['hostOnly', (p) => (hostPlant(p) === 'earlier' ? ['host'] : []), 'host plant'], ['fallColor', () => ['fall_color'], 'fall color'], ['evergreen', () => ['foliage'], 'evergreen'],
   ['winterInterest', () => ['winter_interest'], 'winter interest'], ['edible', () => ['edible'], 'edible'],
   ['hardyHere', () => ['zone_min', 'zone_max'], 'hardiness zones'],
@@ -676,6 +799,31 @@ const FILTER_READS: [keyof PlantFilter, (p: Plant, f: PlantFilter) => string[], 
 /** Whether a value rests only on the earlier list: its every source is the unsourced compendium. */
 export function earlierListOnly(pv: Provenance | undefined, sources = PLANT_META?.sources): boolean {
   return !!pv && !pv.unknown && pv.src.length > 0 && pv.src.every((s) => sources?.[s]?.trust === 'unverified');
+}
+/**
+ * A clay bed's reading of a plant (Jason, Nov 5: clay as loam and sandy, which go by NC State's soil textures): 'yes',
+ * rated for clay (Clay OK, or its soil textures name clay); 'no', rated against it (Clay OK no, or soil textures that
+ * name others but not clay, where nothing but the earlier list says Clay OK: NC State's sourced rating wins); 'none',
+ * not rated (listed below the divider). A source besides the earlier list that says Clay OK stands.
+ */
+export function clayRating(p: Plant, sources = PLANT_META?.sources): 'yes' | 'no' | 'none' {
+  if (p.clay_ok === false) return 'no';
+  const textures = p.soil_texture ?? [];
+  if (textures.includes('clay')) return 'yes';
+  if (textures.length) return p.clay_ok === true && !earlierListOnly(p.prov?.clay_ok, sources) ? 'yes' : 'no';
+  return p.clay_ok === true ? 'yes' : 'none';
+}
+/**
+ * A loam, sandy or rocky bed's reading of a plant, by NC State's soil field: 'yes', rated for that soil (for rocky,
+ * NC State's "shallow rocky", kept in soil_also: Jason, Nov 5); 'no', its soil textures rated but not that one; 'none',
+ * no soil texture rated (listed below the divider). A plant NC State lists only for high organic matter counts as not
+ * rated, for rocky as for loam and sandy: pawpaw and Heuchera villosa are listed so, and grow in clay or loam; most
+ * likely their texture wasn't rated.
+ */
+export function soilRating(p: Plant, soil: 'loam' | 'sand' | 'rocky'): 'yes' | 'no' | 'none' {
+  const textures = p.soil_texture ?? [];
+  if (soil === 'rocky' ? p.soil_also?.includes('rocky') : textures.includes(soil)) return 'yes';
+  return textures.length ? 'no' : 'none';
 }
 /**
  * The filters a catalog plant passes only on the earlier list's word (what the filter reads has no source but that
@@ -799,11 +947,27 @@ export const earlierFor = new Map<string, string[]>();
 export const comesIn = new Map<string, string[]>();
 /** Plants in the last list that bloom in the month asked for by their season, not by months ("by season"). */
 export const bySeason = new Set<string>();
+/**
+ * Plants in the last list for a bed's soil that no source rates for it, listed below a divider: for a clay bed
+ * (`clayBed`), those not rated for clay; for a loam, sandy or rocky one (`soilBed`), those with no soil texture rated.
+ */
+export const noSoilRating = new Set<string>();
+/**
+ * A bed's sun as `sunRange` keeps it, in words, shadiest first as its hours go, low to high: "part shade to full sun",
+ * "full sun". Empty for none.
+ */
+export function sunRangeSaid(v: string): string {
+  const r = sunRangeOf(v);
+  if (!r) return '';
+  return r[0] === r[1] ? SUN_SAID[r[0]] : `${SUN_SAID[r[1]]} to ${SUN_SAID[r[0]]}`;
+}
 /** What filters the other sources' values helped with: as the divider says it ("take shade", "are hardy here"). */
 export function reportedPhrase(labels: Iterable<string>, f: PlantFilter): string {
   const FORMS: Record<string, string> = { Tree: 'trees', Shrub: 'shrubs', Perennial: 'perennials', 'Grass/Sedge': 'grasses or sedges', Vine: 'vines', Bulb: 'bulbs', Fern: 'ferns', Annual: 'annuals', 'Aquatic/Emergent': 'water plants', Cactus: 'cacti or succulents' };
   const say: Record<string, string> = {
-    sun: `take ${SUN_SAID[f.sun] ?? f.sun.toLowerCase()}`, 'hardiness zones': 'are hardy here', water: `fit \u201cWater: ${f.water}\u201d`,
+    // (A bed's sun: the bed's, in its words, "take part shade to full sun".)
+    sun: `take ${f.sunRange ? sunRangeSaid(f.sunRange) : SUN_SAID[f.sun] ?? f.sun.toLowerCase()}`, 'hardiness zones': 'are hardy here',
+    water: `fit \u201cWater: ${waterWanted(f.water).join(' or ')}\u201d`,
     'deer resistance': 'are deer resistant', height: 'fit the height range', width: 'fit the width range', 'bloom time': `bloom in ${bloomWhen(f.bloomMonth)}`,
     form: `are ${FORMS[f.form] ?? f.form.toLowerCase()}`,
   };
@@ -821,7 +985,7 @@ export function filteredPlants(near = true): Plant[] {
   // (The search first, so the filters, and any near spellings, are worked out only for plants it found.)
   const found = q ? PLANTS.flatMap((plant) => { const hit = matchPlant(plant, q, near); return hit ? [{ plant, hit }] : []; })
     : PLANTS.map((plant) => ({ plant, hit: { rank: 0, order: 0 } }));
-  earlierFor.clear(); comesIn.clear(); bySeason.clear();
+  earlierFor.clear(); comesIn.clear(); bySeason.clear(); noSoilRating.clear();
   const month = /^\d+$/.test(plantFilter.bloomMonth);
   const out = found.filter(({ plant }) => {
     const m = reportedMatch(plant, plantFilter, inPlan);
@@ -831,6 +995,10 @@ export function filteredPlants(near = true): Plant[] {
       // (A species that comes in several colors, one of them asked for; a month met only by its season.)
       if (plantFilter.flowerColors.length && !trueToColor(plant)) comesIn.set(plant.id, showyColors(plant).filter((c) => plantFilter.flowerColors.includes(c)));
       if (month && bloomMatch(plant, plantFilter.bloomMonth) === 'season') bySeason.add(plant.id);
+      // (A clay bed: one no source rates for clay, below its divider; a loam, sandy or rocky bed: one with no soil
+      // texture rated.)
+      if (plantFilter.clayBed && clayRating(plant) === 'none') noSoilRating.add(plant.id);
+      if (plantFilter.soilBed && soilRating(plant, plantFilter.soilBed) === 'none') noSoilRating.add(plant.id);
     }
     return m !== null;
   });
@@ -966,9 +1134,7 @@ export function linkFromPicker(p: Plant) {
   const swapping = ids.every((id) => { const s = state.shapes.find((x) => x.id === id); return !!s?.plantId && !!plantsById[s.plantId]; });
   const n = linkShapesToPlant(ids, p);
   state.selectedIds = ids;
-  // (Swapped in, it's placed: first in Recent, as a plant placed by tapping is. The UI review, 2026-11-01: Recent kept
-  // the plant swapped out, not the one swapped in.)
-  if (swapping) { noteRecentPlant(p.id); state.linkOffer = null; toast(`${n === 1 ? 'Swapped' : `${n} swapped`} for ${p.common}.`); return; }
+  if (swapping) { state.linkOffer = null; toast(`${n === 1 ? 'Swapped' : `${n} swapped`} for ${p.common}.`, 3000, { keep: true }); return; }
   if (several) { state.linkOffer = null; toast(`${n} circle${n === 1 ? '' : 's'} linked to ${p.common}.`); return; }
   const same = unlinkedWithLabel(label, ids), locked = unlinkedWithLabel(label, ids, { locked: true });
   state.linkOffer = same.length || locked.length ? { fromId: ids[0], plantId: p.id, label: label!.trim(), ids: same, locked } : null;
@@ -1006,7 +1172,7 @@ const capital = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);
 /** A length as a row says it: "3 ft", "2.5 ft", "8 in". */
 const feetSaid = (x: number) => (x >= 1 ? `${+x.toFixed(1)} ft` : `${Math.round(x * 12)} in`);
 /** A size as its sources give it, a range where they give one: "3–4 ft", "8–12 in", "8 in–1.5 ft", "6 ft". */
-const sizeSaid = (r?: { min?: number; max?: number; med?: number }): string => {
+export const sizeSaid = (r?: { min?: number; max?: number; med?: number }): string => {
   if (!r) return '';
   if (r.min != null && r.max != null && r.min !== r.max) {
     const a = feetSaid(r.min), b = feetSaid(r.max);
@@ -1102,8 +1268,9 @@ export const poisonousToPeople = (p: Plant): boolean => { const r = poisonRating
 const andList = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : xs[0] ?? '');
 /**
  * What the household should know of a plant (Jason, Oct 30, from round 2: Dana, Priya and Ruth read an azalea, a
- * mountain laurel and a milkweed as safe from rows that only said "Can irritate skin"): poisonous to people, with
- * kids in the yard; a problem for each pet that's there (src/yard.ts). Nothing with no one set, or warnings off.
+ * mountain laurel and a milkweed as safe from rows that only said "Can irritate skin"): poisonous to people if eaten,
+ * with People chosen (the yard's `kids`); toxic to each pet chosen (src/yard.ts). Nothing with no one set, or warnings
+ * off.
  */
 export function householdFlags(p: Plant, y: Yard = household()): RowFlag[] {
   if (!state.poisonWarnings) return [];
@@ -1111,10 +1278,10 @@ export function householdFlags(p: Plant, y: Yard = household()): RowFlag[] {
   if (y.kids && poisonousToPeople(p)) {
     const r = poisonRating(p)!;
     const how = [r.severity ? `${r.severity} severity` : '', r.parts?.length ? andList(r.parts.map((x) => x.toLowerCase())) : ''].filter(Boolean).join(': ');
-    out.push({ text: 'Poisonous to people', kind: 'bad', title: `${p.poison ? 'Poisonous' : 'Not rated itself; a parent is poisonous'} if eaten${how ? ` (${how})` : ''}`, testid: 'row-poison' });
+    out.push({ text: 'Toxic to people', kind: 'bad', title: `${p.poison ? 'Toxic' : 'Not rated itself; a parent is toxic'} if eaten${how ? ` (${how})` : ''}`, testid: 'row-poison' });
   }
-  const pets = [y.dogs !== '' && toxicToDogs(p) ? 'dogs' : '', y.cats && p.problem_for?.includes('cats') ? 'cats' : '', y.horses && p.problem_for?.includes('horses') ? 'horses' : ''].filter(Boolean);
-  if (pets.length) out.push({ text: `A problem for ${andList(pets)}`, kind: 'bad', testid: 'row-pets' });
+  const pets = [y.dogs !== '' && toxicTo(p, 'dogs') ? 'dogs' : '', y.cats && toxicTo(p, 'cats') ? 'cats' : '', y.horses && toxicTo(p, 'horses') ? 'horses' : ''].filter(Boolean);
+  if (pets.length) out.push({ text: `Toxic to ${andList(pets)}`, kind: 'bad', testid: 'row-pets' });
   return out;
 }
 /** A short mark on a row: native here, or something to know before choosing it. */
@@ -1132,7 +1299,7 @@ export function rowFlags(p: Plant): RowFlag[] {
   // Marcus, all three sessions; Ruth, Hank.)
   if (n?.status === 'N') out.push({ text: `${n.state} native${n.species ? ' species' : ''}`, kind: 'native', title: `${nativeText(n, p.common)} (${n.source})`, testid: 'row-native' });
   out.push(...householdFlags(p));
-  if (poisonRating(p)?.skin) out.push({ text: 'Can irritate skin', kind: 'warn', title: `NC State lists ${p.poison ? 'it' : 'a parent'} as causing contact dermatitis`, testid: 'row-skin' });
+  if (poisonRating(p)?.skin) out.push({ text: 'Can irritate skin', kind: 'warn', title: `According to NC State, ${p.poison ? 'it' : 'a parent'} can irritate skin (contact dermatitis)`, testid: 'row-skin' });
   if (p.unverified) out.push({ text: 'Unverified', kind: 'check', title: "From an earlier list with no sources; it's being checked", testid: 'unverified-badge' });
   else if (p.partlyChecked) out.push({ text: 'Partly checked', kind: 'check', title: 'Some details are checked against sources; those marked "earlier list" in its details are not yet', testid: 'partly-badge' });
   return out;

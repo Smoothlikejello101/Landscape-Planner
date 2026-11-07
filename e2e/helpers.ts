@@ -81,6 +81,35 @@ export async function canvasBox(page: Page) {
   return box;
 }
 
+/**
+ * Back in near the starting view's zoom (100%), about what's at `at` (page px; the plan's middle by default), as a
+ * pinch or Ctrl and the wheel there does: after a plan's first building, which opens where a house fits (src/draw.ts
+ * openAtHouseScale), for a test of small things drawn by it.
+ */
+export async function zoomBackIn(page: Page, at?: { x: number; y: number }) {
+  const box = await canvasBox(page);
+  const p = at ?? { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  while ((await zoomPct(page)) < 90) {
+    await page.locator('#canvas-svg').evaluate((svg, q) => {
+      svg.dispatchEvent(new WheelEvent('wheel', { deltaY: -20, ctrlKey: true, clientX: q.x, clientY: q.y, bubbles: true, cancelable: true }));
+    }, p);
+  }
+  // (Drawn again once the wheel's settled: src/gestures.ts onWheel.)
+  await expect.poll(async () => Number((await page.locator('#canvas-svg').getAttribute('data-view'))!.split(' ')[2])).toBeGreaterThanOrEqual(0.9);
+}
+/** The middle of a shape as drawn (page px). */
+export async function middleOf(page: Page, selector: string) {
+  const b = (await page.locator(selector).first().boundingBox())!;
+  return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+}
+
+/** Where a point on the plan (feet) is on the page, at the view it's drawn at (src/canvas.ts redrawCanvas). */
+export async function planPoint(page: Page, x: number, y: number) {
+  const box = await canvasBox(page);
+  const [ox, oy, zoom] = (await page.locator('#canvas-svg').getAttribute('data-view'))!.split(' ').map(Number);
+  return { x: box.x + (x - ox) * 24 * zoom, y: box.y + (y - oy) * 24 * zoom };
+}
+
 /** Fields in the open properties sheet, by label text. */
 export function field(page: Page, label: string) {
   return page.locator('.sheet .field').filter({ has: page.locator('label', { hasText: label }) }).locator('input').first();
@@ -102,11 +131,17 @@ export async function addKind(page: Page, kind: string, method?: string) {
   if (method) await page.locator(`[data-testid=draw-bar] [data-method=${method}]`).click();
 }
 
-/** Tap the plan `dx`, `dy` feet from the center of the view (at the current zoom). */
+/**
+ * Tap the plan `dx`, `dy` feet from the center of the view (at the current zoom). The center as the plan is laid out
+ * without a strip of words above it: while drawing or placing, the strip takes the plan's top and what's on the plan
+ * stays where it was (src/canvas.ts resizeCanvas), so a spot tapped while placing is the same spot after.
+ */
 export async function tapFromCenter(page: Page, dx: number, dy: number) {
   const box = await canvasBox(page);
+  const s = page.getByTestId('mode-strip');
+  const strip = (await s.count()) ? (await s.boundingBox())?.height ?? 0 : 0; // (none up: no wait for one)
   const ppf = 24 * (await zoomPct(page)) / 100;
-  await page.mouse.click(box.x + box.width / 2 + dx * ppf, box.y + box.height / 2 + dy * ppf);
+  await page.mouse.click(box.x + box.width / 2 + dx * ppf, box.y + (box.height - strip) / 2 + dy * ppf);
 }
 
 /**
@@ -159,6 +194,29 @@ export async function placeOnceAtCenter(page: Page) {
   await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
 }
 
+/**
+ * The middle of the plan as it's shown now, in feet: a spot on the garden to place a plant at later (placeOnceAt), though
+ * the plan has moved since. (On a phone, the plant picker opened with a bed selected moves the plan to show the bed above
+ * it: Jason, Nov 2, src/ui/picker-view.ts.)
+ */
+export async function planMiddle(page: Page) {
+  const box = await canvasBox(page);
+  return planFeet(page, { x: box.x + box.width / 2, y: box.y + box.height / 2 });
+}
+/** The spot on the plan (feet) at a point on the page, at the view it's drawn at: planPoint the other way. */
+export async function planFeet(page: Page, p: { x: number; y: number }) {
+  const box = await canvasBox(page);
+  const [ox, oy, zoom] = (await page.locator('#canvas-svg').getAttribute('data-view'))!.split(' ').map(Number);
+  return { x: ox + (p.x - box.x) / (24 * zoom), y: oy + (p.y - box.y) / (24 * zoom) };
+}
+/** After picking a plant: one placed at a spot on the plan (feet: planMiddle), then Done. */
+export async function placeOnceAt(page: Page, at: { x: number; y: number }) {
+  await expect(page.getByTestId('place-bar')).toBeVisible();
+  const p = await planPoint(page, at.x, at.y);
+  await page.mouse.click(p.x, p.y);
+  await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
+}
+
 /** Open the plant picker's filters (one fold for them all, folded to start), if they're shut. */
 export async function openFilters(page: Page) {
   const b = page.getByTestId('filters');
@@ -203,4 +261,16 @@ export function tapping(text: string, exact = false): RegExp {
   const body = esc.replace(/\b([Tt])ap(s|ped|ping)?\b/g, (_m, t: string, end: string | undefined) =>
     `(?:${t}ap${end ?? ''}|${t === 'T' ? 'C' : 'c'}lick${end === 'ped' ? 'ed' : end === 'ping' ? 'ing' : end ?? ''})`);
   return new RegExp(exact ? `^${body}$` : body);
+}
+
+/**
+ * A shape's own element on the plan, found by its name: written in its group (a plant's), or, for a bed, a path, a
+ * building or a sun area, drawn over the plants and marked with the shape's id (data-name-of: src/canvas.ts
+ * liftAreaNames, since the after-release-3 fixes).
+ */
+export function shapeNamed(page: Page, label: string) {
+  const lit = label.includes('"') ? `'${label}'` : `"${label}"`;
+  const has = `contains(., ${lit})`;
+  return page.locator(`xpath=//*[@data-shape-group][.//*[local-name()="text"][${has}] or @data-shape-group = //*[@data-name-of][${has}]/@data-name-of]`)
+    .locator('[data-shape-id]');
 }

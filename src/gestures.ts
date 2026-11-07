@@ -14,7 +14,7 @@ import { drawnBySize, isHidden, isSeeThrough, previewView, redrawBackground, red
 import { drawTap, editedShape, forgetLastTap, insertVertex, moveVertex, notePointer } from './draw';
 import { notJustPlaced, placeTap, selectionJustPlaced } from './place';
 import { afterMove, freeStrandedVines, saidFreed } from './ui/vine-offers';
-import { render, updateStatusReadout } from './ui/render';
+import { render, updateStatusReadout, viewMoved } from './ui/render';
 import { now, snap } from './util';
 import { canopyHint } from './canopy';
 import { hintDue, hintShown } from './hints';
@@ -28,6 +28,12 @@ import { featureTap } from './feature-edit';
 import { deepClone } from './util';
 import type { HandleKind } from './handle-math';
 import { isTree } from './trees';
+import { planLookOnly, planTapped } from './ui/picker-view';
+import { bedAt, pickingBed } from './bed-plant';
+import { pickBedAt } from './ui/plant-for';
+import { inSentence, sameName } from './names';
+import { placementOf } from './rescale';
+import { askAfterPhotoMoved } from './ui/rescale-card';
 
 // Pointer gestures on the canvas: pan, pinch-zoom, marquee selection, shape
 // drag, background move/rotate, calibration taps.
@@ -54,12 +60,33 @@ function startPinchGesture() {
   if (g?.type === 'drag-feature' && featureDragChanged(g)) { flushHistoryDebounce(); pushHistory(); save(); } // (likewise a sub-feature's)
   const handleDrag = g?.type === 'shape-resize' || g?.type === 'shape-rotate';
   if (handleDrag && g.moved && handleDragChanged(g, state.shapes)) { flushHistoryDebounce(); pushHistory(); save(); }
+  // A shape selected under the first finger, dragged by it the hair it moved before the second came down: that was a
+  // pinch starting, not a move. What it dragged goes back where it was, nothing changed. (Found looking into Jason's
+  // plan flashing as he zoomed, Nov 5: with a bed selected, a pinch begun on it moved the bed and every plant in it half
+  // a foot or so, recorded nowhere, saved with the view. By touch a selected shape drags: onShapePointerDown.)
+  if (g?.type === 'drag-shape' && g.moved) {
+    for (const item of g.shapeStarts) {
+      const shape = state.shapes.find((s) => s.id === item.id);
+      if (shape) { shape.x = item.startX; shape.y = item.startY; }
+    }
+    redrawShapes(g.ids);
+    redrawHandles();
+  }
+  // (Likewise the photo, being moved or turned: a pinch begun on it, or on its handle, leaves it where it was. It was
+  // left moved, recorded nowhere, not asked about: src/ui/rescale-card.ts.)
+  if (g?.type === 'bg-drag' && g.moved && state.bgImage) { state.bgImage.cx = g.startCenter.x; state.bgImage.cy = g.startCenter.y; redrawBackground(); }
+  if (g?.type === 'bg-rot' && state.bgImage) { state.bgImage.rotation = g.startRotation; redrawBackground(); }
   forgetLastTap(); // (the plan moves: the same spot on screen will be another place)
+  // Where the fingers' midpoint is on the plan's box, measured once, now: measured at each move, the plan having been
+  // zoomed by the move before (the other finger's, in the same frame), the browser laid out every name on the plan
+  // again just to say where the box is, then again for the frame, twice the work each frame of a pinch (the audit of
+  // Nov 6). The box doesn't move while the fingers are down.
+  const rect = canvasRect();
   gesture.current = {
     type: 'pinch',
     startDist: info.dist,
     startZoom: state.zoom,
-    centerScreen: { x: info.cx, y: info.cy },
+    centerOnPlan: { x: info.cx - rect.left, y: info.cy - rect.top },
     centerFeetAtStart: screenToFeet(info.cx, info.cy)
   };
   state.marquee = null;
@@ -77,6 +104,13 @@ export function normalizeDeg(d: number): number {
   return ((((d + 180) % 360) + 360) % 360) - 180;
 }
 
+/**
+ * A pan or zoom of the plan ended, nothing else changed: only the plan is drawn again, in place (src/ui/render.ts
+ * viewMoved), never the whole app: behind the plant picker, the picker as it is (its search, its scroll, the rows opened
+ * in it: src/ui/picker-view.ts); anywhere, no blank frames as the fingers lift (Jason, Nov 5).
+ */
+function viewSettled() { viewMoved(); }
+
 /** Shift, Ctrl or Cmd held: add to the selection or take from it, as in most desktop apps. */
 const adding = (e: PointerEvent) => e.shiftKey || e.ctrlKey || e.metaKey;
 
@@ -85,6 +119,13 @@ export function onCanvasPointerDown(e: PointerEvent) {
   activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
   if (activePointers.size === 2) { startPinchGesture(); return; }
   if (activePointers.size > 2) return; // palm rejection
+  // Behind the plant picker, the plan is there to look at: a drag pans it and two fingers zoom it, wherever they press;
+  // nothing on it is picked, moved or placed (Jason, Nov 2, from the bed review: src/ui/picker-view.ts). A tap closes
+  // the picker (Jason, Nov 4: as panels close everywhere else).
+  if (planLookOnly()) {
+    gesture.current = { type: 'pan', startX: e.clientX, startY: e.clientY, startOffset: { x: state.offsetX, y: state.offsetY }, moved: false, look: true };
+    return;
+  }
 
   // Shapes handle their own pointerdown; here only the canvas background,
   // the grid, and (in edit mode) the background image body/rotation handle.
@@ -97,8 +138,12 @@ export function onCanvasPointerDown(e: PointerEvent) {
   // A handle on the selected shape: resize it, or turn it.
   const shapeHandle = target.closest?.('[data-role="shape-resize"],[data-role="shape-rotate"]') as SVGElement | null;
   if (shapeHandle) {
+    // (A step still being gathered, typing in a field a moment ago, is in first: the drag notes where history is after
+    // it. Noted before, the step went in under the drag, which took it for an Undo and ended at once: a handle pressed
+    // within 0.6 s of typing did nothing.)
+    flushHistoryDebounce();
     const g = startHandleDrag(shapeHandle.dataset.handle as HandleKind, screenToFeet(e.clientX, e.clientY), e.clientX, e.clientY, state.shapes);
-    if (g) { flushHistoryDebounce(); gesture.current = g; }
+    if (g) gesture.current = g;
     return;
   }
   if (!isCanvas && !isBgBody && !isBgRot && !handle) return;
@@ -119,7 +164,12 @@ export function onCanvasPointerDown(e: PointerEvent) {
       redrawHandles();
     }
     delete state.editPoints.snap; // (a new drag: the last one's Unsnap goes)
-    gesture.current = { type: 'drag-vertex', id: edited.id, index, startX: clientX, startY: clientY, moved: false, inserted };
+    delete state.editPoints.square;
+    // (The point pressed is the one whose angle and sides are read out, from the press: with a finger, they move clear of
+    // it at once, not when the drag starts. Jason, Nov 4: "it would be under my finger".)
+    state.editPoints.vertex = index;
+    gesture.current = { type: 'drag-vertex', id: edited.id, index, startX: clientX, startY: clientY, atX: clientX, atY: clientY, moved: false, inserted };
+    if (e.pointerType !== 'mouse') redrawHandles();
     return;
   }
   if (handle) return;
@@ -181,9 +231,8 @@ export function onCanvasPointerMove(e: PointerEvent) {
       if (!info) return; // a finger lifted; pointerup handles it
       const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, g.startZoom * (info.dist / g.startDist)));
       const newPxPerFoot = PX_PER_FOOT_BASE * newZoom;
-      const rect = canvasRect();
-      state.offsetX = g.centerFeetAtStart.x - (g.centerScreen.x - rect.left) / newPxPerFoot;
-      state.offsetY = g.centerFeetAtStart.y - (g.centerScreen.y - rect.top) / newPxPerFoot;
+      state.offsetX = g.centerFeetAtStart.x - g.centerOnPlan.x / newPxPerFoot;
+      state.offsetY = g.centerFeetAtStart.y - g.centerOnPlan.y / newPxPerFoot;
       state.zoom = newZoom;
       e.preventDefault();
       previewView();
@@ -236,11 +285,12 @@ export function onCanvasPointerMove(e: PointerEvent) {
       movedPastThreshold(g, e);
       const s = editedShape();
       if (!s) { gesture.current = null; return; }
+      g.atX = clientX; g.atY = clientY;
       if (g.moved || g.inserted) {
         moveVertex(s, g.index, screenToFeet(clientX, clientY));
         redrawShapes([s.id]);
         redrawHandles();
-      }
+      } else if (e.pointerType !== 'mouse') redrawHandles(); // (the numbers follow the finger before the drag starts too)
       e.preventDefault();
       return;
     }
@@ -305,10 +355,19 @@ export function shapesAt(clientX: number, clientY: number): Shape[] {
   }
   return ids.map((id) => state.shapes.find((s) => s.id === id)).filter((s): s is Shape => !!s);
 }
-/** A shape as a notice names it: "the fence", "the front bed", "the carolina jessamine". */
+/**
+ * A shape as a notice names it: "the fence", "the front bed", "the Carolina Jessamine" (a plant's catalog name, in
+ * Title Case as everywhere: src/names.ts), "the property line" (a kind's name, in a sentence's words).
+ */
 function theName(s: Shape): string {
   const kind = kindOfShape(s);
-  const name = (s.type === 'circle' && s.plantId && plantsById[s.plantId]?.common) || s.label.trim() || (kind ? kindDef(kind).label : 'shape');
+  const plant = s.type === 'circle' && s.plantId ? plantsById[s.plantId]?.common : undefined;
+  if (plant) return `the ${plant}`;
+  const name = s.label.trim() || (kind ? kindDef(kind).label : 'shape');
+  if (!s.label.trim() || (kind && sameName(name, kindDef(kind).startLabel([])))) return `the ${inSentence(name)}`;
+  // (A name with a capital past its first letter, "SW Corner" or "Rain Garden", as typed: lowered, it read "the sW
+  // Corner" and "the rain Garden". The bug hunt, Nov 6. "Front bed" still reads "the front bed".)
+  if (/\p{Lu}/u.test(name.slice(1))) return `the ${name}`;
   return `the ${name.charAt(0).toLowerCase()}${name.slice(1)}`;
 }
 const STACK_HINT = 'lp-hint-tap-under';
@@ -326,8 +385,17 @@ function sunAreasLast(stack: Shape[]): Shape[] {
   const after = rest.findLastIndex((s) => s.role === 'plant' || !isLocked(s));
   return [...rest.slice(0, after + 1), ...sun, ...rest.slice(after + 1)];
 }
+/** Whether the topmost thing at `at` (client px) is a hidden plant's pin or name, for the plant `id`. */
+function aimedAt(at: { x: number; y: number }, id: string): boolean {
+  const top = document.elementFromPoint(at.x, at.y)?.closest<SVGElement>('[data-pin-of],[data-label-of]');
+  return !!top && (top.dataset.pinOf ?? top.dataset.labelOf) === id;
+}
 /** What the last tap moved down the stack from, if it did: a quick second tap (a double tap) opens that one's pane. */
 let cycledFrom: string | null = null;
+/** The last tap on a shape: where (feet), and what it picked. */
+let lastPress: { at: Point; picked: string } | null = null;
+/** How near the last tap a tap is, at most, to be the same tap again (px): a finger's spread, tapping one spot. */
+const AGAIN_PX = 20;
 /**
  * A tap on a shape. `at` (client px): where, for what's stacked there. A quick second tap opens the pane of what the
  * first picked; a separate tap where one of the stack is selected picks the next one under it, round the stack
@@ -340,11 +408,22 @@ function handleShapeTap(shape: Shape, at?: { x: number; y: number }) {
   // picked under another, the next tap went on down to the bed before the plant over it: round 3, Dana, Grace, Hank.)
   const under = at ? shapesAt(at.x, at.y).filter((s) => s.id !== shape.id && shownWith(s, state.viewFilter)) : [];
   const stack = sunAreasLast([shape, ...under.filter((s) => s.role === 'plant'), ...under.filter((s) => s.role !== 'plant')]);
+  // A hidden plant's pin or name, pressed: that plant, whatever's selected around it. (Jason, Nov 6, his recording: a
+  // lobelia picked by its pin, then the pin of the one beside it, inside the first one's circle, picked the bed: the tap
+  // was taken for a second tap on the first, and went on down the stack under it.) Its own pin, when it's the one
+  // selected, goes on down the stack as before. And so does a tap again where the last one was, on what it picked,
+  // whatever pin or name is there: the stack walked down to the ground and round. (Jason, Nov 6, his second recording:
+  // taps on one spot, a lobelia's name, went lobelia, cardinal flower, lobelia, cardinal flower… never to the bed.)
+  const ft = at ? screenToFeet(at.x, at.y) : null;
+  const again = !!ft && !!lastPress && lastPress.picked === state.selectedIds[0]
+    && Math.hypot(ft.x - lastPress.at.x, ft.y - lastPress.at.y) * pxPerFoot() <= AGAIN_PX;
+  const aimed = !again && !!at && aimedAt(at, shape.id);
+  if (aimed && shape.id !== state.selectedIds[0] && shape.id !== tapTracker.id) { tapTracker.id = null; cycledFrom = null; }
   if (tapTracker.id && stack.some((s) => s.id === tapTracker.id) && t - tapTracker.time < DOUBLE_TAP_MS) {
     // (A double tap on the one selected: its pane, though its first tap went on down the stack.)
     selectOnly(cycledFrom ?? tapTracker.id);
     state.panel = 'props';
-    tapTracker.id = null; tapTracker.time = 0; cycledFrom = null;
+    tapTracker.id = null; tapTracker.time = 0; cycledFrom = null; lastPress = null;
     return;
   }
   // (Plants Done just left selected weren't picked by a tap: a tap on one picks it, not what's under it. The UI review,
@@ -354,13 +433,15 @@ function handleShapeTap(shape: Shape, at?: { x: number; y: number }) {
   // (Nor were the plants a Warnings row chose: the first press on one keeps them, and the walk through the warnings goes
   // on. The warnings bug hunt, Nov 1: it picked the bed or the sun area under the plant, and ended the walk.)
   const walked = walkKeepsPress(shape.id);
-  const sel = state.selectedIds.length === 1 && !placedNow && !walked ? stack.findIndex((s) => s.id === state.selectedIds[0]) : -1;
+  const sel = state.selectedIds.length === 1 && !placedNow && !walked && !(aimed && shape.id !== state.selectedIds[0])
+    ? stack.findIndex((s) => s.id === state.selectedIds[0]) : -1;
   const pick = sel >= 0 ? stack[(sel + 1) % stack.length] : stack[0];
   // (Gone down the stack: "Tap again for … under it" is done with. Round 3, Grace: it stayed over what it named.)
   if (sel >= 0) hideToastSaying(/^(Tap|Click) again for /);
   cycledFrom = sel >= 0 && pick.id !== state.selectedIds[0] ? state.selectedIds[0] : null;
   if (!walked) selectOnly(pick.id);
   tapTracker.id = pick.id; tapTracker.time = t;
+  lastPress = ft ? { at: ft, picked: pick.id } : null;
   // (The first few times a tap lands on a stack, on this device: say so.)
   if (sel < 0 && stack.length > 1 && hintDue(STACK_HINT, 3)) {
     const next = stack[(stack.indexOf(pick) + 1) % stack.length];
@@ -384,11 +465,12 @@ export function onCanvasPointerUp(e: PointerEvent) {
         gesture.current = {
           type: 'pan', startX: p.clientX, startY: p.clientY,
           startOffset: { x: state.offsetX, y: state.offsetY },
-          moved: true // never treat the end of a pinch as a tap
+          moved: true, // never treat the end of a pinch as a tap
+          look: planLookOnly(),
         };
       } else {
         saveView(); // (where it's looked at from, not a change to the plan: src/storage.ts)
-        render(); // full redraw replaces the gesture preview
+        viewSettled(); // (the plan drawn again in place of the gesture's preview)
       }
     }
     return;
@@ -396,13 +478,17 @@ export function onCanvasPointerUp(e: PointerEvent) {
 
   gesture.current = null;
   switch (g.type) {
+    // (Dragged or turned with a plan over it: asked whether to move the plan too, and nothing changed unless they say:
+    // Jason's answer 6, src/ui/rescale-card.ts.)
     case 'bg-drag':
       if (g.moved) { flushHistoryDebounce(); pushHistory(); save(); }
       render();
+      if (g.moved && state.bgImage) askAfterPhotoMoved({ ...placementOf(state.bgImage), cx: g.startCenter.x, cy: g.startCenter.y });
       return;
     case 'bg-rot':
       flushHistoryDebounce(); pushHistory(); save();
       render();
+      if (state.bgImage) askAfterPhotoMoved({ ...placementOf(state.bgImage), rotation: g.startRotation });
       return;
     case 'bg-calibrate-tap':
       if (!g.moved) bgCalibrationTap(g.startX, g.startY);
@@ -438,14 +524,29 @@ export function onCanvasPointerUp(e: PointerEvent) {
     }
     case 'drag-vertex':
       if (g.moved || g.inserted) { flushHistoryDebounce(); pushHistory(); save(); }
-      if (state.editPoints) state.editPoints.vertex = g.index;
+      if (state.editPoints) { state.editPoints.vertex = g.index; delete state.editPoints.square; }
       render();
       return;
     case 'pan':
+      if (g.look) {
+        // (Behind the picker: a drag moved the view, the plan alone drawn again. A tap picks nothing, the view put back
+        // from the hair it followed the finger; it closes the picker, as a tap on the plan closes a panel everywhere
+        // else (Jason, Nov 4, note 3).)
+        if (g.moved) { saveView(); forgetLastTap(); viewSettled(); }
+        else {
+          state.offsetX = g.startOffset.x; state.offsetY = g.startOffset.y; previewView();
+          // (Picking a bed for the picker: a tap on one is For it, back in the picker. src/ui/plant-for.ts.)
+          if (pickingBed()) { pickBedAt(screenToFeet(g.startX, g.startY), (p) => bedAt(p, state.shapes.filter((s) => shownWith(s, state.viewFilter)))); render(); }
+          else planTapped();
+        }
+        return;
+      }
       if (g.moved) {
         saveView(); forgetLastTap(); // (the plan moved: the same spot on screen is another place)
         // (The first few times a drag over a shape pans, on this device: how to move it.)
         if (g.overShape && hintDue(DRAG_HINT, 3)) { toast('That moved the plan. To move a shape, tap it first, then drag it.', 4000); hintShown(DRAG_HINT); }
+        viewSettled(); // (only the view moved: the plan drawn again in place, not the whole app)
+        return;
       }
       else if (state.draw) drawTap(g.startX, g.startY);
       else if (state.featurePlace) featureTap(g.startX, g.startY);
@@ -497,7 +598,8 @@ function tapThroughHandle(clientX: number, clientY: number) {
 export function onShapePointerDown(e: PointerEvent, shape: Shape) {
   // In background edit/calibration modes shapes are inert: route the tap to
   // the canvas gesture logic (and stop it bubbling so it isn't handled twice).
-  if (state.bgEditMode || state.bgCalibrate) {
+  // Likewise behind the plant picker: a press on a shape pans the plan (src/ui/picker-view.ts).
+  if (state.bgEditMode || state.bgCalibrate || planLookOnly()) {
     e.stopPropagation();
     onCanvasPointerDown(e);
     return;
@@ -606,6 +708,7 @@ export function onShapePointerDown(e: PointerEvent, shape: Shape) {
  * edges; anywhere else it's a press on its shape (selecting, dragging, adding to the selection), as before.
  */
 export function onFeaturePointerDown(e: PointerEvent, shape: Shape, featureId: string) {
+  if (planLookOnly()) { onShapePointerDown(e, shape); return; } // (behind the picker: it pans)
   const own = state.selectedIds.length === 1 && state.selectedIds[0] === shape.id && !isLocked(shape) && !adding(e) && !state.selectMode && !state.bgEditMode && !state.bgCalibrate;
   const f = shape.type !== 'circle' && shape.type !== 'text' ? shape.features?.find((x) => x.id === featureId) : undefined;
   const spot = f && featureSpot(shape, f);
@@ -639,7 +742,7 @@ export function cancelGestures() {
   if (gesture.current) {
     gesture.current = null;
     state.marquee = null;
-    render();
+    if (planLookOnly()) viewSettled(); else render();
   }
 }
 
@@ -684,5 +787,5 @@ export function onWheel(e: WheelEvent) {
   }
   previewView();
   if (wheelSettle) clearTimeout(wheelSettle);
-  wheelSettle = setTimeout(() => { wheelSettle = null; render(); }, 150);
+  wheelSettle = setTimeout(() => { wheelSettle = null; viewSettled(); }, 150);
 }

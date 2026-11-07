@@ -4,11 +4,11 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryKV, openKV, type KV, type WriteOp } from '../src/db';
+import { DB_VERSION, MemoryKV, openKV, type KV, type WriteOp } from '../src/db';
 import { state } from '../src/state';
 import { pushHistory, redo, undo } from '../src/history';
 import {
-  _resetStorageForTests, createProject, flushSave, initStorage, readProject, sanitizeProjectData,
+  _resetStorageForTests, createProject, currentProjectData, flushSave, initStorage, readProject, sanitizeProjectData,
   save, saveIsFailing, StorageUnavailableError, switchProject, writeJournalIfDirty,
 } from '../src/storage';
 import { buildBackupFile, buildProjectFile, parseImportFile, safeFileName, stamp } from '../src/backup';
@@ -37,6 +37,10 @@ class FlakyKV implements KV {
   changeAllOnce(...a: Parameters<KV['changeAllOnce']>) {
     if (this.failWrites) return Promise.reject(new DOMException('disk full', 'UnknownError'));
     return this.inner.changeAllOnce(...a);
+  }
+  writeIf(check: Parameters<KV['writeIf']>[0], ops: WriteOp[]) {
+    if (this.failWrites) return Promise.reject(new DOMException('disk full', 'UnknownError'));
+    return this.inner.writeIf(check, ops);
   }
 }
 
@@ -231,7 +235,8 @@ describe('a journal that could not be applied', () => {
   it('survives the next successful save and is applied on a later start', async () => {
     const kv = await fresh();
     const id = state.currentProjectId!;
-    localStorage.setItem('lp-journal:' + id, JSON.stringify({ projectId: id, at: Date.now() + 1000, data: { shapes: [circle('pending')] } }));
+    // (A journal as this version writes it: an older tab's is kept apart instead, tests/storage.test.ts.)
+    localStorage.setItem('lp-journal:' + id, JSON.stringify({ projectId: id, at: Date.now() + 1000, dbVersion: DB_VERSION, data: { ...currentProjectData(), shapes: [circle('pending')] } }));
     kv.failWrites = true;
     _resetStorageForTests();
     await initStorage(kv).catch(() => {}); // replay (and more) fails

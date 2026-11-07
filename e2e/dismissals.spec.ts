@@ -37,9 +37,10 @@ test('dismissing a hardiness warning on one copy dismisses it for every copy and
   await tapFromCenter(page, -4, 0);
   await page.locator('.sel-pill .edit').click();
   await openSections(page);
-  await expect(page.getByTestId('hardy-check').getByRole('button')).toHaveText(['Dismiss for this one', 'Dismiss for every Barbados aloe']);
+  // (And Swap, filtered for plants hardy here: Jason's UI review, Nov 2.)
+  await expect(page.getByTestId('hardy-check').getByRole('button')).toHaveText(['Dismiss for this one', 'Dismiss for every Barbados Aloe', 'Swap for one hardy in zone 8a…']);
   await page.getByTestId('hardy-dismiss').click();
-  await expect(page.getByTestId('dismiss-notice')).toContainText('Hardiness warning dismissed for both Barbados aloe in this plan, and any you add later.');
+  await expect(page.getByTestId('dismiss-notice')).toContainText('Hardiness warning dismissed for both Barbados Aloe in this plan, and any you add later.');
   await expect(page.getByTestId('dismiss-notice').getByRole('button')).toHaveText(['Just these 2', 'OK', '✕']);
   await expect(page.getByTestId('hardy-check')).toContainText('dismissed for every one in this plan');
   await expect(page.getByTestId('hardy-check').getByRole('button')).toHaveText(['Show again']);
@@ -56,8 +57,8 @@ test('dismissing a hardiness warning on one copy dismisses it for every copy and
   await expect(page.getByTestId('warnings-head')).toHaveText(/^Nothing to look at yet · 1 dismissed · \d checks? can’t run$/);
   const row = page.getByTestId('warnings-kind-hardy').getByTestId('warning-row');
   await expect(row).toHaveAttribute('data-dismissed', 'true');
-  await expect(row.getByTestId('warning-select')).toContainText(/^Barbados aloe \u00d73Too cold for zone 8a: it's rated for zones/);
-  await expect(row.getByTestId('warning-scope')).toHaveText('Dismissed for every Barbados aloe in this plan');
+  await expect(row.getByTestId('warning-select')).toContainText(/^Barbados Aloe \u00d73Too cold for zone 8a: it's rated for zones/);
+  await expect(row.getByTestId('warning-scope')).toHaveText('Dismissed for every Barbados Aloe in this plan');
   await row.getByRole('button', { name: 'Show again' }).click();
   await expect(row).toHaveAttribute('data-dismissed', 'false');
   await expect(row.getByRole('button', { name: 'Show again' })).toHaveCount(0);
@@ -70,7 +71,7 @@ test('dismissing a hardiness warning on one copy dismisses it for every copy and
 const base = { color: '#16a34a', opacity: 0.65, locked: false };
 const plant = (id: string, plantId: string, label: string, x: number, y: number, radius = 1) => ({ ...base, id, type: 'circle', role: 'plant', plantId, label, x, y, radius });
 const sunny = { ...base, id: 'sunny', type: 'rect', role: 'shade', label: 'Sunny strip', x: 20, y: -5, width: 10, height: 10, rotation: 0, sun: { mode: 'hours', hours: 8, periods: [[540, 780]], dappled: false } };
-/** Two spicebushes 2 ft apart: crowded. */
+/** Two spicebushes 2 ft apart: crowded. Pairs go 12 ft apart, clear of each other (a spicebush typically spreads 10.5 ft). */
 const pair = (n: number, y: number) => [plant(`s${n}a`, 'lindera-benzoin', 'Spicebush', 0, y), plant(`s${n}b`, 'lindera-benzoin', 'Spicebush', 2, y)];
 async function openPlan(page: Page, shapes: object[], where: { dogs?: boolean; zone?: boolean } = {}) {
   await page.addInitScript(([shapes, where]) => {
@@ -94,7 +95,7 @@ const KINDS = ['poison', 'utility', 'hardy', 'sun', 'crowding', 'fruit'];
 
 test('Warnings: each kind\'s warning dismissed from its row, as the plan dismisses it, saying who for, and a kind all at once, with an Undo (Jason, Nov 1)', async ({ page }) => {
   await openPlan(page, [
-    ...pair(1, 0), ...pair(2, 10), ...pair(3, 20),
+    ...pair(1, 0), ...pair(2, 12), ...pair(3, 24),
     sunny, plant('tc', 'dicentra-eximia', 'Turkey corn', 25, 0, 0.5),
     plant('al', 'aloe-vera', 'Barbados aloe', 40, 0),
     plant('mw', 'asclepias-tuberosa', 'Butterfly milkweed', 40, 15),
@@ -106,12 +107,13 @@ test('Warnings: each kind\'s warning dismissed from its row, as the plan dismiss
   await expect(page.getByTestId('warnings-btn')).toHaveAttribute('aria-label', 'Warnings: 11 to look at');
   await expect(page.getByTestId('warnings-count')).toHaveText('11');
   await openWarnings(page, ...KINDS);
-  // Safety first; a kind with more than one has its Dismiss all under its rows, last in it but How this is worked out;
-  // one, only its row's.
+  // Safety first; a kind with more than one has its Dismiss all above its rows, just after its switch (Jason, after
+  // release 3: they were under the rows); one, only its row's.
   await expect(page.getByTestId('warnings-head')).toHaveText('11 to look at');
   await expect(page.locator('[data-testid^=warnings-kind-head-]')).toHaveText([/^Poison/, /^Utilities/, /^Hardiness/, /^Sun/, /^Crowding/, /^Fruit partners/]);
   await expect(all(page, 'crowding').getByRole('button')).toHaveText(['Dismiss all 3']);
-  await expect(kind(page, 'crowding').locator(':scope > *').nth(-2)).toHaveAttribute('data-testid', 'warnings-all-crowding');
+  await expect(kind(page, 'crowding').locator(':scope > *').nth(2)).toHaveAttribute('data-testid', 'warnings-all-crowding');
+  await expect(kind(page, 'crowding').locator(':scope > *').nth(3)).toHaveClass('warn-rows');
   await expect(all(page, 'crowding').locator('.warnings-all-head')).toHaveText('All 3 crowding warnings');
   await expect(all(page, 'poison').getByRole('button')).toHaveText(['Dismiss all 4']);
   for (const k of ['sun', 'hardy', 'utility', 'fruit']) await expect(all(page, k)).toHaveCount(0);
@@ -124,7 +126,7 @@ test('Warnings: each kind\'s warning dismissed from its row, as the plan dismiss
   await expect(scopeOf('crowding')).toHaveText('Dismissed for this pair');
   await expect(kind(page, 'crowding').getByTestId('warning-row').last().getByTestId('warning-again')).toBeVisible();
   // Sun and utilities: that plant where it stands.
-  await expect(kind(page, 'sun').getByTestId('warning-select')).toHaveText(/^Turkey cornGets about 8 h of sun in Sunny strip; it prefers part shade ›$/);
+  await expect(kind(page, 'sun').getByTestId('warning-select')).toHaveText(/^Turkey CornGets about 8 h of sun in Sunny strip; it prefers part shade ›$/);
   await kind(page, 'sun').getByTestId('warning-dismiss').click();
   await expect(head(page, 'sun')).toHaveAttribute('aria-label', 'Sun, 1 dismissed');
   await expect(scopeOf('sun')).toHaveText('Dismissed for this one');
@@ -135,26 +137,26 @@ test('Warnings: each kind\'s warning dismissed from its row, as the plan dismiss
   await expect(badgesOf(page, 'utility')).toHaveCount(0);
   // Hardiness, poison and fruit partners: the plant across the plan, said as its pane or its notice says it.
   await kind(page, 'hardy').getByTestId('warning-dismiss').click();
-  await expect(page.getByTestId('dismiss-notice')).toContainText('Hardiness warning dismissed for Barbados aloe in this plan, and any you add later.');
+  await expect(page.getByTestId('dismiss-notice')).toContainText('Hardiness warning dismissed for Barbados Aloe in this plan, and any you add later.');
   await expect(page.getByTestId('dismiss-notice').getByRole('button')).toHaveText(['Just this one', 'OK', '✕']);
   await expect(head(page, 'hardy')).toHaveAttribute('aria-label', 'Hardiness, 1 dismissed');
-  await expect(scopeOf('hardy')).toHaveText('Dismissed for every Barbados aloe in this plan');
+  await expect(scopeOf('hardy')).toHaveText('Dismissed for every Barbados Aloe in this plan');
   await expect(badgesOf(page, 'hardy')).toHaveCount(0);
   await putAway(page);
   // (Poison as its details say it, with its severity.)
   const milkweed = kind(page, 'poison').getByTestId('warning-row').filter({ hasText: 'Butterfly milkweed' });
-  await expect(milkweed.getByTestId('warning-select')).toContainText(/A problem for dogs/);
+  await expect(milkweed.getByTestId('warning-select')).toContainText(/Toxic to dogs/);
   await milkweed.getByTestId('warning-dismiss').click();
-  await expect(page.getByTestId('dismiss-notice')).toContainText('Poison warning dismissed for Butterfly milkweed in this plan, and any you add later.');
+  await expect(page.getByTestId('dismiss-notice')).toContainText('Poison warning dismissed for Butterfly Milkweed in this plan, and any you add later.');
   await expect(head(page, 'poison')).toHaveAttribute('aria-label', 'Poison, 3 to look at, 1 dismissed');
-  await expect(scopeOf('poison')).toHaveText('Dismissed for every Butterfly milkweed in this plan');
+  await expect(scopeOf('poison')).toHaveText('Dismissed for every Butterfly Milkweed in this plan');
   await expect(badgesOf(page, 'poison')).toHaveCount(3);
   await putAway(page);
-  // (Fruit partners: no "Just this one", which brought the warning back as active, the plan keeping no fruit-partner
-  // dismissal copy by copy (the warnings bug hunt, Nov 1); Undo instead.)
+  // (Fruit partners: "Just this one" as hardiness and poison have it, since a copy keeps its own (Jason, Nov 1: it
+  // brought the warning back, the warnings bug hunt), and Undo, kept: e2e/fruit-dismiss-one.spec.ts.)
   await kind(page, 'fruit').getByTestId('warning-dismiss').click();
   await expect(page.getByTestId('dismiss-notice')).toContainText("Fruit partner warning dismissed for Winterberry 'Winter Red' in this plan, and any you add later.");
-  await expect(page.getByTestId('dismiss-notice').getByRole('button')).toHaveText(['Undo', 'OK', '✕']);
+  await expect(page.getByTestId('dismiss-notice').getByRole('button')).toHaveText(['Just this one', 'Undo', 'OK', '✕']);
   await expect(head(page, 'fruit')).toHaveAttribute('aria-label', 'Fruit partners, 1 dismissed');
   await expect(scopeOf('fruit')).toHaveText("Dismissed for every Winterberry 'Winter Red' in this plan");
   await page.getByTestId('dismiss-notice').getByRole('button', { name: 'Undo' }).click();
@@ -207,7 +209,7 @@ test('Warnings: each kind\'s warning dismissed from its row, as the plan dismiss
 });
 
 test('Warnings: a kind\'s Dismiss all or Show all again only where it does more than one row\'s own (Jason, Nov 1)', async ({ page }) => {
-  await openPlan(page, [...pair(1, 0), ...pair(2, 10), sunny, plant('tc', 'dicentra-eximia', 'Turkey corn', 22, 0, 0.5), plant('tc2', 'dicentra-eximia', 'Turkey corn', 27, 0, 0.5)]);
+  await openPlan(page, [...pair(1, 0), ...pair(2, 12), sunny, plant('tc', 'dicentra-eximia', 'Turkey corn', 22, 0, 0.5), plant('tc2', 'dicentra-eximia', 'Turkey corn', 27, 0, 0.5)]);
   await openWarnings(page, 'sun', 'crowding');
   await expect(page.getByTestId('warnings-head')).toHaveText('4 to look at');
   const rows = kind(page, 'sun').getByTestId('warning-row');

@@ -1,6 +1,6 @@
 import type { jsPDF as JsPDF } from 'jspdf';
 import { pdfSafe } from './print';
-import { listTotals, rowFacts, totalsText, type ListRow, type PlantList } from './plant-list';
+import { labelsText, listTotals, rowFacts, totalsText, type ListRow, type PlantList } from './plant-list';
 
 // The Plant list on paper (Jason, Nov 1, from the UI review: "one page, big type"), to take to the nursery: the plan's
 // name and the date, the totals, then a box to tick for each kind to buy, its count first. Only what's to buy: planted
@@ -26,7 +26,8 @@ function lay(doc: JsPDF, r: ListRow, f: number, w: number): Laid {
   const head = doc.splitTextToSize(pdfSafe(`${r.count} × ${r.name}`), text) as string[];
   doc.setFontSize(SMALL * f);
   const partly = r.bought && r.bought < r.count ? `${r.bought} of ${r.count} bought` : '';
-  const said = pdfSafe([rowFacts(r), partly].filter(Boolean).join(' · '));
+  // (Its plants' own labels first, beside its botanical name: "labeled Climax ×2, Premier ×1". Jason's testing, Nov 1.)
+  const said = pdfSafe([labelsText(r), rowFacts(r), partly].filter(Boolean).join(' · '));
   const latin = pdfSafe(r.botanical);
   // (The botanical name and the facts on one line where they fit: a row of two lines, not three, so more fit a page.)
   doc.setFont('helvetica', 'italic');

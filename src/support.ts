@@ -23,7 +23,18 @@ export const SETTING_KEYS = [
   'lp-current', 'lp-idb-in-use', 'lp-text-size', 'lp-text-size-2', 'lp-yard', 'lp-protect-line', 'lp-hardy-here', 'lp-square', 'lp-snap', 'lp-tidy', 'lp-kind-prefs',
   'lp-recent-plants', 'lp-full-rings', 'lp-crowding', 'lp-crowd-warn', 'lp-warn-hardy', 'lp-warn-poison', 'lp-warn-fruit', 'lp-zoom-buttons', 'lp-plant-looks', 'lp-label-size', 'lp-filters-open', 'lp-my-plants-folded', 'lp-sync-device',
   'lp-zip-county', 'lp-zip-prompt-dismissed', 'lp-intro', 'lp-last-visit', 'lp-returned', 'lp-hint-full-size', 'lp-canopy-hint',
-  'lp-hint-tap-under', 'lp-hint-drag-pans', 'lp-tap-guard', 'lp-whats-new', 'lp-first-hidden',
+  'lp-hint-tap-under', 'lp-hint-drag-pans', 'lp-tap-guard', 'lp-whats-new', 'lp-first-hidden', 'lp-trace',
+  // (The start's cards, src/welcome.ts: the version last started, the visits counted, the second visit's card had. And
+  // 'lp-visit-counted', which is in sessionStorage, never here: listed so it's known.)
+  'lp-app-version', 'lp-visits', 'lp-saved-here', 'lp-visit-counted',
+  // (The install card, src/install.ts: had its turn on this device, or the app installed.)
+  'lp-install-card',
+  // (Tall plants, src/view-settings.ts: Layers' "See through tall plants" and its height; and how paper and pictures drew
+  // the plants under taller ones on this device before plans kept it, Nov 4: no longer written, read only as where a plan
+  // that has never had it picked starts.)
+  'lp-see-through', 'lp-see-through-from', 'lp-print-under',
+  // (The plan's drawing checked against drawing it whole, src/canvas.ts drawCheck: set only by the tests, never by the app.)
+  'lp-draw-check',
 ];
 /** Data, by name and size: exact keys, and prefixes (a project per key, an unsaved-edits journal per project). */
 export const DATA_KEYS = ['lp-projects', 'lp-clipboard', ERROR_LOG_KEY];

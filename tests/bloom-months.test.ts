@@ -128,7 +128,7 @@ describe('bloom months in the app', () => {
     const box = plantDetails(cone, undefined);
     const row = box.querySelector('[data-testid=bloom-row]')!;
     expect([...row.querySelectorAll('.details-part')].map((x) => x.textContent)).toEqual(['Jun–Aug, peak Aug', 'Summer']);
-    expect(row.textContent).toContain('252 flowering records in Arkansas · GBIF.org flowering records');
+    expect(row.textContent).toContain('Source: 252 flowering records in Arkansas · GBIF.org flowering records');
     expect(row.querySelector('[data-testid=bloom-months]')).toBeNull();
     expect(box.querySelector('[data-testid=flower-color]')!.firstChild!.textContent).toBe('Purple');
   });

@@ -11,6 +11,12 @@ import { errMsg } from '../util';
 import { render } from './render';
 import { toast } from './toast';
 import { tell } from './ask';
+import { areaPicker } from './area-picker';
+import { areaWords, frameArea, noteScreen, printArea, type PrintArea } from '../print-area';
+import { underPicker } from './under-picker';
+import { printUnder } from '../view-settings';
+import { isPlant } from '../beds';
+import { seeThroughFrom } from '../canvas';
 
 // Printable plan options and the Create PDF button.
 // Text and number fields update settings without re-rendering (Android
@@ -29,6 +35,7 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
  * out as on the screen). Each opening starts again from the screen.
  */
 export function openPrint() {
+  noteScreen(); // (what's on screen, and the bed selected, as Print opens)
   const f = state.viewFilter;
   const statusFilter = f.status === 'gone' ? '' : f.status, phaseFilter = state.phases.includes(f.phase) ? f.phase : '';
   // (Saved only when it changes: opening Print isn't an edit of the plan.)
@@ -54,7 +61,8 @@ export function fromScreenText(): string {
  * What a PDF was made of: the plan, its layers and what's shown. Changed since, the PDF made is let go, not offered as
  * "Ready" (round 3, Tom: plants hidden, and Download gave the PDF with them).
  */
-const printedFrom = () => JSON.stringify([state.currentProjectId, state.shapes, state.roleViews, state.viewFilter, state.sizeMode, printNames, printMonth, state.bgImage?.dataUrl?.length ?? 0, state.bgImage?.opacity, state.bgImage?.visible, state.bgImage?.cx, state.bgImage?.cy, state.bgImage?.rotation, state.bgImage?.ftPerPx]);
+const printedFrom = () => JSON.stringify([state.currentProjectId, state.shapes, state.roleViews, state.viewFilter, state.sizeMode, printNames, printMonth, printArea(), state.bgImage?.dataUrl?.length ?? 0, state.bgImage?.opacity, state.bgImage?.visible, state.bgImage?.cx, state.bgImage?.cy, state.bgImage?.rotation, state.bgImage?.ftPerPx,
+  printUnder(), seeThroughFrom()]);
 let busy = false;
 
 function set(patch: Partial<PrintSettings>, rerender: boolean) {
@@ -80,11 +88,17 @@ const check = (label: string, checked: boolean, onChange: (v: boolean) => void, 
   return el('label', { className: 'check-row' }, cb, el('span', {}, label));
 };
 
-/** "Landscape · 1 in = 10 ft · shows 95 × 72 ft of the yard" */
-export function printSummary(p: PrintSettings): string {
+/** The area chosen (src/print-area.ts) framed on this sheet: with the print's filter. */
+function framedFor(p: PrintSettings, area: PrintArea) {
   const content = printContent(state.shapes, state.bgImage, p.includeBackground, { status: p.statusFilter, phase: p.phaseFilter, showGone: false });
+  return { content, framed: frameArea(area, content.shapes, state.shapes, content.bounds) };
+}
+/** "Landscape · 1 in = 10 ft · shows 95 × 72 ft of the yard" */
+export function printSummary(p: PrintSettings, area: PrintArea = printArea()): string {
+  const { content, framed } = framedFor(p, area);
   if (!content.bounds) return 'Add something to the plan first.';
-  const l = planLayout(p.paper, p.orientation, content.bounds);
+  if (!framed.bounds) return 'Pick a bed to print.';
+  const l = planLayout(p.paper, p.orientation, framed.bounds, framed.exact);
   const ww = Math.round(l.window.maxX - l.window.minX), wh = Math.round(l.window.maxY - l.window.minY);
   // (Which is which, said: "shows 31 × 29 ft" was read both ways, and a landscape sheet showing less width than height
   // looked wrong, its legend taking the side. Round 3, Hank, Kim.)
@@ -95,6 +109,12 @@ export function renderPrintPanel() {
   const p = state.print;
   const projectName = currentProject()?.name || 'My Garden';
   const body = el('div', { className: 'sheet-body' });
+
+  // What to print: the whole plan, what's on screen, or one bed, each scaled to fill the page (src/print-area.ts).
+  const area = printArea();
+  const { framed } = framedFor(p, area);
+  const noBed = area.kind === 'bed' && !area.bedId;
+  body.appendChild(areaPicker('What to print', noBed ? 'Pick a bed to print.' : areaWords(framed), () => { result = null; render(); }));
 
   body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Paper'),
     seg((Object.keys(PAPER) as PaperSize[]).map((k) => [k, k === 'letter' ? 'Letter' : k === 'tabloid' ? '11 × 17' : k.toUpperCase()]), p.paper, (v) => set({ paper: v }, true), 'paper')));
@@ -145,6 +165,9 @@ export function renderPrintPanel() {
     ...(state.sizeMode === 'typical' && state.shapes.some((s) => s.plantId)
       ? [check('Full-size rings around plants', p.includeFullRings, (v) => set({ includeFullRings: v }, true))] : []),
     check(hasBg ? 'Background photo (uses more ink)' : 'Background photo (none shown)', p.includeBackground && hasBg, (v) => set({ includeBackground: v }, true), !hasBg)));
+  // The plants under taller ones: shown through them, or as on the screen (Jason, Nov 4). The plan's, with its other
+  // print settings; the picture follows.
+  if (state.shapes.some(isPlant)) body.appendChild(underPicker(() => { result = null; render(); }));
 
   // North arrow
   const north = el('input', { type: 'number', step: '5', value: p.northDeg }) as HTMLInputElement;
@@ -160,7 +183,7 @@ export function renderPrintPanel() {
 
   // Create
   const create = el('button', { className: 'btn primary', 'data-testid': 'create-pdf' }, busy ? 'Making the PDF…' : 'Create PDF');
-  create.disabled = busy || !printContent(state.shapes, state.bgImage, false).bounds;
+  create.disabled = busy || !printContent(state.shapes, state.bgImage, false).bounds || noBed;
   create.addEventListener('click', async () => {
     // (Scrolled to the end, it stays there once the result has grown the bar: the last options aren't left under it.
     // Round 3, Kim: "the footer covers the bottom checkboxes after Create".)
@@ -168,7 +191,7 @@ export function renderPrintPanel() {
     busy = true; result = null; render();
     try {
       const { buildPlanPdf } = await import('../print-pdf');
-      const r = await buildPlanPdf(state.print, projectName, state.shapes, state.bgImage, state.sizeMode, { names: printNames, month: printMonth });
+      const r = await buildPlanPdf(state.print, projectName, state.shapes, state.bgImage, state.sizeMode, { names: printNames, month: printMonth, under: printUnder(), seeThroughFrom: seeThroughFrom() }, printArea());
       result = { blob: r.blob, pages: r.pages, filename: pdfName(state.print.title.trim() || projectName, stamp()), of: printedFrom() };
     } catch (e) {
       void tell("Couldn't make the PDF: " + errMsg(e));

@@ -2,19 +2,20 @@ import { recordError } from './error-log';
 import { MAX_POINTS, MAX_TREE_HEIGHT, MAX_TRUNK, MAX_ZOOM, MIN_POINTS, MIN_TRUNK, MIN_ZOOM, STORAGE } from './constants';
 import { sanitizeSubFeatures } from './features';
 import { isStoredUtilityKind } from './utility-kinds';
-import { del, openKV, put, type KV, type WriteOp } from './db';
+import { DB_VERSION, del, NewerVersionError, openKV, put, type KV, type WriteOp } from './db';
 import { cancelHistoryDebounce } from './history';
 import { DEFAULT_PRINT, state } from './state';
 import { isRole } from './roles';
 import { cleanPhaseName, filterActive, isStatus, MAX_PHASES } from './status';
-import type { BgImage, Clipboard, PathShape, PhotoRef, PlanBought, PlanDismissals, PlanHousehold, PlanSwitches, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, ShapeFilter, SunInfo, UtilityKind, WarningSwitch } from './types';
+import type { BedConditions, BgImage, Clipboard, MeasuredSide, PathShape, PhotoRef, PlanBought, PlanDismissals, PlanHousehold, PlanSwitches, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, ShapeFilter, SunInfo, UtilityKind, WarningSwitch } from './types';
 import { setWorldPoints } from './geometry';
+import { sanitizeMeasured, sideCount } from './measured';
 import { now, uid } from './util';
 import { photoFingerprint } from './sync/photo';
-import { canonical, coreHash } from './sync/engine';
+import { canonical, coreHash, fingerprint, withoutClearedMarks } from './sync/engine';
 import { sanitizeLocation } from './climate';
 import { householdFromDevice } from './yard';
-import { applySwitches, planSwitches, switchesAllOn, switchesFromDevice, WARNING_SWITCHES } from './view-settings';
+import { applySwitches, planSwitches, switchesAllOn, switchesFromDevice, underOf, WARNING_SWITCHES } from './view-settings';
 
 // Persistence. Projects live in IndexedDB:
 //   meta/<projectId>          ProjectMeta (name, dates, shape count)
@@ -27,9 +28,28 @@ import { applySwitches, planSwitches, switchesAllOn, switchesFromDevice, WARNING
 //   kv/cleared/<projectId>    what Clear all took from that project, until something new is drawn there
 // The current project is held in `state`; saves are debounced and also
 // flushed when the page is hidden so a quick app switch can't lose an edit.
+// What's stored changing in a way an older version would lose data saving over it raises src/db.ts DB_VERSION
+// (docs/storage.md).
 
 interface StoredBg extends Omit<BgImage, 'dataUrl'> { imageId: string }
-interface StoredProject extends Omit<ProjectData, 'bgImage'> { bgImage: StoredBg | null }
+interface StoredProject extends Omit<ProjectData, 'bgImage'> {
+  bgImage: StoredBg | null;
+  /**
+   * The database version (src/db.ts DB_VERSION) of the app that wrote this plan record; none: 1, from before it was
+   * kept. A journal from an older one is never put over it (replayJournals). A journal put in place keeps its own.
+   */
+  dbVersion?: number;
+  /**
+   * The page that wrote it, when, and that page's edit count then (`savedSeq`: a journal put in place, its own); none
+   * from before they were kept. A journal of that page's with no more edits than that holds nothing the plan hasn't
+   * (replayJournals: a count, not a time, so a clock set back can't make it look older).
+   */
+  savedByPage?: string;
+  savedAt?: number;
+  savedSeq?: number;
+}
+/** Who wrote a plan record, kept with it: this page and version, now, at its edit count, unless said (a journal put in place). */
+interface WriteStamp { dbVersion: number; page?: string; at: number; seq?: number }
 interface ImageRecord { dataUrl: string; createdAt?: number }
 
 const SAVE_DEBOUNCE_MS = 250;
@@ -51,8 +71,6 @@ export const outOfSpace = () => quotaWarned;
 let saveFailing = false;
 let onSaveStatus: (() => void) | null = null;
 let lastFailureJournalAt = 0;
-/** Projects whose journal couldn't be replayed this session; don't clear those. */
-const unreplayed = new Set<string>();
 /** Called whenever saving starts or stops failing (to show/hide a warning). */
 export function setSaveStatusListener(fn: () => void) { onSaveStatus = fn; }
 export function saveIsFailing(): boolean { return saveFailing; }
@@ -78,10 +96,58 @@ let savedPlanSeq = 0;
  * Synchronous safety copy of unsaved edits, written to localStorage when the
  * page hides. IndexedDB writes are asynchronous and browsers may abandon them
  * when a page unloads; this journal is replayed on the next start.
+ *
+ * Each page keeps its own, `lp-journal:<plan>@<page>`, and only ever clears its own: another tab's, or one an older
+ * version wrote (`lp-journal:<plan>`, no page: release 3 and before), holds edits nothing else has, and is left for
+ * the next start to sort out (replayJournals). (Keyed by plan alone, a save of the plan here cleared an older tab's
+ * journal, the only copy of its edit, and the two overwrote each other: the review, Nov 1.)
  */
 const JOURNAL_PREFIX = 'lp-journal:';
-const journalKey = (projectId: string) => JOURNAL_PREFIX + projectId;
-interface Journal { projectId: string; at: number; data: ProjectData }
+/** This page, for its journals and the plans it saves: new each time the app opens. */
+let PAGE = newPageId();
+function newPageId(): string { return (globalThis.crypto?.randomUUID?.() ?? uid() + uid() + uid()).replace(/[^A-Za-z0-9]/g, '').slice(0, 20); }
+/** This page's id (src/tabs.ts: its messages to the other tabs and windows). */
+export const pageId = (): string => PAGE;
+
+// ---- Other tabs and windows of this version (Jason, Nov 6, from the bug hunt: a bed drawn in one tab was lost when the
+// tab opened first saved its older copy of the plan over it, as every version before did) ----
+/**
+ * When each plan's record was saved (its savedAt), as this page last read or wrote it. A record another page has saved
+ * since (another tab or window of this version, or the installed app beside a browser tab: the same plans) is newer
+ * than what this page has: never saved over (writeCurrentKnowing), but taken in (takeNewer), this page's own changes
+ * kept beside it as a plan of their own.
+ */
+const seenAt = new Map<string, Seen>();
+/** A plan record's stamp: the page that saved it, when, and that page's edit count then (none, from before they were kept). */
+interface Seen { page?: string; at?: number; seq?: number }
+const stampOf = (r: StoredProject): Seen => ({ page: r.savedByPage, at: r.savedAt, seq: r.savedSeq });
+/** Told after this page wrote a plan (its id) or the list of plans (null): src/tabs.ts tells the other pages. */
+let onSavedHere: ((id: string | null) => void) | null = null;
+export function setSavedHereListener(fn: ((id: string | null) => void) | null) { onSavedHere = fn; }
+/**
+ * What happened when the open plan was found saved by another page since this page read it, or deleted there: `kept`,
+ * the name of the plan this page's changes were kept as (null: there were none); `gone`: deleted there, so another plan
+ * is open now. Said by src/main.ts.
+ */
+export interface TabChange { name: string; kept: string | null; gone: boolean }
+let onTabChange: ((c: TabChange) => void) | null = null;
+export function setTabChangeListener(fn: ((c: TabChange) => void) | null) { onTabChange = fn; }
+const journalKey = (projectId: string, page = PAGE) => `${JOURNAL_PREFIX}${projectId}@${page}`;
+/**
+ * `dbVersion`: the database version of the app that wrote it (src/db.ts DB_VERSION); none: 1, from before it was kept.
+ * `page`: the page that wrote it (none: an older version's, keyed by its plan alone); `seq`, that page's edit count then.
+ */
+interface Journal { projectId: string; at: number; dbVersion?: number; page?: string; seq?: number; data: ProjectData }
+
+/**
+ * Set once a newer version of the app, in another tab or window, has taken the database (src/db.ts): this page saves
+ * nothing more, not even a journal, and says so (src/main.ts).
+ */
+let superseded = false;
+export const supersededByNewer = () => superseded;
+let onNewer: ((lastWrite: Promise<boolean>) => void) | null = null;
+/** Called once a newer version has taken the database, with the last write this page started before it closed. */
+export function setNewerVersionListener(fn: (lastWrite: Promise<boolean>) => void) { onNewer = fn; }
 
 function db(): KV {
   if (!kv) throw new Error('storage not initialized');
@@ -109,6 +175,48 @@ function crowdOk(v: unknown): string[] | null {
   return ids.length ? ids : null;
 }
 
+/** A word as a bed's conditions keep one: those this version asks, or one a later version adds (kept as it came). */
+const conditionWord = (v: unknown): v is string => typeof v === 'string' && /^[A-Za-z][A-Za-z0-9-]{0,30}$/.test(v);
+const plainObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+/** The questions this version asks of a bed (src/types.ts BedConditions). */
+const ASKED = new Set(['sun', 'soil', 'moisture', 'drip']);
+/** A bed's answers to questions a later version asks, as kept: setting this version's leaves them as they are. */
+export function laterQuestionsOf(c: BedConditions | undefined): BedConditions {
+  return Object.fromEntries(Object.entries(c ?? {}).filter(([k]) => !ASKED.has(k)));
+}
+/** A question's name as a later version might add one: a word, no markup, nothing an object has of its own. */
+const laterQuestion = (k: string): boolean => /^[a-z][A-Za-z0-9]{0,30}$/.test(k) && !(k in Object.prototype);
+/** How many questions a later version may add that are kept (more than a bed could be asked: anything past is noise). */
+const MAX_LATER_QUESTIONS = 12;
+/**
+ * A bed's conditions (src/types.ts BedConditions) as they're kept: each part checked on its own, the rest kept.
+ * - A word this version doesn't ask is kept as it came (one a later version adds, as a utility's kind is).
+ * - A question this version doesn't know (one a later version adds) is kept as it came when its answer is a word or
+ *   true: dropped here, it would be lost for everyone when this device next sent the plan (the review, Nov 4).
+ * - A part that isn't one is dropped: not a word, a sun without both its ends, `drip` other than true.
+ * - `{}`, cleared on purpose, is kept: sync doesn't fill it back (src/sync/engine.ts withBedConditions).
+ * Undefined, none: not an object; or one with parts, none of which could be kept. That's read as none, not as cleared
+ * on purpose, so sync may still fill it back from a device that has it.
+ */
+export function sanitizeBedConditions(raw: unknown): BedConditions | undefined {
+  if (!plainObject(raw)) return undefined;
+  const out: BedConditions = {};
+  const sun = raw.sun;
+  if (conditionWord(sun)) out.sun = sun;
+  else if (plainObject(sun) && conditionWord(sun.most) && conditionWord(sun.least)) out.sun = { most: sun.most, least: sun.least };
+  if (conditionWord(raw.soil)) out.soil = raw.soil;
+  if (conditionWord(raw.moisture)) out.moisture = raw.moisture;
+  if (raw.drip === true) out.drip = true;
+  let later = 0;
+  for (const [k, v] of Object.entries(raw)) {
+    if (ASKED.has(k) || !laterQuestion(k) || !(conditionWord(v) || v === true)) continue;
+    if (++later > MAX_LATER_QUESTIONS) break;
+    out[k] = v;
+  }
+  const hadParts = Object.values(raw).some((v) => v !== undefined);
+  return Object.keys(out).length || !hadParts ? out : undefined;
+}
+
 /** Fill defaults and drop anything that would break rendering. Returns null for unusable input. */
 export function migrateShape(raw: unknown): Shape | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -124,10 +232,19 @@ export function migrateShape(raw: unknown): Shape | null {
     // Shapes placed from the plant picker are plants; others stay unassigned until tagged.
     ...(isRole(s.role) ? { role: s.role } : typeof s.plantId === 'string' ? { role: 'plant' as const } : {}),
     ...(s.carryPlants === false ? { carryPlants: false } : {}),
+    // (A bed's conditions, as answered (Nov 2): on a bed only, left out of anything else. Older plans have none, and
+    // versions before it drop it. {} is cleared on purpose: kept, so sync doesn't fill it back from this device's copy
+    // (src/sync/engine.ts withBedConditions), which it does when the server's has none, an older version having
+    // dropped it.)
+    ...(s.role === 'bed' && sanitizeBedConditions(s.conditions) ? { conditions: sanitizeBedConditions(s.conditions)! } : {}),
     ...(sanitizeSun(s.sun) ? { sun: sanitizeSun(s.sun)! } : {}),
     ...(typeof s.sunDismissed === 'string' && s.sunDismissed ? { sunDismissed: s.sunDismissed.slice(0, 300) } : {}),
     ...(typeof s.hardyDismissed === 'string' && s.hardyDismissed ? { hardyDismissed: s.hardyDismissed.slice(0, 300) } : {}),
     ...(typeof s.poisonDismissed === 'string' && s.poisonDismissed ? { poisonDismissed: s.poisonDismissed.slice(0, 300) } : {}),
+    // (A fruit-partner warning dismissed for this copy alone; older plans have none. '' is one shown again on purpose:
+    // kept, so sync doesn't fill it back from this device's copy (src/sync/engine.ts withFruitDismissals), which it does
+    // when the server's has none, an older version having dropped it.)
+    ...(typeof s.fruitDismissed === 'string' ? { fruitDismissed: s.fruitDismissed.slice(0, 300) } : {}),
     // (What it was added as; older shapes have none. A word only: src/kinds.ts reads it, and ignores one it doesn't know.)
     ...(typeof s.kind === 'string' && /^[a-z]{2,12}$/.test(s.kind) ? { kind: s.kind } : {}),
     // (A utility's kind: a power line, a buried line, a septic field; kept on one made something else since, which is
@@ -184,7 +301,11 @@ export function migrateShape(raw: unknown): Shape | null {
     }
     case 'rect':
     case 'oval':
-      return { ...base, type: s.type, width: size(s.width, 4), height: size(s.height, 3), rotation: num(s.rotation, 0), ...featured };
+      return {
+        ...base, type: s.type, width: size(s.width, 4), height: size(s.height, 3), rotation: num(s.rotation, 0), ...featured,
+        // (Sides typed as numbers, Nov 4: a rectangle's only; older shapes have none, and versions before it drop them.)
+        ...(s.type === 'rect' && sanitizeMeasured(s.measured, 4) ? { measured: sanitizeMeasured(s.measured, 4)! } : {}),
+      };
     case 'triangle': {
       const ra = s.rightAngle;
       return {
@@ -202,12 +323,17 @@ export function migrateShape(raw: unknown): Shape | null {
         }
       }
       if (pts.length < MIN_POINTS[s.type]) return null;
+      // (Sides typed as numbers, Nov 4, by their place in the points: only while every point came through, so a point
+      // dropped here, or one past the most kept, can't put a number on another side. Older shapes have none.)
+      const whole = Array.isArray(s.points) && pts.length === s.points.length;
+      const measured = whole ? sanitizeMeasured(s.measured, sideCount({ type: s.type, points: pts })) : undefined;
       const shape = {
         ...base, type: s.type, points: [], rotation: num(s.rotation, 0),
         ...(s.type === 'line' && s.showLength === true ? { showLength: true } : {}),
         // Paths: a width in feet (a quarter foot to 50 ft); anything else draws as a thin line.
         ...(s.type === 'line' && typeof s.pathWidth === 'number' && s.pathWidth >= 0.25 && s.pathWidth <= 50 ? { pathWidth: s.pathWidth } : {}),
         ...featured,
+        ...(measured ? { measured } : {}),
       } as PathShape;
       setWorldPoints(shape, pts); // re-normalize, whatever the file said
       return shape;
@@ -233,6 +359,9 @@ export function migrateBgImage(raw: Partial<BgImage>): BgImage {
     ...(raw.deviceOnly === true ? { deviceOnly: true } : {}),
     // (Not to scale yet; older photos have no word on it, and are taken as calibrated.)
     ...(raw.uncalibrated === true ? { uncalibrated: true as const } : {}),
+    // (Its scale set from a rough guess, Nov 4; older photos have none. Never with "not to scale yet": a scale not set
+    // isn't rough, and that one says more.)
+    ...(raw.roughScale === true && raw.uncalibrated !== true ? { roughScale: true as const } : {}),
   };
 }
 const isFingerprint = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{64}$/.test(v);
@@ -248,8 +377,8 @@ export function sanitizePhotoRef(raw: unknown): PhotoRef | null {
 /** How a background photo is synced: its fingerprint and placement (`fingerprint` known), or kept here. */
 export function photoRefOf(bg: BgImage, fingerprint: string): PhotoRef {
   if (bg.deviceOnly) return { deviceOnly: true };
-  const { naturalWidth, naturalHeight, ftPerPx, cx, cy, rotation, opacity, visible, uncalibrated } = migrateBgImage(bg);
-  return { fingerprint, naturalWidth, naturalHeight, ftPerPx, cx, cy, rotation, opacity, visible, ...(uncalibrated ? { uncalibrated } : {}) };
+  const { naturalWidth, naturalHeight, ftPerPx, cx, cy, rotation, opacity, visible, uncalibrated, roughScale } = migrateBgImage(bg);
+  return { fingerprint, naturalWidth, naturalHeight, ftPerPx, cx, cy, rotation, opacity, visible, ...(uncalibrated ? { uncalibrated } : {}), ...(roughScale ? { roughScale } : {}) };
 }
 const MINUTES_PER_DAY = 24 * 60;
 /** Validate observed-sun data; null if unusable. */
@@ -363,6 +492,9 @@ export function sanitizePrint(raw: unknown): PrintSettings {
     northDeg: ((num(o.northDeg, 0) % 360) + 360) % 360,
     statusFilter: isStatus(o.statusFilter) ? o.statusFilter : '',
     phaseFilter: str(o.phaseFilter).slice(0, 40),
+    // (The plants under taller ones, Nov 4: kept as picked, Show through too; anything else is none, never picked, and
+    // the rest kept. Plans from before have none and gain none: they read and fingerprint exactly as before.)
+    ...(o.under === 'windows' || o.under === 'screen' ? { under: o.under } : {}),
   };
 }
 /** Phase names: unique, trimmed, capped; any phase a shape uses is kept in the list. */
@@ -429,7 +561,7 @@ export function viewFilterOf(raw: unknown, phases: string[]): { viewFilter?: Sha
 
 // ---------- Writing ----------
 /** Ops that store `data` for project `id`, splitting the image bytes into their own record. */
-function projectWriteOps(id: string, data: ProjectData, knownImageKeys?: Set<string>): WriteOp[] {
+function projectWriteOps(id: string, data: ProjectData, knownImageKeys?: Set<string>, stamp: WriteStamp = { dbVersion: DB_VERSION, page: PAGE, at: now(), seq: editSeq }): WriteOp[] {
   const ops: WriteOp[] = [];
   let storedBg: StoredBg | null = null;
   if (data.bgImage) {
@@ -453,6 +585,8 @@ function projectWriteOps(id: string, data: ProjectData, knownImageKeys?: Set<str
     ...(data.household ? { household: data.household } : {}),
     ...(data.switches ? { switches: data.switches } : {}),
     ...(data.viewFilter ? { viewFilter: data.viewFilter } : {}),
+    dbVersion: stamp.dbVersion, ...(stamp.page ? { savedByPage: stamp.page } : {}), savedAt: stamp.at,
+    ...(typeof stamp.seq === 'number' ? { savedSeq: stamp.seq } : {}),
   };
   ops.push(put('projects', id, stored));
   return ops;
@@ -461,14 +595,19 @@ function metaFor(id: string): ProjectMeta | undefined {
   return state.projects.find((p) => p.id === id);
 }
 
-async function writeCurrent(): Promise<boolean> {
+function writeCurrent(): Promise<boolean> { return writeCurrentKnowing(storedImageKeys); }
+/** `known`: image keys whose bytes needn't be written again. */
+async function writeCurrentKnowing(known: Set<string>): Promise<boolean> {
+  // (A newer version has the database: nothing more is saved here. False: not saved, so a switch or a sync waits.)
+  if (superseded) return false;
   const id = state.currentProjectId;
   if (!id || !kv) return true;
   const seq = editSeq, plan = planSeq;
   const hadEdits = seq !== savedSeq; // (a flush with nothing new still writes; sync only hears of real edits)
   // Snapshot synchronously so later edits don't race with this write.
   const data = currentProjectData();
-  const ops = projectWriteOps(id, data, storedImageKeys);
+  const at = now();
+  const ops = projectWriteOps(id, data, known, { dbVersion: DB_VERSION, page: PAGE, at, seq });
   const meta = metaFor(id);
   if (meta) {
     // (Only an edit makes it "last modified": opening a plan and leaving it moved it to the top of the list, under
@@ -478,7 +617,14 @@ async function writeCurrent(): Promise<boolean> {
     ops.push(put('meta', id, { ...meta }));
   }
   try {
-    await kv.write(ops);
+    // (Not over the plan as another tab or window has saved it since this page read it, nor once it's deleted there:
+    // checked in the write's own transaction, so nothing can come in between.)
+    const seen = seenAt.get(id);
+    if (!(await kv.writeIf({ store: 'projects', key: id, ok: (rec) => !savedElsewhere(rec, seen) }, ops))) {
+      for (const op of ops) if (op.store === 'images') storedImageKeys.delete(op.key);
+      return await keepApartAndTakeNewer(id);
+    }
+    seenAt.set(id, { page: PAGE, at, seq });
     for (const op of ops) if (op.store === 'images') committedImageKeys.add(op.key);
     savedSeq = Math.max(savedSeq, seq);
     savedPlanSeq = Math.max(savedPlanSeq, plan);
@@ -487,6 +633,7 @@ async function writeCurrent(): Promise<boolean> {
     setSaveFailing(false);
     quotaWarned = false;
     if (hadEdits) afterSave?.();
+    onSavedHere?.(id);
     return true;
   } catch (e) {
     // The write didn't happen; forget image keys from this batch so they're retried.
@@ -571,8 +718,8 @@ export function flushSave(): Promise<boolean> {
 }
 
 export function hasUnsavedChanges(): boolean { return editSeq !== savedSeq; }
+/** This page's own journal for a plan, saved now: gone. Never another page's, nor one an older version wrote. */
 function clearJournal(projectId: string) {
-  if (unreplayed.has(projectId)) return; // still holds edits not yet in IndexedDB
   try { localStorage.removeItem(journalKey(projectId)); } catch { /* unavailable */ }
 }
 /**
@@ -580,6 +727,7 @@ function clearJournal(projectId: string) {
  * unsaved edits so they survive even if the async write is abandoned.
  */
 export function writeJournalIfDirty() {
+  if (superseded) return; // (a newer version has the plans: its journal would be an older version's copy)
   const id = state.currentProjectId;
   if (!id || !hasUnsavedChanges() || !kv?.durable) return;
   // (A new view alone isn't kept here: replayed, a journal makes its plan "last modified" when it was written. The
@@ -588,7 +736,7 @@ export function writeJournalIfDirty() {
   const bg = state.bgImage;
   const imageOnDisk = !!(bg?.imageId && committedImageKeys.has(imageKey(id, bg.imageId)));
   const journal = (withImage: boolean): Journal => ({
-    projectId: id, at: now(),
+    projectId: id, at: now(), dbVersion: DB_VERSION, page: PAGE, seq: editSeq,
     data: { ...currentProjectData(), bgImage: bg ? { ...bg, dataUrl: withImage ? bg.dataUrl : '' } : null },
   });
   try {
@@ -608,57 +756,198 @@ function journalKeys(): string[] {
     return keys;
   } catch { return []; }
 }
-/** Apply journals left by pages that closed before their saves finished. */
-async function replayJournals(k: KV) {
-  if (!k.durable) return; // can't apply them now; keep them for a session that can
-  for (const key of journalKeys()) {
+/**
+ * The parts of a plan that, once it has them, every save of it keeps (currentProjectData): its location (set, or
+ * cleared: null), the warnings dismissed for a plant, the Plant list's ticks, who's in the yard, the warning switches.
+ * A journal without one the stored plan has was written by a page that never had it: a version from before it, or a
+ * page that read the plan before another tab gave it one. Put over the plan, it would take it away.
+ */
+const KEPT_ONCE_SET = ['location', 'dismissed', 'bought', 'household', 'switches'] as const;
+/** A record's or journal's database version (src/db.ts DB_VERSION); none, or anything odd: 1, from before it was kept. */
+const versionOf = (v: unknown): number => (typeof v === 'number' && Number.isInteger(v) && v >= 1 ? v : 1);
+/**
+ * Whether a journal's plan (`raw`, from a page at database version `version`), put over the plan as stored, would lose
+ * something: it's from an older version than the one that wrote the plan, or it lacks a part the plan has
+ * (KEPT_ONCE_SET).
+ */
+function journalWouldLose(stored: Record<string, unknown>, raw: Record<string, unknown>, version: number): boolean {
+  return version < versionOf(stored.dbVersion) || lacksParts(stored, raw);
+}
+/** Whether a copy of a plan (`raw`) lacks a part the plan as stored has (KEPT_ONCE_SET): put over it, it would take it away. */
+function lacksParts(stored: Record<string, unknown>, raw: Record<string, unknown>): boolean {
+  return KEPT_ONCE_SET.some((k) => stored[k] !== undefined && raw[k] === undefined);
+}
+/**
+ * A plan's content as journals are compared with it: what it holds and which photo, where (not where it's looked at
+ * from, nor the photo's bytes or fingerprint). `bg`: its photo as stored or as the journal has it.
+ */
+function contentKey(d: ProjectData, bg: Partial<BgImage> | StoredBg | null | undefined): string {
+  let photo: unknown = null;
+  if (bg) {
+    const { dataUrl: _d, fingerprint: _f, ...placed } = migrateBgImage({ ...(bg as Partial<BgImage>), dataUrl: '' });
+    photo = { ...placed, imageId: bg.imageId ?? null };
+  }
+  // (A bed's conditions cleared on purpose, {}, and a fruit warning shown again, '', read as none: as the sync
+  // fingerprints have them. Otherwise a journal differing only by one was kept apart as a copy: the review, Nov 4.)
+  const synced = syncedContent(d);
+  const shapes = withoutClearedMarks(synced.shapes);
+  // (The plants under taller ones as this device prints them: Show through picked is none picked, unless this device
+  // had As on screen before plans kept it: src/view-settings.ts underOf.)
+  return canonical({ ...synced, ...(shapes ? { shapes } : {}), print: { ...synced.print, under: underOf(synced.print) }, photo, photoElsewhere: d.photoElsewhere ?? null });
+}
+/** What a journal's plan is kept as when it isn't put over its plan: "<name> (from an older tab)", a second "(2)", and so on. */
+const OLDER_TAB_SUFFIX = ' (from an older tab)';
+/** Pages starting together (a browser restoring its tabs) go through the journals one at a time (Web Locks). */
+const JOURNAL_LOCK = 'fullgrown-journals';
+/** How long a page waits for that turn before going on without it (safe: a journal kept apart twice is one plan). */
+let JOURNAL_LOCK_WAIT_MS = 5000;
+/** Test hook: a shorter wait for the journals' turn (none: as the app has it). */
+export function _setJournalLockWaitForTests(ms = 5000) { JOURNAL_LOCK_WAIT_MS = ms; }
+/**
+ * Apply journals left by pages that closed before their saves finished, one page at a time where the browser can say
+ * so (Web Locks), each journal read again inside. For each:
+ * - the same as its plan as stored: nothing to do;
+ * - written after the plan last changed: put in place, unless that would lose something (journalWouldLose: an older
+ *   version's, or one without a part the plan has), when it's kept as a plan of its own beside it instead;
+ * - written before the plan last changed: dropped only when the page that wrote it saved the plan after (its save
+ *   holds everything the journal had); else (an older version's, another page's, or the plan renamed or synced since)
+ *   kept as a plan of its own. Never dropped unseen: the review, Nov 1.
+ * The names of plans kept apart are returned, to be told.
+ */
+async function replayJournals(k: KV): Promise<string[]> {
+  if (!k.durable) return []; // can't apply them now; keep them for a session that can
+  const locks = (globalThis.navigator as Navigator | undefined)?.locks;
+  if (locks?.request && typeof AbortController !== 'undefined') {
+    // (Not waited for long: a page holding it that's stuck, or frozen, mustn't stop this one starting.)
+    const waited = new AbortController();
+    const timer = setTimeout(() => waited.abort(), JOURNAL_LOCK_WAIT_MS);
+    let ran = false;
+    try {
+      return await locks.request(JOURNAL_LOCK, { signal: waited.signal }, () => { ran = true; clearTimeout(timer); return replayJournalsNow(k); });
+    } catch (e) {
+      clearTimeout(timer);
+      if (ran) throw e;
+      console.warn('journals without a lock', e);
+    }
+  }
+  return replayJournalsNow(k);
+}
+/** The journals there are, newest first (by when each was written: localStorage's own order is anything). */
+function journalKeysNewestFirst(): string[] {
+  const at = (key: string) => { try { return num((JSON.parse(localStorage.getItem(key) || 'null') as Journal | null)?.at, 0); } catch { return 0; } };
+  return journalKeys().map((key) => ({ key, at: at(key) })).sort((a, b) => b.at - a.at).map((x) => x.key);
+}
+async function replayJournalsNow(k: KV): Promise<string[]> {
+  const keptApart: string[] = [];
+  // Newest first: of two journals for one plan from pages that never saw each other's edit, the newer is put in place
+  // and the older, now from before the plan's last change, kept apart. The other way round, the newer would have gone
+  // over the older, its edit lost (the second review, Nov 1).
+  for (const key of journalKeysNewestFirst()) {
     let j: Journal | null = null;
     try { j = JSON.parse(localStorage.getItem(key) || 'null'); } catch { j = null; }
-    if (!j || typeof j.projectId !== 'string' || key !== journalKey(j.projectId)) {
+    if (!j) continue; // (taken by another page meanwhile)
+    // (Keyed by its plan and page, or, an older version's, its plan alone.)
+    const keyed = j && typeof j.projectId === 'string' && (key === JOURNAL_PREFIX + j.projectId || (typeof j.page === 'string' && key === journalKey(j.projectId, j.page)));
+    if (!keyed) {
       try { localStorage.removeItem(key); } catch { /* ignore */ }
       continue;
     }
-    const meta = await k.get<ProjectMeta>('meta', j.projectId);
-    // Skip if the project is gone, or was saved after this journal (e.g. by another tab).
-    if (meta && num(j.at, 0) >= meta.lastModified) {
-      const raw = (j.data && typeof j.data === 'object' ? j.data : {}) as Record<string, unknown>;
-      const rawBg = (raw.bgImage ?? null) as Partial<BgImage> | null;
-      const data = sanitizeProjectData({ ...raw, bgImage: null });
-      if (rawBg && safeImageUrl(rawBg.dataUrl)) data.bgImage = migrateBgImage(rawBg);
-      const ops = projectWriteOps(j.projectId, data);
-      const stored = ops.find((o) => o.store === 'projects')!.value as StoredProject;
-      if (rawBg && !data.bgImage) {
-        // The journal has no image bytes. Point at the stored image if it exists;
-        // otherwise keep whatever background the saved project already had.
-        const ref = rawBg.imageId && (await k.get<ImageRecord>('images', imageKey(j.projectId, rawBg.imageId)));
-        if (ref && rawBg.imageId) {
-          const { dataUrl: _d, ...rest } = migrateBgImage({ ...rawBg, dataUrl: 'data:image/png;base64,' });
-          stored.bgImage = { ...rest, imageId: rawBg.imageId };
+    const version = versionOf(j.dbVersion);
+    // (From a newer version than this one, which can't read all of it: left as it is. It can't be here with a database
+    // this version could open, as that version would have raised it.)
+    if (version > DB_VERSION) continue;
+    try {
+      const meta = await k.get<ProjectMeta>('meta', j.projectId);
+      // (The plan gone since: deleted on purpose. Its journal goes with it.)
+      if (meta) {
+        const storedNow = await k.get<StoredProject>('projects', j.projectId);
+        const at = num(j.at, 0);
+        const raw = (j.data && typeof j.data === 'object' ? j.data : {}) as Record<string, unknown>;
+        const rawBg = (raw.bgImage ?? null) as Partial<BgImage> | null;
+        const data = sanitizeProjectData({ ...raw, bgImage: null });
+        if (rawBg && safeImageUrl(rawBg.dataUrl)) data.bgImage = migrateBgImage(rawBg);
+        const stored = (storedNow ?? {}) as Record<string, unknown>;
+        const same = !!storedNow && contentKey(data, rawBg) === contentKey(sanitizeProjectData({ ...stored, bgImage: null }), storedNow.bgImage);
+        // (Its page saved the plan since, with at least the edits the journal had: by that page's own edit count.)
+        const savedSinceByItsPage = typeof j.page === 'string' && storedNow?.savedByPage === j.page
+          && typeof j.seq === 'number' && typeof storedNow.savedSeq === 'number' && storedNow.savedSeq >= j.seq;
+        if (same || (at < meta.lastModified && savedSinceByItsPage)) {
+          // Nothing it has that the plan hasn't.
+        } else if (storedNow && (at < meta.lastModified || journalWouldLose(stored, raw, version))) {
+          const name = await keepJournalApart(k, key, j.projectId, meta.name, at || now(), data, rawBg);
+          if (name) keptApart.push(name);
         } else {
-          stored.bgImage = (await k.get<StoredProject>('projects', j.projectId))?.bgImage ?? null;
+          // (Stamped as the journal's: its version and page wrote it. An older version's next journal for this plan, more
+          // of the same edits, then goes in place too, not apart: the review, Nov 1.)
+          const ops = projectWriteOps(j.projectId, data, undefined, { dbVersion: version, page: j.page, at, ...(typeof j.seq === 'number' ? { seq: j.seq } : {}) });
+          const record = ops.find((o) => o.store === 'projects')!.value as StoredProject;
+          if (rawBg && !data.bgImage) {
+            // The journal has no image bytes. Point at the stored image if it exists;
+            // otherwise keep whatever background the saved project already had.
+            const ref = rawBg.imageId && (await k.get<ImageRecord>('images', imageKey(j.projectId, rawBg.imageId)));
+            if (ref && rawBg.imageId) {
+              const { dataUrl: _d, ...rest } = migrateBgImage({ ...rawBg, dataUrl: 'data:image/png;base64,' });
+              record.bgImage = { ...rest, imageId: rawBg.imageId };
+            } else {
+              record.bgImage = storedNow?.bgImage ?? null;
+            }
+          }
+          ops.push(put('meta', j.projectId, { ...meta, lastModified: at || now(), shapeCount: data.shapes.length }));
+          await k.write(ops);
         }
       }
-      ops.push(put('meta', j.projectId, { ...meta, lastModified: num(j.at, now()), shapeCount: data.shapes.length }));
-      try {
-        await k.write(ops);
-      } catch (e) {
-        console.error('could not apply unsaved edits; will retry next start', e); recordError(e, 'unsaved edits');
-        unreplayed.add(j.projectId);
-        continue; // keep this journal
-      }
+    } catch (e) {
+      console.error('could not apply unsaved edits; will retry next start', e); recordError(e, 'unsaved edits');
+      continue; // keep this journal
     }
     try { localStorage.removeItem(key); } catch { /* ignore */ }
   }
+  return keptApart;
+}
+/**
+ * A journal's plan (`data`), kept as a new plan beside the one it was for (`fromId`, left as it is), last modified when
+ * the journal was written. A photo the journal shows without its bytes is the plan's stored one, copied with it (if
+ * it's gone, the copy has none: the plan keeps its own). Its name; null if it was kept already.
+ *
+ * Its id comes from the journal (`key`, `at`): two pages keeping the same journal at once (no Web Locks) make one plan,
+ * not two, and one kept already is left as it is. Nor is one made when a plan kept apart from the same plan already
+ * holds the same (`keptFrom`): a release 3 tab left open with an unsaved edit writes its journal again each time it's
+ * hidden, and each start would keep another copy of it (the second review, Nov 1).
+ */
+async function keepJournalApart(k: KV, key: string, fromId: string, fromName: string, at: number, data: ProjectData, rawBg: Partial<BgImage> | null): Promise<string | null> {
+  const id = 'kept' + fingerprint(key, { at }).replace(/[^A-Za-z0-9]/g, '');
+  if (await k.get<ProjectMeta>('meta', id)) return null;
+  const metas = await k.getAll<ProjectMeta>('meta');
+  const content = contentKey(data, rawBg);
+  for (const m of metas.filter((x) => x.keptFrom === fromId)) {
+    const rec = await k.get<StoredProject>('projects', m.id);
+    if (rec && contentKey(sanitizeProjectData({ ...rec, bgImage: null }), rec.bgImage) === content) return null;
+  }
+  if (rawBg && !data.bgImage && rawBg.imageId) {
+    const img = await k.get<ImageRecord>('images', imageKey(fromId, rawBg.imageId));
+    if (img && safeImageUrl(img.dataUrl)) data.bgImage = migrateBgImage({ ...rawBg, dataUrl: img.dataUrl });
+  }
+  const taken = new Set(metas.filter((m) => m.id !== id).map((m) => m.name));
+  const base = fromName + OLDER_TAB_SUFFIX;
+  let name = base;
+  for (let i = 2; taken.has(name); i++) name = `${base} (${i})`;
+  // (Its photo's bytes written under its own id: projectWriteOps, with no image keys known.)
+  await k.write([...projectWriteOps(id, data), put('meta', id, { id, name, lastModified: at, shapeCount: data.shapes.length, keptFrom: fromId } satisfies ProjectMeta)]);
+  return name;
 }
 
 // ---------- Projects ----------
 export function currentProject(): ProjectMeta | null {
   return state.projects.find((p) => p.id === state.currentProjectId) || null;
 }
-/** Read a project's full data (including background image bytes). */
-export async function readProject(id: string): Promise<ProjectData | null> {
+/**
+ * Read a project's full data (including background image bytes). `stamp`, if given, is told who saved its record, when,
+ * at what edit count (for the plan open here: seenAt).
+ */
+export async function readProject(id: string, stamp?: Seen): Promise<ProjectData | null> {
   const stored = await db().get<StoredProject>('projects', id);
   if (!stored) return null;
+  if (stamp) Object.assign(stamp, stampOf(stored));
   let bgImage: BgImage | null = null;
   if (stored.bgImage) {
     const img = await db().get<ImageRecord>('images', imageKey(id, stored.bgImage.imageId));
@@ -687,12 +976,13 @@ export async function readProject(id: string): Promise<ProjectData | null> {
 const undoKept = new Map<string, { history: typeof state.history; index: number; token: number }>();
 export async function switchProject(id: string): Promise<boolean> {
   let data: ProjectData | null;
+  const stamp: Seen = {};
   // Edits can land while we read, and sync can replace or delete the project; read again until nothing moved.
   for (;;) {
     const seq = editSeq;
     const token = changeToken(id);
     if (!(await flushSave())) return false;
-    data = await readProject(id);
+    data = await readProject(id, stamp);
     if (seq === editSeq && token === changeToken(id)) break;
   }
   if (!metaFor(id)) return false;
@@ -740,11 +1030,128 @@ export async function switchProject(id: string): Promise<boolean> {
   committedImageKeys = new Set(storedImageKeys);
   savedSeq = editSeq;
   savedPlanSeq = planSeq;
+  seenAt.set(id, stamp);
   try { await db().write([put('kv', 'current', id)]); } catch (e) { console.warn('could not remember open project', e); }
   void collectImageGarbage(id, storedImageKeys);
   onHousehold?.();
   return true;
 }
+// ---- Saved by another tab or window ----
+/**
+ * Whether a plan's record as stored now (`rec`) was saved by another page since this page read or wrote it (`seen`, its
+ * stamp then: any other stamp is a later write), or deleted there: either way, not to be saved over. Never for a plan
+ * this page hasn't read (`seen` undefined).
+ */
+function savedElsewhere(rec: unknown, seen: Seen | undefined): boolean {
+  if (!seen) return false;
+  const r = rec as StoredProject | undefined;
+  if (!r) return true;
+  if (typeof r.savedByPage !== 'string' || r.savedByPage === PAGE) return false;
+  return r.savedByPage !== seen.page || r.savedAt !== seen.at || r.savedSeq !== seen.seq;
+}
+/** The plans' list as stored (another page may have added, renamed or deleted one). */
+async function refreshMetas(): Promise<void> {
+  state.projects = (await db().getAll<ProjectMeta>('meta')).sort((a, b) => b.lastModified - a.lastModified);
+}
+/** This page's copy of a plan (`data`), kept as a plan of its own: "<name> (from another tab)", "(2)" and on. Its name. */
+async function keepFromTab(name: string, data: ProjectData): Promise<string> {
+  const taken = new Set(state.projects.map((p) => p.name));
+  const base = `${name} (from another tab)`;
+  let kept = base;
+  for (let i = 2; taken.has(kept); i++) kept = `${base} (${i})`;
+  await createProject(kept, data);
+  return kept;
+}
+/**
+ * The open plan as another page has saved it, taken in here: what it holds (this page's view of it kept: zoom, where it's
+ * looked at from, the Layers filter), with no undo steps, which would put back this page's older copy. Deleted there:
+ * another plan opened ('gone'). Not while this page has changes to it not saved yet ('waits'): its save keeps them apart
+ * first (keepApartAndTakeNewer), unless `edits`, said by that.
+ */
+async function takeNewer(id: string, edits = false): Promise<'taken' | 'gone' | 'waits'> {
+  await refreshMetas();
+  const stamp: Seen = {};
+  const data = metaFor(id) ? await readProject(id, stamp) : null;
+  if (state.currentProjectId !== id) return 'taken'; // (another plan opened meanwhile)
+  if (!edits && planSeq !== savedPlanSeq) return 'waits';
+  if (!data) {
+    // (Nothing of it saved again here: it's no longer open. Another plan opens next: openAnother.)
+    state.currentProjectId = null;
+    savedSeq = editSeq; savedPlanSeq = planSeq;
+    seenAt.delete(id);
+    undoKept.delete(id);
+    clearJournal(id);
+    return 'gone';
+  }
+  cancelHistoryDebounce();
+  undoKept.delete(id);
+  state.shapes = data.shapes;
+  state.roleViews = data.roleViews ?? {};
+  state.print = data.print ?? { ...DEFAULT_PRINT };
+  state.sizeMode = data.sizeMode ?? 'typical';
+  state.sunWarnings = data.sunWarnings !== false;
+  state.dismissed = data.dismissed;
+  state.bought = data.bought;
+  state.household = data.household ?? takenHousehold();
+  applySwitches(data.switches, takenSwitches());
+  state.phases = data.phases ?? [];
+  state.location = data.location;
+  if (state.bgImage !== data.bgImage) { state.bgImage = data.bgImage ?? null; if (!state.bgImage) state.bgEditMode = false; }
+  state.photoElsewhere = data.photoElsewhere ?? null;
+  state.selectedIds = state.selectedIds.filter((sid) => data.shapes.some((x) => x.id === sid));
+  if (state.editPoints && !data.shapes.some((x) => x.id === state.editPoints!.id)) state.editPoints = null;
+  state.history = [];
+  state.historyIndex = -1;
+  storedImageKeys = new Set(data.bgImage?.imageId ? [imageKey(id, data.bgImage.imageId)] : []);
+  committedImageKeys = new Set(storedImageKeys);
+  savedSeq = editSeq; savedPlanSeq = planSeq;
+  seenAt.set(id, stamp);
+  bumpChange(id);
+  clearJournal(id); // (this page's changes to it are kept apart, or there were none)
+  onHousehold?.();
+  return 'taken';
+}
+/**
+ * A save of the open plan found it saved by another page since this page read it, or deleted there: nothing saved over
+ * it. This page's changes to the plan, if any, kept as a plan of their own; then the plan as saved there taken in (or,
+ * deleted there, another opened), and said. True: nothing of this page's is left unsaved.
+ */
+async function keepApartAndTakeNewer(id: string): Promise<boolean> {
+  const name = metaFor(id)?.name ?? 'My Garden';
+  await refreshMetas();
+  const kept = planSeq !== savedPlanSeq ? await keepFromTab(name, currentProjectData()) : null;
+  const how = await takeNewer(id, true);
+  // (Deleted there: another plan opened once this save is done, as opening one saves first and waits for it.)
+  if (how === 'gone') void openAnother().then(() => onTabChange?.({ name, kept, gone: true }));
+  else onTabChange?.({ name, kept, gone: false });
+  return true;
+}
+/** The open plan deleted in another tab or window: the first in the list opened in its place (a new one if none). */
+async function openAnother(): Promise<void> {
+  if (state.currentProjectId) return;
+  if (!state.projects.length) await createProject('My Garden');
+  await switchProject(state.projects[0].id);
+}
+/**
+ * Another page saved a plan or changed the list (src/tabs.ts heard it), or this page is in view again: the list as stored,
+ * and the open plan, if another page saved it since this page read it, taken in; with changes here not saved yet, their
+ * save keeps them apart first. Whether anything changed here (to draw again).
+ */
+export async function catchUpWithOtherTabs(): Promise<boolean> {
+  if (!kv || superseded) return false;
+  const before = JSON.stringify(state.projects);
+  await refreshMetas();
+  const listed = JSON.stringify(state.projects) !== before;
+  const id = state.currentProjectId;
+  if (!id) return listed;
+  if (!savedElsewhere(await db().get<StoredProject>('projects', id), seenAt.get(id))) return listed;
+  const name = metaFor(id)?.name ?? 'My Garden';
+  const how = planSeq !== savedPlanSeq ? 'waits' : await takeNewer(id);
+  if (how === 'waits') await flushSave(); // (its save finds the newer copy: keepApartAndTakeNewer)
+  else if (how === 'gone') { await openAnother(); onTabChange?.({ name, kept: null, gone: true }); }
+  return true;
+}
+
 let onHousehold: (() => void) | null = null;
 /** Called when the open plan's household is put in place from storage (another plan opened, or sync's copy): the picker's filters follow it. */
 export function setHouseholdListener(fn: () => void) { onHousehold = fn; }
@@ -769,13 +1176,17 @@ async function collectImageGarbage(projectId: string, keep: Set<string>) {
 export function emptyProjectData(): ProjectData {
   return { ...sanitizeProjectData({}), sizeMode: lastSizeMode, household: { kids: false, dogs: '', cats: false, horses: false, answered: false, at: now() }, switches: switchesAllOn() };
 }
-/** Create a project (empty, or from given data). Does not open it. `id`: one the server already knows (sync). */
-export async function createProject(name: string, data?: ProjectData, id = uid()): Promise<string> {
+/**
+ * Create a project (empty, or from given data). Does not open it. `id`: one the server already knows (sync).
+ * `lastModified`: when the plan itself last changed, for one brought back from a file (src/backup.ts); now otherwise.
+ */
+export async function createProject(name: string, data?: ProjectData, id = uid(), lastModified = now()): Promise<string> {
   const projectData = data ?? emptyProjectData();
-  const meta: ProjectMeta = { id, name: name.trim() || 'Untitled', lastModified: now(), shapeCount: projectData.shapes.length };
+  const meta: ProjectMeta = { id, name: name.trim() || 'Untitled', lastModified, shapeCount: projectData.shapes.length };
   await db().write([...projectWriteOps(id, projectData), put('meta', id, meta)]);
   state.projects.unshift(meta);
   afterProjectsChange?.();
+  onSavedHere?.(null);
   return id;
 }
 /**
@@ -802,10 +1213,12 @@ export async function deleteProject(id: string, bySync = false, token?: number):
     ops.push(put('kv', 'syncRecords', syncRecords), put('kv', 'syncTombstones', syncTombstones), put('kv', 'syncDeleted', syncDeleted));
   }
   bumpChange(id);
+  seenAt.delete(id);
   state.projects = state.projects.filter((p) => p.id !== id);
   const written = db().write(ops);
   afterProjectsChange?.();
   await written;
+  onSavedHere?.(null);
   return true;
 }
 export async function renameProject(id: string, name: string) {
@@ -816,6 +1229,7 @@ export async function renameProject(id: string, name: string) {
   bumpChange(id);
   await db().write([put('meta', id, { ...meta })]);
   afterProjectsChange?.();
+  onSavedHere?.(null);
 }
 
 // ---------- Sync support (see src/sync) ----------
@@ -825,9 +1239,9 @@ export async function renameProject(id: string, name: string) {
  * ('none', 'kept' on one device, or the photo's fingerprint; absent if unknown,
  * as for projects synced before photos did); `core`, the fingerprint without the
  * Plant list's ticks, who's in the yard and the warning switches too, and `parts`, those
- * three as the server had them (both absent from before them).
+ * three as the server had them (both absent from before them); `marks` and `bare`: src/sync/engine.ts SyncRecord.
  */
-export interface SyncRecord { revision: number; hash: string; photo?: string; held?: 'room' | 'refused'; core?: string; parts?: Record<string, unknown> }
+export interface SyncRecord { revision: number; hash: string; photo?: string; held?: 'room' | 'refused'; core?: string; parts?: Record<string, unknown>; marks?: { conditions?: string[]; fruit?: string[] }; bare?: string }
 let syncRecords: Record<string, SyncRecord> = {};
 /** Synced projects deleted here, still to be moved to the server's trash: id → revision. */
 let syncTombstones: Record<string, number> = {};
@@ -954,9 +1368,13 @@ export async function replaceProjectContent(
   // (When only the ticks, the yard or the warning switches came, the plan keeps when it was last modified: what another
   // device carried over when plans got their own mustn't make every plan here "modified just now", and re-sort the list,
   // the day the first device updates. The review of the storage change, Nov 1.)
+  // (Sides typed as numbers, which the fingerprints leave out, Nov 4, count here: a download that brings them is a change
+  // to the plan, so an older tab's unsaved edit from before it is kept apart, not put over it. The review's J1. The
+  // photo's rough scale is in samePhoto's placement already. Likewise the plants under taller ones picked or not, Nov 4,
+  // where the fingerprints read Show through picked as none: here it's what's stored that counts.)
   const newName = name.trim() || 'Untitled';
   const onlyParts = newName === meta.name && coreHash('', syncedContent(base) as unknown as Record<string, unknown>) === coreHash('', syncedContent(data) as unknown as Record<string, unknown>)
-    && samePhoto(base, data);
+    && sameTypedSides(base.shapes, data.shapes) && base.print?.under === data.print?.under && samePhoto(base, data);
   const metaNext = { ...meta, name: newName, lastModified: onlyParts ? meta.lastModified : now(), shapeCount: data.shapes.length };
   bumpChange(id);
   // The write is queued before any later save's (and any read by a switch to this project), so they see it.
@@ -984,6 +1402,7 @@ export async function replaceProjectContent(
   }
   try {
     await written;
+    onSavedHere?.(id);
   } catch (e) {
     // The plan on screen already shows the server's version (so later edits land on top of it);
     // keep it as unsaved so the next save writes it (image bytes included).
@@ -991,6 +1410,14 @@ export async function replaceProjectContent(
     throw e;
   }
   return true;
+}
+/** Whether two versions of a plan have the same sides typed as numbers, shape by shape (each list in side order). */
+function sameTypedSides(a: Shape[], b: Shape[]): boolean {
+  const typed = (shapes: Shape[]) => canonical(shapes.flatMap((s) => {
+    const m = (s as { measured?: MeasuredSide[] }).measured;
+    return m?.length ? [[s.id, [...m].sort((x, y) => x.side - y.side)]] : [];
+  }));
+  return typed(a) === typed(b);
 }
 /** Whether two versions of a plan show the same photo, placed the same (its bytes and placement; not storage details). */
 function samePhoto(a: ProjectData, b: ProjectData): boolean {
@@ -1034,7 +1461,10 @@ export function placePhoto(base: ProjectData, baseFp: string | null, ref: PhotoR
   if ('deviceOnly' in ref) return base.bgImage?.deviceOnly ? { bgImage: base.bgImage, photoElsewhere: null } : { bgImage: null, photoElsewhere: ref };
   const { fingerprint, ...placed } = ref;
   if (base.bgImage && baseFp === fingerprint) {
-    const { deviceOnly: _o, ...bg } = base.bgImage;
+    // (How it sits is the incoming one's, whole: its "not to scale yet" and its rough scale too, where it says neither.
+    // Kept from here, a scale set on another device stayed "not to scale yet" here, and went back up so with this
+    // device's next edit, for every device: found Nov 4, with the rough scale, which would have done the same.)
+    const { deviceOnly: _o, uncalibrated: _u, roughScale: _r, ...bg } = base.bgImage;
     return { bgImage: { ...bg, ...placed, fingerprint }, photoElsewhere: null };
   }
   if (bytes) return { bgImage: migrateBgImage({ ...placed, dataUrl: bytes, imageId: uid(), fingerprint }), photoElsewhere: null };
@@ -1081,7 +1511,11 @@ export async function fillProjectPhoto(id: string, token: number, fingerprint: s
 }
 /** Read a project as it is now (the open one from memory, saved first). */
 export async function projectNow(id: string): Promise<ProjectData | null> {
-  if (state.currentProjectId === id) { await flushSave(); return currentProjectData(); }
+  if (state.currentProjectId === id) {
+    // (A newer version has the plans: this page's copy of the open one isn't the plan any more, so sync never sends it.)
+    if (!(await flushSave()) && superseded) throw new NewerVersionError();
+    return currentProjectData();
+  }
   return readProject(id);
 }
 
@@ -1093,7 +1527,8 @@ export function setClipboard(data: Clipboard) {
 }
 /** Pick up a clipboard written by another tab. */
 export async function refreshClipboard() {
-  if (kv) clipboardCache = (await kv.get<Clipboard>('kv', 'clipboard')) ?? clipboardCache;
+  // (Not once a newer version has the database: this page is about to reload, and can't read it.)
+  if (kv && !superseded) clipboardCache = (await kv.get<Clipboard>('kv', 'clipboard')) ?? clipboardCache;
 }
 
 // ---------- My plants (the user's own plant library, shared by all projects) ----------
@@ -1189,11 +1624,16 @@ async function migrateFromLocalStorage(k: KV) {
       if (localModified <= migratedAt) return; // nothing new since the last check
       const existing = await k.get<ProjectMeta>('meta', id);
       if (existing && existing.lastModified >= localModified) return; // newer in IndexedDB
-      if (existing && existing.lastModified > migratedAt) {
-        // Changed in both versions since the last sync: keep both.
+      const stored = existing ? await k.get<Record<string, unknown>>('projects', id) : undefined;
+      const local = readData();
+      // Changed in both versions since the last sync: keep both. Likewise when the plan here has a part the older
+      // copy can't have (its ticks, yard, switches...: given it since without an edit, by the update or by sync): the
+      // copy put over it would take it away (the review, Nov 1).
+      if (existing && (existing.lastModified > migratedAt || (stored && lacksParts(stored, (local && typeof local === 'object' ? local : {}) as Record<string, unknown>)))) {
         id = uid();
         name = `${name} (from older version)`;
       }
+      readData = () => local;
     }
     const data = sanitizeProjectData(readData());
     newest = Math.max(newest, localModified);
@@ -1229,11 +1669,31 @@ const IDB_MARKER = 'lp-idb-in-use';
 
 /**
  * Open storage, migrate old data, and load the last-open project into
- * `state`. Returns a message if old data couldn't be migrated.
+ * `state`. Returns a message if old data couldn't be migrated, and the names of plans made from an older tab's
+ * unsaved changes (replayJournals). Throws NewerVersionError, having read and written nothing, when a newer version
+ * of the app has the database (src/db.ts).
  */
-export async function initStorage(kvOverride?: KV): Promise<{ migrationError?: string }> {
+export async function initStorage(kvOverride?: KV): Promise<{ migrationError?: string; keptApart?: string[] }> {
   kv = kvOverride ?? (await openKV());
   state.currentProjectId = null; // nothing is open yet; nothing to save
+  // A newer version of the app opening the database in another tab or window (src/db.ts): edits not saved yet are
+  // kept first, a journal (as when the page hides) and their write, started now, so it goes in before the newer
+  // version's upgrade. (This version's copy, into this version's database: the newer one reads it as it reads any
+  // plan from before.) Then nothing more is saved here.
+  let lastWrite: Promise<boolean> = Promise.resolve(true);
+  kv.onNewerVersion?.(() => {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    const id = state.currentProjectId;
+    if (!id || !hasUnsavedChanges()) return;
+    writeJournalIfDirty();
+    // (Only image bytes known to be on disk are left out: a write still under way may yet fail.) Once it's in, the
+    // journal goes, even if an edit came after it (a drag let go under the message): that edit can't be saved now, and
+    // a newer version finding the journal would keep a near-copy of the plan apart (the review, Nov 1).
+    lastWrite = writeCurrentKnowing(new Set(committedImageKeys)).then((ok) => { if (ok) clearJournal(id); return ok; });
+  }, () => {
+    superseded = true;
+    onNewer?.(lastWrite);
+  });
   if (!kv.durable) {
     let usedBefore = false;
     try { usedBefore = !!localStorage.getItem(IDB_MARKER); } catch { /* ignore */ }
@@ -1250,8 +1710,9 @@ export async function initStorage(kvOverride?: KV): Promise<{ migrationError?: s
     console.error('migration from localStorage failed', e); recordError(e, 'migration');
     migrationError = e instanceof Error ? e.message : String(e);
   }
+  let keptApart: string[] = [];
   try {
-    await replayJournals(kv);
+    keptApart = await replayJournals(kv);
   } catch (e) {
     console.error('replaying unsaved edits failed', e); recordError(e, 'unsaved edits');
   }
@@ -1283,7 +1744,7 @@ export async function initStorage(kvOverride?: KV): Promise<{ migrationError?: s
   let currentId = await kv.get<string>('kv', 'current');
   if (!currentId || !metaFor(currentId)) currentId = state.projects[0].id;
   await switchProject(currentId);
-  return { migrationError };
+  return { migrationError, ...(keptApart.length ? { keptApart } : {}) };
 }
 
 /**
@@ -1350,23 +1811,34 @@ function sanitizeSyncRecords(raw: unknown): Record<string, SyncRecord> {
         // (The plan's fingerprint without the parts that settle on their own, src/sync/engine.ts coreHash; records from
         // before have none.)
         if (typeof r.core === 'string' && /^[0-9a-z]+:[0-9a-z]+$/.test(r.core)) out[k].core = r.core;
+        // (That fingerprint with every bed's conditions left out, made with it, src/sync/engine.ts SyncRecord.bare: only
+        // beside it. Records from before it have none, and are compared as before.)
+        if (out[k].core && typeof r.bare === 'string' && /^[0-9a-z]+:[0-9a-z]+$/.test(r.bare)) out[k].bare = r.bare;
         // (The ticks, yard and switches as the server had them then, src/sync/engine.ts SyncRecord.parts.)
         const parts = sanitizeRecordParts(r.parts);
         if (parts) out[k].parts = parts;
         if (typeof r.photo === 'string' && /^(none|kept|[0-9a-f]{64}@[0-9a-z]+:[0-9a-z]+)$/.test(r.photo)) out[k].photo = r.photo;
         if (r.held === 'room' || r.held === 'refused') out[k].held = r.held;
         else if ((r.held as unknown) === true) out[k].held = 'room'; // (an early test build stored true)
+        // (Where a mark of something taken away may go, src/marks.ts: shape ids, plain words, as many as a plan has.)
+        const ids = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && /^[\w:.-]{1,120}$/.test(x)).slice(0, 20000) : []);
+        const marks = r.marks && typeof r.marks === 'object' ? { conditions: ids(r.marks.conditions), fruit: ids(r.marks.fruit) } : null;
+        if (marks && (marks.conditions.length || marks.fruit.length)) {
+          out[k].marks = { ...(marks.conditions.length ? { conditions: marks.conditions } : {}), ...(marks.fruit.length ? { fruit: marks.fruit } : {}) };
+        }
       }
     }
   }
   return out;
 }
+/** Test hook: the sync records as they'd be kept (in memory only). */
+export function _setSyncRecordsForTests(records: Record<string, SyncRecord>) { syncRecords = { ...records }; }
 /** Test hook: forget module state between tests. */
 export function _resetStorageForTests() {
   kv = null; clipboardCache = null; storedImageKeys = new Set(); committedImageKeys = new Set(); cleared.clear();
   quotaWarned = false; lastBackupAt = null; myPlantsRaw = []; lastSizeMode = 'typical'; editSeq = 0; savedSeq = 0; planSeq = 0; savedPlanSeq = 0; saveFailing = false;
-  lastFailureJournalAt = 0; unreplayed.clear(); syncRecords = {}; syncTombstones = {}; syncDeleted = {}; syncUserId = null; changeCounts.clear(); plantSync = { records: {}, edited: {} };
-  fromDevice = null;
+  lastFailureJournalAt = 0; PAGE = newPageId(); syncRecords = {}; syncTombstones = {}; syncDeleted = {}; syncUserId = null; changeCounts.clear(); plantSync = { records: {}, edited: {} };
+  fromDevice = null; superseded = false; seenAt.clear(); onSavedHere = null; onTabChange = null;
   saveChain = Promise.resolve(true);
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = null;

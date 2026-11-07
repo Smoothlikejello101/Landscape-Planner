@@ -1,4 +1,4 @@
-import { backupAll, backupSaid, buildProjectFile, canShareFiles, downloadText, importProjects, importTooBig, parseImportFile, parseImportPlants, uniqueName } from '../backup';
+import { backupAll, backupSaid, buildProjectFile, canShareFiles, downloadText, importProjects, importSaid, importTooBig, parseImportFile, parseImportPlants, uniqueName } from '../backup';
 import { mergeMyPlants } from '../my-plants';
 import { el } from '../dom';
 import { I } from '../icons';
@@ -38,7 +38,7 @@ function formatDate(t: number | null): string {
 }
 
 function backupSection(): HTMLElement {
-  const section = el('div', { className: 'backup-section' }, el('div', { className: 'section-title' }, 'Backup'));
+  const section = el('div', { className: 'backup-section', 'data-testid': 'backup-section' }, el('div', { className: 'section-title' }, 'Backup'));
   if (!storageIsDurable()) {
     section.appendChild(el('div', { className: 'status warn' },
       "This browser isn't letting the app save, so changes are lost when it closes. Back up your projects to keep them."));
@@ -91,10 +91,11 @@ export function fileImport(testid: string): { input: HTMLInputElement; choose: (
       const text = await f.text();
       const list = parseImportFile(text);
       const added = await mergeMyPlants(parseImportPlants(text)); // before opening, so sun checks have the plant data
-      const ids = await importProjects(list);
-      toast(`Imported ${ids.length} project${ids.length === 1 ? '' : 's'}` + (added ? ` and ${added} of your plants` : ''));
+      const { ids, skipped } = await importProjects(list);
+      // (Opened first, then said: a plan opened puts away the notices about the last one.)
       if (ids.length === 1) await openProject(ids[0]);
       else { if (ids.length && !state.panel) state.panel = 'projects'; render(); }
+      toast(importSaid(ids.length, skipped, added), skipped ? 6000 : 3000);
     } catch (e) { void tell(errMsg(e)); }
   });
   return { input, choose: () => input.click() };

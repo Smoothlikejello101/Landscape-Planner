@@ -50,14 +50,14 @@ const named = (s: string) => () => s;
 export const KINDS: KindDef[] = [
   { key: 'plant', label: 'Plant', group: 'Garden', role: 'plant', methods: [], shortcut: 'p', startLabel: named(''), startStatus: 'planned' },
   { key: 'bed', label: 'Bed', group: 'Garden', role: 'bed', methods: ['poly', 'rect', 'circle', 'oval'], shortcut: 'b', startLabel: named('Bed'), startStatus: 'planned' },
-  { key: 'tree', label: 'Existing tree', group: 'Garden', role: 'plant', methods: ['trunk', 'canopy'], shortcut: 't', startLabel: named('Tree'), startStatus: 'existing' },
+  { key: 'tree', label: 'Existing Tree', group: 'Garden', role: 'plant', methods: ['trunk', 'canopy'], shortcut: 't', startLabel: named('Tree'), startStatus: 'existing' },
   { key: 'lawn', label: 'Lawn', group: 'Garden', role: 'lawn', methods: ['poly', 'rect'], shortcut: 'l', startLabel: named('Lawn'), startStatus: 'existing' },
   // What vines climb (src/vines.ts; the Backlog's vine plan, Oct 28–29): a trellis, a line a vine bands along; an arbor
   // or pergola, an area a vine covers. Planned to start: a structure is more often built for the plan than there.
   { key: 'trellis', label: 'Trellis', group: 'Garden', role: 'structure', methods: ['line'], startLabel: named('Trellis'), startStatus: 'planned' },
-  { key: 'arbor', label: 'Arbor or pergola', group: 'Garden', role: 'structure', methods: ['rect', 'poly'], startLabel: named('Arbor'), startStatus: 'planned' },
+  { key: 'arbor', label: 'Arbor or Pergola', group: 'Garden', role: 'structure', methods: ['rect', 'poly'], startLabel: named('Arbor'), startStatus: 'planned' },
   { key: 'path', label: 'Path', group: 'Paths and paving', role: 'path', methods: ['path', 'poly'], shortcut: 'w', startLabel: named('Path'), pathWidth: 3, startStatus: 'planned' },
-  { key: 'patio', label: 'Patio or deck', group: 'Paths and paving', role: 'path', methods: ['rect', 'poly'], startLabel: named('Patio'), startStatus: 'planned' },
+  { key: 'patio', label: 'Patio or Deck', group: 'Paths and paving', role: 'path', methods: ['rect', 'poly'], startLabel: named('Patio'), startStatus: 'planned' },
   { key: 'driveway', label: 'Driveway', group: 'Paths and paving', role: 'path', methods: ['rect', 'poly', 'path'], startLabel: named('Driveway'), pathWidth: 10, startStatus: 'existing' },
   {
     key: 'building', label: 'Building', group: 'Buildings and boundaries', role: 'building', methods: ['rect', 'poly'], shortcut: 'h', startStatus: 'existing',
@@ -66,16 +66,16 @@ export const KINDS: KindDef[] = [
   },
   { key: 'fence', label: 'Fence', group: 'Buildings and boundaries', role: 'boundary', methods: ['line'], shortcut: 'f', startLabel: named('Fence'), startStatus: 'existing' },
   // Open by default: a stretch along one neighbor is often all that matters (who draws the far edge of acreage?).
-  { key: 'property', label: 'Property line', group: 'Buildings and boundaries', role: 'boundary', methods: ['line', 'poly'], startLabel: named('Property line'), startStatus: 'existing' },
+  { key: 'property', label: 'Property Line', group: 'Buildings and boundaries', role: 'boundary', methods: ['line', 'poly'], startLabel: named('Property Line'), startStatus: 'existing' },
   // Utilities (sub-features part 2, decided with Jason, 2026-10-25): what's near them is checked (src/utilities.ts).
-  { key: 'powerline', label: 'Overhead power line', group: 'Utilities', role: 'utility', methods: ['line'], startLabel: named('Power line'), startStatus: 'existing', utility: 'overhead' },
-  { key: 'buried', label: 'Buried line', group: 'Utilities', role: 'utility', methods: ['line'], startLabel: named('Buried line'), startStatus: 'existing', utility: 'buried' },
-  { key: 'septic', label: 'Septic field', group: 'Utilities', role: 'utility', methods: ['rect', 'poly'], startLabel: named('Septic field'), startStatus: 'existing', utility: 'septic' },
-  { key: 'sun', label: 'Sun exposure', group: 'Site conditions', role: 'shade', methods: ['poly', 'circle'], shortcut: 's', startLabel: named(''), openProps: true },
-  { key: 'water', label: 'Pond, water', group: 'Site conditions', role: 'water', methods: ['poly', 'circle', 'oval'], startLabel: named('Pond'), startStatus: 'planned' },
+  { key: 'powerline', label: 'Overhead Power Line', group: 'Utilities', role: 'utility', methods: ['line'], startLabel: named('Power Line'), startStatus: 'existing', utility: 'overhead' },
+  { key: 'buried', label: 'Buried Line', group: 'Utilities', role: 'utility', methods: ['line'], startLabel: named('Buried Line'), startStatus: 'existing', utility: 'buried' },
+  { key: 'septic', label: 'Septic Field', group: 'Utilities', role: 'utility', methods: ['rect', 'poly'], startLabel: named('Septic Field'), startStatus: 'existing', utility: 'septic' },
+  { key: 'sun', label: 'Sun Exposure', group: 'Site conditions', role: 'shade', methods: ['poly', 'circle'], shortcut: 's', startLabel: named(''), openProps: true },
+  { key: 'water', label: 'Pond, Water', group: 'Site conditions', role: 'water', methods: ['poly', 'circle', 'oval'], startLabel: named('Pond'), startStatus: 'planned' },
   { key: 'note', label: 'Note', group: 'Notes and tools', role: 'other', methods: ['note'], shortcut: 'n', startLabel: named(''), openProps: true },
   { key: 'measure', label: 'Measure', group: 'Notes and tools', methods: [], shortcut: 'm', startLabel: named('') },
-  { key: 'plain', label: 'Plain shape', group: 'Notes and tools', methods: ['circle', 'rect', 'oval', 'triangle', 'poly', 'line'], startLabel: named('') },
+  { key: 'plain', label: 'Plain Shape', group: 'Notes and tools', methods: ['circle', 'rect', 'oval', 'triangle', 'poly', 'line'], startLabel: named('') },
 ];
 const BY_KEY = Object.fromEntries(KINDS.map((k) => [k.key, k])) as Record<KindKey, KindDef>;
 export const kindDef = (k: KindKey): KindDef => BY_KEY[k];
@@ -164,6 +164,29 @@ export function rectFromTaps(a: Point, b: Point, c: Point): { x: number; y: numb
   const cx = a.x + ux / 2 + n.x * d / 2, cy = a.y + uy / 2 + n.y * d / 2;
   const { width, height, rotation } = levelBox(deg, len, Math.abs(d));
   return { x: r2(cx - width / 2), y: r2(cy - height / 2), width, height, rotation };
+}
+/** How near level or upright (degrees) a rectangle's first side is set level when it's finished (src/draw.ts finishDraw). */
+export const LEVEL_SNAP_DEG = 4;
+/**
+ * A rectangle's three taps turned about its first corner so its first side is level (or upright: a box turned 90° is
+ * the same box), when that side runs within LEVEL_SNAP_DEG of it: a driveway traced off a photo by eye came out 3°
+ * tilted (Jason, Nov 2). Or square to a wall its first or second tap landed on (`walls`: those walls' directions,
+ * radians), when the side runs that close to one: a bed along a turned house keeps to the house. `off`: how far it was
+ * turned (degrees); `along`: square to a wall that isn't level itself. Null when it's level (or along the wall)
+ * already, or farther off than that, so meant to be turned.
+ */
+export function levelTaps(pts: Point[], walls: number[] = []): { pts: Point[]; off: number; along: boolean } | null {
+  if (pts.length < 3) return null;
+  const [a, b] = pts;
+  if (Math.hypot(b.x - a.x, b.y - a.y) < MIN_SIZE) return null;
+  const side = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+  /** How far the side is from `dir` (degrees), within a quarter turn: -45 to 45. */
+  const offFrom = (dir: number) => { const d = (((side - dir) % 90) + 90) % 90; return d > 45 ? d - 90 : d; };
+  const along = walls.map((w) => offFrom(w * 180 / Math.PI)).find((d) => Math.abs(d) <= LEVEL_SNAP_DEG);
+  const off = along ?? offFrom(0);
+  if (Math.abs(off) < 0.05 || Math.abs(off) > LEVEL_SNAP_DEG) return null;
+  const turned = pts.map((p, i) => { if (i === 0) return p; const r = rotate(p.x - a.x, p.y - a.y, -off); return { x: a.x + r.x, y: a.y + r.y }; });
+  return { pts: turned, off, along: along != null && Math.abs(along - offFrom(0)) > 1e-9 };
 }
 /**
  * A box's turn kept within 45° either way, its sides swapped to match: a box turned 90° is the same box

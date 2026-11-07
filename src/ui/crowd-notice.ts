@@ -1,5 +1,5 @@
 // Crowding, as a plant is placed (decided with Jason, 2026-10-25): a notice saying which plant it's close to or
-// crowding, with Dismiss (that pair isn't flagged again: "Leave it" until Nov 1, one vocabulary since), Move it (take it
+// crowding, with Nudge apart (since Nov 2: src/ui/fix-problem.ts), Dismiss (that pair isn't flagged again: "Leave it" until Nov 1, one vocabulary since), Move it (take it
 // back and tap again) and Settings (Warnings, at Crowding, where the notices can be turned off). Crowded: every time. Close: once each time plants are placed (the first close one).
 // One line, amber or red, that opens to say how far apart they are and why it matters (2026-10-27: it got in the way);
 // a plant crowded by one half again its size is "too far under" it, buried, and is best moved out toward its edge. A
@@ -13,7 +13,9 @@ import { shownWith } from '../status';
 import { save } from '../storage';
 import type { Crowd } from '../crowding';
 import type { Shape } from '../types';
+import { I } from '../icons';
 import { render } from './render';
+import { nudgeEach, nudgeList, nudgeNow } from './fix-problem';
 import { openWarningsAt } from './warnings-sheet';
 import { toast, toastAction } from './toast';
 
@@ -39,11 +41,19 @@ export function crowdNotice(shape: Shape, moveIt: () => void) {
   if (!list.length || (!crowded.length && state.placing?.warnedClose)) return;
   if (!crowded.length && state.placing) state.placing.warnedClose = true;
   const { line, detail } = crowdWords(shape, list[0], list.length - 1, !!crowded.length);
+  // (Nudge apart or Move it says the spacing matters: the next close one is said too, though close ones are said once a
+  // go. Jason, Nov 4: after a Nudge apart, the next plant placed close got no notice, "Nudged… Undo" up in its place.)
+  const mindsSpacing = () => { if (state.placing) state.placing.warnedClose = false; };
   toastAction(line, [
+    // (Just clear, the plant just placed moving: Jason's UI review, Nov 2; of every plant it's close to, the one named
+    // first, since Nov 4: Jason, from three placed in a triangle.)
+    { label: 'Nudge apart', run: () => { mindsSpacing(); nudgeNow(shape, nudgeList(shape, list[0].other), shape.id); } },
     { label: 'Dismiss', run: () => leaveClose(shape.id, list.map((c) => c.other.id)) },
-    { label: 'Move it', run: () => { moveIt(); render(); toast('Tap where it should go.'); } },
-    { label: 'Settings', run: openCrowdingSettings },
-  ], 10000, TESTID, { detail, tone: crowded.length ? 'red' : 'amber' });
+    { label: 'Move it', run: () => { mindsSpacing(); moveIt(); render(); toast('Tap where it should go.'); } },
+    { label: 'Settings', run: openCrowdingSettings, icon: I.settings },
+    // (Placing: up till the next press anywhere else, not ten seconds. Read at large text, it went first, and Nudge
+    // apart pressed where it had been placed another plant there. The bug hunt, Nov 6.)
+  ], 10000, TESTID, { detail, tone: crowded.length ? 'red' : 'amber', untilAction: !!state.placing });
   const n = document.getElementById('toast-action');
   if (n) n.dataset.about = shape.id; // (gone with the plant: src/ui/toast.ts placeNotice)
 }
@@ -63,6 +73,9 @@ export function crowdLevelsOf(ids: string[]): Map<string, Map<string, Crowd['lev
  * Placed plants swapped for another: the notice, for the first now closer to another than it was (Jason, Oct 31, from
  * round 3: Dana's two yaupons swapped for 7 ft hollies sat on her boxwoods, and nothing said so; a swap too cold for the
  * garden did warn). `before`: their crowding before the swap (crowdLevelsOf). Undo takes the swap back.
+ *
+ * Several now closer (Jason, Nov 5: three swapped for larger plants, and Nudge apart moved only the one the notice
+ * named): one notice for them all, its Nudge apart moving each clear (nudgeEach), its Dismiss leaving each pair.
  */
 export function crowdNoticeAfterSwap(ids: string[], before: Map<string, Map<string, Crowd['level']>>) {
   dismissCrowdNotice();
@@ -70,18 +83,35 @@ export function crowdNoticeAfterSwap(ids: string[], before: Map<string, Map<stri
   const shapes = state.shapes.filter((x) => shownWith(x, state.viewFilter));
   const opts = { ...crowdOptions(), close: true };
   const worse = (id: string, c: Crowd) => { const was = before.get(id)?.get(c.other.id); return !was || (was === 'close' && c.level === 'crowded'); };
+  const hits: { shape: Shape; list: Crowd[]; crowded: boolean }[] = [];
   for (const id of ids) {
     const shape = state.shapes.find((x) => x.id === id);
     if (!shape) continue;
     const crowds = crowdingOf(shape, shapes, plantsById, opts).filter((c) => worse(id, c));
     if (!crowds.length) continue;
     const crowded = crowds.filter((c) => c.level === 'crowded');
-    const list = crowded.length ? crowded : crowds;
+    hits.push({ shape, list: crowded.length ? crowded : crowds, crowded: !!crowded.length });
+  }
+  if (hits.length > 1) {
+    const red = hits.some((h) => h.crowded);
+    // (Each in a line of its own words, as one alone would say it: "Holly: Too far over Boxwood (+1 more)".)
+    const each = hits.map((h) => `${nameOf(h.shape)}: ${crowdWords(h.shape, h.list[0], h.list.length - 1, h.crowded).line}.`);
+    toastAction(`${hits.length} swapped plants are now ${red ? 'crowding' : 'close to'} others`, [
+      { label: 'Nudge apart', run: () => { nudgeEach(hits.map((h) => h.shape.id)); } },
+      { label: 'Dismiss', run: () => leaveCloseAll(hits.map((h) => [h.shape.id, h.list.map((c) => c.other.id)])) },
+      { label: 'Undo', run: () => { undo(); render(); } },
+      { label: 'Settings', run: openCrowdingSettings, icon: I.settings },
+    ], 10000, TESTID, { detail: `${each.join(' ')} Nudge apart moves each clear of what it's close to, where there's room.`, tone: red ? 'red' : 'amber' });
+    return;
+  }
+  for (const { shape, list, crowded: isCrowded } of hits) {
+    const crowded = isCrowded ? list : [];
     const { line, detail } = crowdWords(shape, list[0], list.length - 1, !!crowded.length);
     toastAction(line, [
+      { label: 'Nudge apart', run: () => { nudgeNow(shape, nudgeList(shape, list[0].other), shape.id); } },
       { label: 'Dismiss', run: () => leaveClose(shape.id, list.map((c) => c.other.id)) },
       { label: 'Undo', run: () => { undo(); render(); } },
-      { label: 'Settings', run: openCrowdingSettings },
+      { label: 'Settings', run: openCrowdingSettings, icon: I.settings },
     ], 10000, TESTID, { detail, tone: crowded.length ? 'red' : 'amber' });
     return;
   }
@@ -95,16 +125,20 @@ export function crowdWords(shape: Shape, c: Crowd, more: number, crowded: boolea
   const name = nameOf(shape), other = nameOf(c.other);
   const also = more > 0 ? ` (+${more} more)` : '';
   const apart = `${f(c.distance)} ft apart, where about ${f(c.recommended)} ft is usual for these two`;
+  // Two of a kind: "Two Snowberry", not "Snowberry and Snowberry" (Jason's notes after release 3; a plant's name as a
+  // nursery says it, no guessed plural: src/dismissals.ts copiesSaid).
+  const same = name === other;
+  const both = same ? `Two ${name}` : `${name} and ${other}`;
   if (!crowded) {
     return {
       line: `Close to ${other}${c.bulb ? ', at its base' : ''}${also}`,
-      detail: `${name} and ${other} may quickly grow into one another: ${apart}. A little of this can be fine, if you're after a quick, full look.`,
+      detail: `${both} may quickly grow into ${same ? 'each other' : 'one another'}: ${apart}. A little of this can be fine, if you're after a quick, full look.`,
     };
   }
   const how = crowdRelation(shape, c.other, plantsById);
-  if (how === 'under') return { line: `Too far under ${other}${also}`, detail: `${name} will be buried by ${other}: ${apart}. Try moving it out toward the edge of ${other}.` };
-  if (how === 'over') return { line: `Too far over ${other}${also}`, detail: `${name} will bury ${other}: ${apart}. Try moving it farther away, so ${other} is out at its edge.` };
-  return { line: `Crowding ${other}${also}`, detail: `${name} and ${other} will grow into each other: ${apart}.` };
+  if (how === 'under') return { line: `Too far under ${other}${also}`, detail: same ? `This ${name} will be buried by the other: ${apart}. Try moving it out toward the other's edge.` : `${name} will be buried by ${other}: ${apart}. Try moving it out toward the edge of ${other}.` };
+  if (how === 'over') return { line: `Too far over ${other}${also}`, detail: same ? `This ${name} will bury the other: ${apart}. Try moving it farther away, so the other is out at its edge.` : `${name} will bury ${other}: ${apart}. Try moving it farther away, so ${other} is out at its edge.` };
+  return { line: `Crowding ${other}${also}`, detail: `${both} will grow into each other: ${apart}.` };
 }
 
 /**
@@ -118,6 +152,20 @@ export function leaveClose(id: string, others: string[]) {
   const copy = state.placing?.placed.find((x) => x.id === id)?.snap.shapes.find((x) => x.id === id);
   if (copy?.type === 'circle') copy.crowdOk = [...s.crowdOk];
   else pushHistory();
+  save();
+  render();
+}
+/** Dismiss for several plants at once (swapped together): each left close to those named, one step. */
+export function leaveCloseAll(pairs: [string, string[]][]) {
+  let changed = false;
+  for (const [id, others] of pairs) {
+    const s = state.shapes.find((x) => x.id === id);
+    if (!s || s.type !== 'circle') continue;
+    s.crowdOk = [...new Set([...(s.crowdOk ?? []), ...others])];
+    changed = true;
+  }
+  if (!changed) return;
+  pushHistory();
   save();
   render();
 }

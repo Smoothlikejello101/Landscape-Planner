@@ -30,7 +30,7 @@ describe("a plant's details, folded", () => {
     const top = box.querySelector('.details-list')!;
     expect([...top.querySelectorAll(':scope > dt')].map((d) => d.textContent)).toEqual(['Form', 'Size', 'Sun', 'Water']);
     expect(box.querySelector('[data-testid=size-row]')!.textContent).toMatch(/^15–30 ft tall, 15–20 ft wide/);
-    expect(box.querySelector('[data-testid=size-row] .details-src')!.textContent).toMatch(/^height: .*; spread: /);
+    expect(box.querySelector('[data-testid=size-row] .details-src')!.textContent).toMatch(/^Sources: .* for the height; .* for the width/);
     const heads = [...box.querySelectorAll<HTMLButtonElement>('.details-group-head')];
     expect(heads.map((h) => h.dataset.testid)).toEqual(['group-looks', 'group-wildlife', 'group-safety', 'group-growing']);
     expect(heads.every((h) => h.getAttribute('aria-expanded') === 'false')).toBe(true);
@@ -55,18 +55,18 @@ describe("a plant's details, folded", () => {
 
   it("never folds a warning away: Safety says it in its line, comes first, and starts open", () => {
     expect(safetyWarnings(witchHazel)).toEqual([]);
-    expect(groupSummary('safety', witchHazel)).toBe('Not listed as poisonous to people · not listed as a problem for pets · edible');
-    expect(safetyWarnings(jessamine)).toEqual(['Poisonous to people (high severity)', 'dogs: hard no (earlier list)']);
+    expect(groupSummary('safety', witchHazel)).toBe('Not listed as toxic to people · not listed as toxic to pets · edible');
+    expect(safetyWarnings(jessamine)).toEqual(['Toxic to people (high severity)', 'dogs: hard no (earlier list)']);
     const box = plantDetails(jessamine, undefined);
     const first = box.querySelector<HTMLButtonElement>('.details-group-head')!;
     expect(first.dataset.testid).toBe('group-safety');
     expect(first.closest('.details-group')!.classList.contains('warn')).toBe(true);
     expect(first.getAttribute('aria-expanded')).toBe('true');
-    expect(box.querySelector('[data-testid=group-safety-sum]')!.textContent).toBe('Poisonous to people (high severity) · dogs: hard no (earlier list)');
+    expect(box.querySelector('[data-testid=group-safety-sum]')!.textContent).toBe('Toxic to people (high severity) · dogs: hard no (earlier list)');
     // (A hybrid with no rating of its own, a parent rated: a warning too.)
     expect(safetyWarnings({ id: 'x', common: 'x', poison_parents: { via: 'name', parents: [{ name: 'Morus rubra', poison: { severity: 'low' } }] } } as unknown as Plant))
-      .toEqual(['A parent is poisonous to people']);
-    expect(safetyWarnings({ id: 'x', common: 'x', problem_for: ['cats', 'dogs'] } as unknown as Plant)).toEqual(['a problem for dogs and cats']);
+      .toEqual(['A parent is toxic to people']);
+    expect(safetyWarnings({ id: 'x', common: 'x', problem_for: ['cats', 'dogs'] } as unknown as Plant)).toEqual(['toxic to dogs and cats']);
   });
 
   it('opens Growing where the plant is shown for what other sources say of deer', () => {

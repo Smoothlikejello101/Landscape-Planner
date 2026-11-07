@@ -1,13 +1,13 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, canvasBox, closeSheet, openFresh, openSections, shapeCount, zoomPct, placeOnceAtCenter } from './helpers';
+import { addKind, canvasBox, closeSheet, openFresh, openSections, shapeCount, zoomPct, placeOnceAtCenter, planPoint } from './helpers';
 
 // The compact properties panel, statuses that fit the thing, and getting
 // started from an aerial photo.
 
-const FT = 24; // px per foot at 100%; canvas pixel 24*k is k-10 ft
+// (At the starting view, 24 px per foot from -10 ft: tapFt(kx, ky) is kx − 10, ky − 10 ft.)
 async function tapFt(page: Page, kx: number, ky: number) {
-  const box = await canvasBox(page);
-  await page.mouse.click(box.x + kx * FT, box.y + ky * FT);
+  const p = await planPoint(page, kx - 10, ky - 10); // (in feet, at the view as it is: a strip of words above the plan or not)
+  await page.mouse.click(p.x, p.y);
 }
 const head = (page: Page, key: string) => page.locator(`.sheet [data-section=${key}]`);
 
@@ -78,8 +78,8 @@ test('statuses fit the thing: a house is Existing, not Planted', async ({ page }
   await closeSheet(page);
   // Sun exposure has no status at all.
   await addKind(page, 'sun', 'circle');
-  await tapFt(page, 6, 12); await tapFt(page, 9, 12);
-  await expect(page.locator('.sheet-header .title')).toHaveText('Sun exposure');
+  await tapFt(page, 6, 12); await tapFt(page, 12, 12); // (6 ft across: at the house's scale, two taps, not one tapped twice)
+  await expect(page.locator('.sheet-header .title')).toHaveText('Sun Exposure');
   await expect(head(page, 'status')).toHaveCount(0);
   await expect(page.getByTestId('section-sun')).toHaveClass(/open/); // opens on its sun record
 });

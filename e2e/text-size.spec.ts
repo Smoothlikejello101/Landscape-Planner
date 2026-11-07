@@ -98,7 +98,7 @@ test('a plant\'s details: one column, each fact on its label\'s line, its source
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('butterfly milkweed');
-  const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Butterfly milkweed$/ }) }).first();
+  const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Butterfly Milkweed$/ }) }).first();
   await item.getByTestId('plant-row').click();
   const details = item.getByTestId('plant-details');
   const dt = details.locator('dt', { hasText: /^Size$/ });
@@ -109,4 +109,25 @@ test('a plant\'s details: one column, each fact on its label\'s line, its source
   expect(Math.abs(value.y - label.y)).toBeLessThan(4); // (the value starts on the label's line)
   expect(source.y).toBeGreaterThanOrEqual(label.y + label.height - 1); // (the source below it)
   expect(await dd.locator('.details-src').evaluate((e) => parseFloat(getComputedStyle(e).fontSize))).toBeLessThan(await dt.evaluate((e) => parseFloat(getComputedStyle(e).fontSize)));
+});
+
+// The picker bug hunt, Nov 1 (B12): in Settings, the unchecked "Zoom buttons" box was smaller than the two checked boxes
+// above it, squeezed by its longer label.
+test('Settings\' boxes are one size, checked or not, whatever their label, on a 360 px phone at every text size (the picker bug hunt, Nov 1)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await page.addInitScript(() => localStorage.setItem('lp-zoom-buttons', 'off')); // (as a phone starts: unchecked)
+  await openFresh(page);
+  for (const size of ['small', 'medium', 'large', 'xlarge']) {
+    await page.evaluate((s) => localStorage.setItem('lp-text-size-2', s), size);
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-text', size);
+    await page.locator('button[title=More]').click();
+    await page.getByTestId('menu-settings').click();
+    await expect(page.getByTestId('zoom-buttons')).not.toBeChecked();
+    await expect(page.getByTestId('snap-drawing')).toBeChecked();
+    const sizes = await page.locator('[data-testid=drawing-settings] .check-row input').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return `${Math.round(r.width)}×${Math.round(r.height)}`; }));
+    expect(sizes, size).toHaveLength(3);
+    expect(new Set(sizes).size, `${size}: ${sizes.join(', ')}`).toBe(1);
+    await closeSheet(page);
+  }
 });

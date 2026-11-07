@@ -1,8 +1,8 @@
 import { canShareFiles, canShareWords, downloadBlob, safeFileName, shareBlob, shareWords, stamp } from '../backup';
 import { el, hasKeyboard } from '../dom';
 import { I } from '../icons';
-import { markPlantedToday } from '../mutations';
-import { boughtText, buyCount, listTotals, plantedText, plantList, plantsOfKind, rowFacts, tickEntry, totalsText, listText, type ListGroup, type ListRow } from '../plant-list';
+import { markNotPlanted, markPlantedToday } from '../mutations';
+import { boughtText, buyCount, labelsText, listTotals, plantedText, plantList, plantsOfKind, rowFacts, tickEntry, totalsText, listText, type ListGroup, type ListRow } from '../plant-list';
 import { plantsById } from '../plants';
 import { state } from '../state';
 import { currentProject, save } from '../storage';
@@ -25,7 +25,13 @@ const listNow = () => JSON.stringify([state.currentProjectId, plantList(state.sh
 export function openPlantList() {
   state.panel = 'plantList';
   state.menu = null;
+  howKept = false;
 }
+/**
+ * The line on what the ticks are for, once shown, kept till the list closes: gone at the first + or tick, the rows moved
+ * up under the next press, and it missed (the bug hunt, Nov 6: + pressed twice bought 1 of 2).
+ */
+let howKept = false;
 /** Whether the plan has a plant to list. */
 export const hasPlantsToList = () => state.shapes.some((s) => s.role === 'plant' && s.status !== 'gone' && s.status !== 'remove');
 
@@ -46,29 +52,63 @@ function tick(r: ListRow): HTMLElement {
   b.addEventListener('click', () => setBought(r.key, all ? 0 : r.count));
   return b;
 }
+/**
+ * How many of a kind are bought, one at a time: "Bought 1 of 2" between − and + (Jason's testing, Nov 1: "I can't buy
+ * only 1 of my blueberries"). Kept as the tick is; the tick stays the way to say all of them. A kind of one has the
+ * tick alone.
+ */
+function stepper(r: ListRow): HTMLElement {
+  const n = Math.min(r.bought, r.count);
+  const step = (by: number, sign: string, words: string, testid: string) => {
+    const b = el('button', { className: 'pl-step', 'aria-label': `${words}: ${r.name}`, 'data-testid': testid }, sign);
+    b.disabled = n + by < 0 || n + by > r.count;
+    b.addEventListener('click', () => setBought(r.key, n + by));
+    return b;
+  };
+  return el('div', { className: 'pl-stepper', role: 'group', 'aria-label': `How many bought: ${r.name}` },
+    step(-1, '−', 'One fewer bought', 'pl-less'),
+    el('span', { className: 'pl-state' + (n === 0 ? ' none' : n < r.count ? ' some' : ''), 'data-testid': 'pl-bought' }, `Bought ${n} of ${r.count}`),
+    step(1, '+', 'One more bought', 'pl-more'));
+}
 function row(r: ListRow, group: ListGroup): HTMLElement {
-  const bought = group === 'buy' ? boughtText(r) : '';
+  const labels = labelsText(r);
   const main = el('div', { className: 'pl-main' },
     el('div', { className: 'pl-name' },
-      el('span', { className: 'pl-title', 'data-testid': 'pl-name' }, r.name),
+      // (Its plants' own labels beside its name: "Tifblue · labeled Climax ×2, Premier ×1". Jason's testing, Nov 1.)
+      el('span', { className: 'pl-title' },
+        el('span', { 'data-testid': 'pl-name' }, r.name),
+        labels ? el('span', { className: 'pl-labels', 'data-testid': 'pl-labels' }, ` · ${labels}`) : null),
       el('span', { className: 'pl-count', 'data-testid': 'pl-count' }, `× ${r.count}`)),
     r.botanical ? el('div', { className: 'pl-bot', 'data-testid': 'pl-bot' }, r.botanical) : null,
     rowFacts(r) ? el('div', { className: 'pl-facts', 'data-testid': 'pl-facts' }, rowFacts(r)) : null);
-  if (group === 'buy' && r.bought > 0) {
-    // Planting day: what's bought goes in, today (Jason, Nov 1). Partly bought, as many as are bought, the first on the
-    // plan: the rest are still to buy. (Offered once some are bought: it follows the tick, and an unbought row stays short.)
-    const k = Math.min(r.bought, r.count);
-    const mark = el('button', { className: 'btn ghost pl-mark', 'data-testid': 'pl-mark-planted', 'aria-label': `Mark ${k === r.count ? '' : `${k} `}${r.name} planted, today` },
-      k === r.count ? 'Mark planted' : `Mark ${k} planted`);
-    mark.addEventListener('click', () => {
-      markPlantedToday(r.ids.slice(0, k));
+  if (group === 'buy' && (r.count > 1 || r.bought > 0)) {
+    const actions = el('div', { className: 'pl-actions' });
+    // (More than one: how many, by − and +. One: the tick says it, and "Bought" once it's ticked.)
+    actions.appendChild(r.count > 1 ? stepper(r) : el('span', { className: 'pl-state', 'data-testid': 'pl-bought' }, boughtText(r)));
+    if (r.bought > 0) {
+      // Planting day: what's bought goes in, today (Jason, Nov 1). Partly bought, as many as are bought, the first on
+      // the plan: the rest are still to buy. (Offered once some are bought.)
+      const k = Math.min(r.bought, r.count);
+      const mark = el('button', { className: 'btn ghost pl-mark', 'data-testid': 'pl-mark-planted', 'aria-label': `Mark ${k === r.count ? '' : `${k} `}${r.name} planted, today` },
+        k === r.count ? 'Mark planted' : `Mark ${k} planted`);
+      mark.addEventListener('click', () => {
+        markPlantedToday(r.ids.slice(0, k));
+        render();
+        undoNotice(`${r.name}: ${k === r.count ? `${k}` : `${k} of ${r.count}`} planted today.`);
+      });
+      actions.appendChild(mark);
+    }
+    main.appendChild(actions);
+  } else if (group === 'planted') {
+    // Marked planted too soon: back to To buy, bought as they were, with Undo (Jason's testing, Nov 1).
+    const back = el('button', { className: 'btn ghost pl-mark', 'data-testid': 'pl-unplant', 'aria-label': `${r.name}: not planted yet, back to To buy` }, 'Not planted yet');
+    back.addEventListener('click', () => {
+      markNotPlanted(r.ids);
       render();
-      undoNotice(`${r.name}: ${k === r.count ? `${k}` : `${k} of ${r.count}`} planted today.`);
+      undoNotice(`${r.name}: ${r.count === 1 ? '' : `${r.count} `}back to To buy, not planted yet.`);
     });
     main.appendChild(el('div', { className: 'pl-actions' },
-      el('span', { className: 'pl-state' + (bought !== 'Bought' ? ' some' : ''), 'data-testid': 'pl-bought' }, bought), mark));
-  } else if (group === 'planted' && r.plantedOn) {
-    main.appendChild(el('div', { className: 'pl-state', 'data-testid': 'pl-planted-on' }, `Planted ${plantedText(r.plantedOn)}`));
+      r.plantedOn ? el('span', { className: 'pl-state', 'data-testid': 'pl-planted-on' }, `Planted ${plantedText(r.plantedOn)}`) : el('span', {}), back));
   }
   return el('div', { className: 'pl-row' + (group === 'buy' && r.bought >= r.count ? ' bought' : ''), 'data-testid': 'pl-row', 'data-group': group, 'data-key': r.key },
     group === 'buy' ? tick(r) : null, main);
@@ -85,13 +125,19 @@ export function renderPlantListPanel() {
   if (!any) {
     body.appendChild(el('div', { className: 'hint', 'data-testid': 'pl-empty' }, 'No plants in this plan yet. Plants you place from the plant picker are listed here, ready to buy.'));
   } else {
-    body.appendChild(el('div', { className: 'pl-totals', 'data-testid': 'pl-totals' }, totalsText(totals)));
+    // (What's bought on a line of its own on a phone, its room kept from the start while there's anything to buy: it
+    // came in at the first tick, wrapped, and moved the rows down under the next press. The bug hunt, Nov 6.)
+    const [said, more] = totalsText(totals).split(' \u00b7 ');
+    body.appendChild(el('div', { className: 'pl-totals' + (totals.toBuy && !more ? ' reserve' : ''), 'data-testid': 'pl-totals' },
+      el('span', {}, said), more ? el('span', { className: 'pl-tot-bought' }, el('span', { className: 'dot' }, ' \u00b7 '), more) : null));
     for (const [g, title] of GROUPS) {
       const rows = list[g];
       if (!rows.length) continue;
       const n = rows.reduce((k, r) => k + r.count, 0);
       // (Nothing ticked yet: what the ticks are for, in a line.)
-      const how = g === 'buy' && !totals.bought ? el('div', { className: 'hint pl-how', 'data-testid': 'pl-how' }, 'Tick each kind as you buy it. Mark planted then records the day it goes in.') : null;
+      const showHow = g === 'buy' && (!totals.bought || howKept);
+      if (showHow) howKept = true;
+      const how = showHow ? el('div', { className: 'hint pl-how', 'data-testid': 'pl-how' }, 'Tick each kind as you buy it, or count them with \u2212 and +. Mark planted then records the day they go in.') : null;
       // (To buy counts what's left to buy, as the totals do: not those bought already. The list bug hunt, Nov 1.)
       const count = ` (${g === 'buy' ? buyCount(totals) : n})`;
       body.appendChild(el('section', { className: 'pl-group', 'data-testid': `pl-group-${g}`, 'aria-label': title },

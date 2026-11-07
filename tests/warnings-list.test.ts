@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { dismissedForPlan, dismissForPlan } from '../src/dismissals';
+import { dismissedForPlan, dismissForPlan, warnForNewOnes } from '../src/dismissals';
 import { pushHistory } from '../src/history';
 import { fitInCircle } from '../src/labels';
 import { plantsById, type Plant } from '../src/plants';
@@ -38,6 +38,16 @@ describe('the warnings in the plan now', () => {
     rows[1].again!();
     expect(state.shapes.find((s) => s.id === 'c')).not.toHaveProperty('crowdOk');
     expect(planWarnings().filter((r) => r.kind === 'crowding' && !r.dismissed)).toHaveLength(2);
+  });
+
+  it('copies labeled their own way are named by their kind, their labels beside it, as the Plant list says it (Jason\'s testing, Nov 1)', () => {
+    state.shapes = [at('x', tropical.id, 0, { label: 'Barbara Karst' }), at('y', tropical.id, 20, { label: 'Barbara Karst' }), at('z', tropical.id, 40, { label: 'Raspberry Ice' }), at('w', tropical.id, 60)];
+    expect(planWarnings().filter((r) => r.kind === 'hardy').map((r) => r.name)).toEqual(['Bougainvillea ×4 · labeled Barbara Karst ×2, Raspberry Ice ×1']);
+    state.shapes = [at('z', tropical.id, 40, { label: 'Raspberry Ice' })];
+    expect(planWarnings().filter((r) => r.kind === 'hardy').map((r) => r.name)).toEqual(['Bougainvillea · labeled Raspberry Ice']);
+    // (Labeled with its own name, or none of their own: as before.)
+    state.shapes = [at('x', tropical.id, 0, { label: 'bougainvillea' }), at('y', tropical.id, 20)];
+    expect(planWarnings().filter((r) => r.kind === 'hardy').map((r) => r.name)).toEqual(['bougainvillea ×2']);
   });
 
   it('a pair left close that has since moved apart is no longer listed', () => {
@@ -196,12 +206,70 @@ describe('dismissing warnings from the list', () => {
     expect(state.historyIndex).toBe(steps + 3);
   });
 
+  it("a fruit partner's, like hardiness's: a copy dismissed on its own apart, said who for; narrowed to the copies there, a new one warns (Jason, Nov 1)", () => {
+    state.shapes.push(at('h2', holly.id, -50));
+    const line = of('fruit')[0].key!;
+    expect(of('fruit').map((r) => [r.name, r.ids.join(','), r.dismissed])).toEqual([["Holly 'Red' ×2", 'h,h2', false]]);
+    // One copy dismissed on its own (its details' "Dismiss for this one"): it apart, said "for this one"; the other active.
+    shape('h').fruitDismissed = line;
+    expect(of('fruit').map((r) => [r.ids.join(','), r.dismissed, r.scope])).toEqual([['h2', false, undefined], ['h', true, 'for this one']]);
+    expect(warningsSummary().active).toBe(of('crowding').length + of('sun').length + of('hardy').length + of('utility').length + 1);
+    // Both: "for these 2", none active; across the plan as well, "for every" (the plant's own, which covers new ones too).
+    shape('h2').fruitDismissed = line;
+    expect(of('fruit').map((r) => [r.ids.join(','), r.dismissed, r.scope])).toEqual([['h,h2', true, 'for these 2']]);
+    dismissForPlan('fruit', holly.id, line);
+    expect(of('fruit').map((r) => [r.ids.join(','), r.dismissed, r.scope])).toEqual([['h,h2', true, "for every Holly 'Red' in this plan"]]);
+    // Show again: the plant's, and each copy's.
+    of('fruit')[0].again!();
+    expect(of('fruit').map((r) => [r.ids.join(','), r.dismissed])).toEqual([['h,h2', false]]);
+    // (Dismissed here and never sent: they go, as they were. Once sync has carried one, it's '', shown again on purpose:
+    // src/dismissals.ts clearForPlan, src/marks.ts mayMark.)
+    expect(['h', 'h2'].map((id) => shape(id).fruitDismissed)).toEqual([undefined, undefined]);
+    // Dismissed in words that have since changed (the catalog's facts): active again.
+    shape('h').fruitDismissed = line.replace('female', 'male');
+    expect(of('fruit').map((r) => [r.ids.join(','), r.dismissed])).toEqual([['h,h2', false]]);
+    // Narrowed ("Just these 2"): each copy there its own; one placed later is warned for.
+    dismissForPlan('fruit', holly.id, line);
+    warnForNewOnes('fruit', holly.id, line);
+    state.shapes.push(at('h3', holly.id, -60));
+    expect(of('fruit').map((r) => [r.ids.join(','), r.dismissed, r.scope])).toEqual([['h3', false, undefined], ['h,h2', true, 'for these 2']]);
+    // Switched off: none listed, dismissed or not.
+    state.fruitWarnings = false;
+    expect(of('fruit')).toEqual([]);
+  });
+
   it('lists the kinds safety first: poison, utilities, hardiness, sun, crowding, fruit partners', () => {
     state.household = { kids: true, dogs: '', cats: false, horses: false, answered: true };
     plantsById['wl-mayapple'] = { id: 'wl-mayapple', common: 'Mayapple', form: 'Perennial', width: { min: 1, max: 1.5, med: 1 }, poison: { severity: 'high', parts: ['leaves', 'roots'] } } as unknown as Plant;
     state.shapes.push(at('may', 'wl-mayapple', -80, { radius: 0.5 }));
     const kinds = planWarnings().map((r) => r.kind);
     expect([...new Set(kinds)]).toEqual(['poison', 'utility', 'hardy', 'sun', 'crowding', 'fruit']);
+    state.household = { kids: false, dogs: '', cats: false, horses: false, answered: false };
+  });
+
+  it('a dismissed poison warning stays dismissed with fewer in the yard at risk, and comes back with someone newly at risk (the warnings bug hunt, Nov 1)', () => {
+    plantsById['wl-mayapple'] = { id: 'wl-mayapple', common: 'Mayapple', form: 'Perennial', width: { min: 1, max: 1.5, med: 1 }, poison: { severity: 'high', parts: ['leaves', 'roots'] }, problem_for: ['dogs', 'cats'] } as unknown as Plant;
+    plantsById['wl-foxglove'] = { id: 'wl-foxglove', common: 'Foxglove', form: 'Perennial', width: { min: 1, max: 1.5, med: 1 }, poison: { severity: 'high', parts: ['leaves'] }, problem_for: ['dogs', 'cats'] } as unknown as Plant;
+    state.shapes.push(at('may', 'wl-mayapple', -80, { radius: 0.5 }), at('fox1', 'wl-foxglove', -90, { radius: 0.5 }), at('fox2', 'wl-foxglove', -100, { radius: 0.5 }));
+    const yard = (kids: boolean, dogs: boolean, cats: boolean) => { state.household = { kids, dogs: dogs ? 'hideToxic' : '', cats, horses: false, answered: true }; };
+    const poison = () => of('poison').map((r) => [r.ids.join(','), r.dismissed]);
+    yard(true, true, false);
+    // The mayapple across the plan; one foxglove by itself.
+    setDismissed(of('poison').filter((r) => r.ids.includes('may')), true);
+    state.shapes.find((s) => s.id === 'fox1')!.poisonDismissed = of('poison').find((r) => r.ids.includes('fox1'))!.key;
+    expect(poison()).toEqual([['fox2', false], ['may', true], ['fox1', true]]);
+    // The kids out of the yard, then the dogs too, then both back: still dismissed, as fewer (or the same) are at risk.
+    yard(false, true, false);
+    expect(poison()).toEqual([['fox2', false], ['may', true], ['fox1', true]]);
+    yard(false, false, false);
+    expect(poison()).toEqual([]); // (nobody in the yard: nothing to warn of)
+    yard(true, true, false);
+    expect(poison()).toEqual([['fox2', false], ['may', true], ['fox1', true]]);
+    // Cats added: newly at risk, so both come back.
+    yard(true, true, true);
+    expect(poison()).toEqual([['may', false], ['fox1,fox2', false]]);
+    // What's kept is what it said when dismissed.
+    expect(state.dismissed?.poison).toEqual({ 'wl-mayapple': 'Toxic to people; Toxic to dogs' });
     state.household = { kids: false, dogs: '', cats: false, horses: false, answered: false };
   });
 
@@ -212,7 +280,7 @@ describe('dismissing warnings from the list', () => {
     (state.shapes.find((s) => s.id === 'sunny') as Shape).label = 'Sunny strip';
     state.shapes.push(at('may', 'wl-mayapple', -80, { radius: 0.5 }));
     const [poison] = of('poison');
-    expect([poison.name, poison.said, poison.key]).toEqual(['Mayapple', 'Poisonous if eaten (high severity: leaves and roots); a problem for dogs', 'Poisonous to people; A problem for dogs']);
+    expect([poison.name, poison.said, poison.key]).toEqual(['Mayapple', 'Toxic if eaten (high severity: leaves and roots); toxic to dogs', 'Toxic to people; Toxic to dogs']);
     expect(of('sun').map((r) => [r.name, r.said])).toEqual([
       ['Wild ginger', 'Gets about 8 h of sun in Sunny strip; it prefers part shade to shade'], ['Wild ginger', 'Gets about 8 h of sun in Sunny strip; it prefers part shade to shade']]);
     expect(of('utility').map((r) => [r.name, r.said])).toEqual([['White oak', 'Grows to 54 ft, 10 ft from a power line']]);
@@ -239,11 +307,12 @@ describe('what the checks can do', () => {
   afterEach(() => { state.shapes = []; state.location = null; state.roleViews = {}; state.viewFilter = { status: '', phase: '', showGone: false }; });
   const cant = () => Object.fromEntries(kindStates().map((k) => [k.kind, k.on ? k.cantRun ?? 'runs' : 'off']));
 
-  it('a new plan: poison until kids or pets are chosen, utilities until one is drawn, hardiness until a ZIP, sun until a sun area', () => {
+  it('a new plan: poison until kids or pets are chosen, hardiness until a ZIP, sun until a sun area; utilities with none drawn can run (Jason, after release 3)', () => {
     state.shapes = [at('x', tropical.id, 0)];
-    expect(cant()).toEqual({ poison: 'yard', utility: 'utilities', hardy: 'zip', sun: 'sun', crowding: 'runs', fruit: 'runs' });
-    expect(warningsSummary()).toMatchObject({ active: 0, dismissed: 0, cantRun: 4, hidden: null });
-    expect(buttonSaid(warningsSummary())).toBe('Warnings: none found, 4 checks can’t run yet');
+    // (A yard may have no utility lines at all: none drawn isn't a check that can't run.)
+    expect(cant()).toEqual({ poison: 'yard', utility: 'runs', hardy: 'zip', sun: 'sun', crowding: 'runs', fruit: 'runs' });
+    expect(warningsSummary()).toMatchObject({ active: 0, dismissed: 0, cantRun: 3, hidden: null });
+    expect(buttonSaid(warningsSummary())).toBe('Warnings: none found, 3 checks can’t run yet');
     // Each given what it needs.
     state.household = { kids: true, dogs: '', cats: false, horses: false, answered: true };
     state.location = { zip: '71923', zone: '8a' };
@@ -272,7 +341,7 @@ describe('what the checks can do', () => {
     // (Not a false all-clear: the button says it's the plants shown.)
     state.viewFilter = { status: 'planned', phase: '', showGone: false };
     state.hardyWarnings = false;
-    expect(buttonSaid(warningsSummary())).toBe('Warnings: none in the plants shown (some plants hidden), 3 checks can’t run yet');
+    expect(buttonSaid(warningsSummary())).toBe('Warnings: none in the plants shown (some plants hidden), 2 checks can’t run yet');
     state.viewFilter = { status: '', phase: '', showGone: false };
     state.roleViews = { plant: { hidden: true } };
     expect(hiddenFromChecks()?.said).toBe('Layers: Plants hidden');

@@ -8,7 +8,7 @@ testers get them together, as one update, when Jason says so.
 | Branch | What happens | Who sees it |
 | --- | --- | --- |
 | a pull request's | tested | — |
-| `main` (each merged pull request) | tested, then built as **Next** and published at **next.fullgrown.garden** (about 25 minutes after the merge) | Jason, trying it |
+| `main` (each merged pull request) | type-checked and unit-tested (its end-to-end tests ran on its pull request), then built as **Next** and published at **next.fullgrown.garden** (about 25 minutes after the merge) | Jason, trying it |
 | `release` (a release pull request from main) | tested, then deployed to **app.fullgrown.garden** | testers, and Jason's own plans |
 
 Next (`src/channel.ts`, `APP_CHANNEL=next`) is the same app with:
@@ -25,7 +25,8 @@ Next (`src/channel.ts`, `APP_CHANNEL=next`) is the same app with:
 1. Each change is built on its own branch; the type check, the unit tests and the end-to-end tests that cover it pass,
    and a pull request into `main` is opened. A change people will notice adds its What's new lines in that pull
    request (below). CI is the full check (Jason, Nov 1): it runs every test on the pull request as it would merge into
-   main, in about 3 minutes, and a pull request is ready to merge once it passes.
+   main, in about 3 minutes, and a pull request is ready to merge once it passes. (The merge itself isn't run through
+   the end-to-end tests again, to save CI minutes (Jason, Nov 6): a release pull request is, before testers get it.)
 2. Jason merges pull requests whenever he likes. Merging updates Next only.
 3. Jason tries Next when he has a few minutes: it's installed on his phone beside the real app.
 
@@ -57,6 +58,17 @@ I don't release on my own, and never push to `release` directly.
 **An urgent fix** goes the same way, released at once. If main holds changes Jason hasn't tried, the fix is instead
 branched from `release`, sent as a pull request into `release` (tested, then deployed once merged), and then brought
 back into main by a pull request from `release`.
+
+**Never deploy a build whose database version is lower than the live one's** (`DB_VERSION` in src/db.ts; the live
+site's is at /db-version.txt): not a revert, a rollback, or a re-run of an older CI run. Every device that opened the
+newer version would find its plans refused. Fix forward instead: a fix on top, at the same version or higher. CI
+refuses such a deploy, and any but the branch's head (scripts/release/deploy-guard.sh; docs/storage.md).
+
+**Never use "Re-run" on a CI run from before the deploy guard** (the old-tab-guard pull request, Nov 2026). A re-run
+uses the workflow file of the commit it ran for, and those have no guard: re-running an old run of `main` or `release`
+would deploy that old build, at database version 1, over a newer one (2, then 3 and 4 from Nov 2, 5 and 6 from Nov 4). To be sure even of a mistaken click, Jason can
+require approval for every deploy: Settings → Environments → github-pages → Required reviewers (the release deploy;
+Next publishes from the `next` job, which a re-run of an old `main` run would still do without asking).
 
 ## What's new
 

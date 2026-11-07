@@ -7,7 +7,13 @@ let timer: ReturnType<typeof setTimeout> | null = null;
 /** When the plain notice last went up. */
 let shownAt = 0;
 
-export function toast(message: string, ms = 3000) {
+let keptUntil = 0;
+/**
+ * A plain notice. `keep`: not to be covered by a passing hint while it shows (`keptToastUp`), as a swap's "Swapped for
+ * …" isn't by the ring's hint when its sheet closes (Jason, Nov 5).
+ */
+export function toast(message: string, ms = 3000, { keep = false }: { keep?: boolean } = {}) {
+  keptUntil = keep ? Date.now() + ms : 0;
   let node = document.getElementById('toast');
   if (!node) {
     node = document.createElement('div');
@@ -28,6 +34,9 @@ export function toast(message: string, ms = 3000) {
   // (Its words go with it: a screen reader, and the page's text, kept reading old notices long after: round 2, Oct 30.)
   timer = setTimeout(() => { n.classList.remove('show'); timer = setTimeout(() => { if (!n.classList.contains('show')) n.textContent = ''; }, 400); }, ms);
 }
+
+/** A notice raised with `keep` is still up. */
+export const keptToastUp = (): boolean => Date.now() < keptUntil && !!document.getElementById('toast')?.classList.contains('show');
 
 /**
  * A plain notice raised before what just opened (a sheet, the ⋮ menu): put away, not left over its title or its rows
@@ -59,6 +68,10 @@ export function hideToastSaying(re: RegExp) {
 export function placeToast(node: HTMLElement) {
   node.style.top = '';
   node.style.bottom = '';
+  node.style.left = '';
+  // (Beside the plant picker's panel, on a computer: over the plan left of it, not across the panel.)
+  const side = besidePanel();
+  if (side) { const w = document.getElementById('canvas-wrap')?.getBoundingClientRect(); if (w) node.style.left = `${Math.round((w.left + side.left) / 2)}px`; }
   if (document.querySelector('.sheet')) {
     // (Under the guided introduction's card, which sits at the top while a sheet is open.)
     const card = document.querySelector('.intro-card.at-top')?.getBoundingClientRect();
@@ -67,7 +80,7 @@ export function placeToast(node: HTMLElement) {
     return;
   }
   let top = Infinity;
-  for (const e of document.querySelectorAll('.sel-pill, .multi-bar, .walk-chip, .intro-card')) {
+  for (const e of document.querySelectorAll('.sel-pill, .multi-bar, .walk-chip, .intro-card, .trace-card')) {
     const r = e.getBoundingClientRect();
     if (r.height > 0) top = Math.min(top, r.top);
   }
@@ -77,15 +90,20 @@ export function placeToast(node: HTMLElement) {
 /**
  * A notice with buttons ("Squared the corners. Undo"), kept up long enough to reach: tapping a button runs it
  * and closes the notice (unless it's `keep`: turning a setting off leaves the Undo there). A new notice
- * replaces it. With `detail`, the message is one short line that opens to say more (Jason, 2026-10-27: a notice
- * mustn't get in the way); opened, it stays up while it's read. `tone` marks it amber or red.
+ * replaces it: one for something new always does, and only notices about the same placement or action keep an order
+ * of their own (noticeAbout). With `detail`, the message is one short line that opens to say more (Jason, 2026-10-27: a notice
+ * mustn't get in the way); opened, it stays up while it's read. `tone` marks it amber or red. `sub`: a second, quieter
+ * line under the message. `untilAction`: no time limit; it goes at the first thing done anywhere else (a press, a key,
+ * the wheel), so it never covers what the person came to do (the start's cards: src/ui/welcome-card.ts). A question
+ * up over it (src/ui/ask.ts) isn't that: answered, it's still there.
  */
-export function toastAction(message: string, actions: { label: string; run: () => void; keep?: boolean; className?: string }[], ms = 10000, testid?: string,
-  opts: { detail?: string; tone?: 'amber' | 'red' } = {}) {
+export function toastAction(message: string, actions: { label: string; run: () => void; keep?: boolean; className?: string; icon?: string }[], ms = 10000, testid?: string,
+  opts: { detail?: string; tone?: 'amber' | 'red'; sub?: string; untilAction?: boolean } = {}) {
   toast('', 1); // (clears a plain toast)
   document.getElementById('toast-action')?.remove();
   const node = document.createElement('div');
   node.id = 'toast-action';
+  raisedAt.set(node, Date.now());
   if (testid) node.dataset.testid = testid;
   if (opts.tone) node.classList.add(`tone-${opts.tone}`);
   node.setAttribute('role', 'status');
@@ -117,14 +135,24 @@ export function toastAction(message: string, actions: { label: string; run: () =
   } else {
     const text = document.createElement('span');
     text.textContent = tapSaid(message);
+    if (opts.sub) {
+      node.classList.add('has-sub');
+      const sub = document.createElement('span');
+      sub.className = 'notice-sub';
+      sub.textContent = tapSaid(opts.sub);
+      text.appendChild(sub);
+    }
     node.appendChild(text);
   }
   const buttons = document.createElement('div');
   buttons.className = 'notice-buttons';
   for (const a of actions) {
     const b = document.createElement('button');
-    b.textContent = tapSaid(a.label);
     if (a.className) b.className = a.className;
+    // (An icon in place of its word, named for screen readers and on hover: the crowding notice's Settings, so its
+    // four buttons keep to one row by the place bar.)
+    if (a.icon) { b.innerHTML = a.icon; b.setAttribute('aria-label', a.label); b.title = a.label; b.classList.add('notice-icon'); }
+    else b.textContent = tapSaid(a.label);
     b.addEventListener('click', () => { if (a.keep) b.remove(); else node.remove(); a.run(); });
     buttons.appendChild(b);
   }
@@ -142,14 +170,71 @@ export function toastAction(message: string, actions: { label: string; run: () =
   document.body.appendChild(node);
   placeNotice();
   requestAnimationFrame(placeNotice);
+  if (opts.untilAction) { goesAtFirstAction(node); return; }
   const tick = () => { if (!node.isConnected) return; const left = closeAt - Date.now(); if (left <= 0) node.remove(); else setTimeout(tick, left); };
   setTimeout(tick, ms);
+}
+/** When each notice with buttons went up (ms). */
+const raisedAt = new WeakMap<Element, number>();
+/**
+ * The notice with buttons that's up, if any: its kind (testid), the shape it's about (`about`, set by the notices about a
+ * plant or a building), and when it went up (ms).
+ */
+export function noticeUp(): { testid?: string; about?: string; at: number } | null {
+  const n = document.getElementById('toast-action');
+  return n ? { testid: n.dataset.testid, about: n.dataset.about, at: raisedAt.get(n) ?? 0 } : null;
+}
+/**
+ * Whether a notice that's up is about this shape: the same placement, whose notice said first keeps its place (a
+ * plant placed too close: its crowding notice before its hardiness one). A notice about anything else is older, and a
+ * new one replaces it (Jason, Nov 4: a crowding notice didn't show while "Nudged… Undo" for the last plant was up, and
+ * the hardiness and fruit-partner notices skipped whenever any notice was up).
+ */
+export const noticeAbout = (id: string): boolean => noticeUp()?.about === id;
+/** Keys that move around the page or hold others, not an action: Tab reaches the notice's own buttons. */
+const NOT_ACTIONS = ['Tab', 'Shift', 'Control', 'Alt', 'Meta', 'CapsLock'];
+/**
+ * The notice goes at the first press, key or wheel anywhere but on it (or on a question asked over it). Only the notice
+ * is taken away, nothing redrawn: the press may be the start of a pinch or a drag on the plan.
+ */
+function goesAtFirstAction(node: HTMLElement) {
+  const kinds = ['pointerdown', 'keydown', 'wheel'] as const;
+  const stop = () => { for (const k of kinds) window.removeEventListener(k, away, true); };
+  function away(e: Event) {
+    if (!node.isConnected) { stop(); return; }
+    const t = e.target instanceof Element ? e.target : null;
+    if (t && (node.contains(t) || t.closest('.ask-overlay'))) return;
+    if (e instanceof KeyboardEvent && NOT_ACTIONS.includes(e.key)) return;
+    stop();
+    node.remove();
+  }
+  for (const k of kinds) window.addEventListener(k, away, true);
 }
 /**
  * Where a notice with buttons sits: at the top of the plan; with a sheet open, just above the sheet, so it never
  * covers the sheet's own buttons (its close, say), and as high as the screen allows when the sheet is tall.
  * Run after every render (a sheet opening under a notice moves it).
  */
+/**
+ * The plan's room across (px) for a notice at its top: clear of its side buttons (Warnings, with its count, first among
+ * them), and of Warnings beside the plan on a computer, which is beside the plan, not on it (the warnings bug hunt, Nov
+ * 1: a placed plant's notice covered the Warnings button and its count on a phone; on a computer, a dismissal's covered
+ * the button and Warnings' own header). Null with no plan, or too little room to be worth it.
+ */
+/**
+ * The plant picker's panel beside the plan, on a computer (src/ui/picker-view.ts marks its layer), where it is: the plan
+ * is in view beside it, so a notice goes where it would with no sheet open, in the plan's room left of it.
+ */
+function besidePanel(): DOMRect | null {
+  return document.querySelector('.picker-overlay.beside > .picker-sheet')?.getBoundingClientRect() ?? null;
+}
+export function planRoomAcross(): { x0: number; x1: number } | null {
+  const wrap = document.getElementById('canvas-wrap')?.getBoundingClientRect();
+  if (!wrap || !wrap.width) return null;
+  const side = document.querySelector('#canvas-wrap .zoombtns')?.getBoundingClientRect();
+  const x0 = Math.max(8, wrap.left + 8), x1 = Math.min(window.innerWidth - 8, (side && side.width ? side.left : wrap.right) - 8);
+  return x1 - x0 >= 200 ? { x0, x1 } : null;
+}
 export function placeNotice() {
   // A plain notice up when the screen changed (a sheet opened over where it was): placed again, at the top over a
   // sheet (round 2, Oct 30: "Tap again for the bed under it." sat on the plant's edit pane).
@@ -161,7 +246,17 @@ export function placeNotice() {
   // Undo took the plant back, and its Move it then had nothing to move).
   if (node.dataset.about && !state.shapes.some((x) => x.id === node.dataset.about)) { node.remove(); return; }
   node.style.top = '';
-  const sheet = document.querySelector('.sheet');
+  node.style.left = '';
+  node.style.maxWidth = '';
+  // (Beside the plant picker's panel, on a computer, the plan's in view: as with no sheet open, left of the panel.)
+  const side = besidePanel();
+  const sheet = side ? null : document.querySelector('.sheet');
+  const across = () => {
+    const r = planRoomAcross();
+    if (!r || !side) return r;
+    const x1 = Math.min(r.x1, side.left - 8);
+    return x1 - r.x0 >= 200 ? { x0: r.x0, x1 } : null;
+  };
   // (Placing: just above the place bar, by the thumb, its buttons in one row. At the top it covered the new plant and
   // the hint, a third of a small phone at large text. Jason, Oct 31, from round 3: Bea.)
   const bar = !sheet && state.placing ? document.querySelector<HTMLElement>('[data-testid=place-bar]') : null;
@@ -169,15 +264,45 @@ export function placeNotice() {
   if (bar) {
     const h = node.getBoundingClientRect().height;
     node.style.top = `${Math.max(8, Math.round(bar.getBoundingClientRect().top - h - 8))}px`;
+    const room = side ? across() : null;
+    if (room) { node.style.left = `${Math.round((room.x0 + room.x1) / 2)}px`; node.style.maxWidth = `${Math.round(room.x1 - room.x0)}px`; }
     return;
+  }
+  // At the top of the plan, in its room across: clear of the side buttons and of Warnings beside the plan.
+  const room = !sheet ? across() : null;
+  if (room) {
+    node.style.left = `${Math.round((room.x0 + room.x1) / 2)}px`;
+    node.style.maxWidth = `${Math.round(room.x1 - room.x0)}px`;
   }
   // (An update's banner under the top bar, src/pwa.ts: the notice just below it, not over its Update.)
   const update = !sheet ? document.getElementById('update-banner') : null;
-  if (update?.closest('.app')) { node.style.top = `${Math.round(update.getBoundingClientRect().bottom + 8)}px`; return; }
-  if (!sheet) return;
+  if (update?.closest('.app')) node.style.top = `${Math.round(update.getBoundingClientRect().bottom + 8)}px`;
+  // (Moving the photo: just below the strip saying how, its words and its ✕ left in sight. "Move the plan with the
+  // photo?" comes up after each drag there: src/ui/rescale-card.ts.)
+  const strip = !sheet && state.bgEditMode ? document.querySelector('[data-testid=mode-strip]')?.getBoundingClientRect() : null;
+  if (strip?.height) node.style.top = `${Math.round(strip.bottom + 8)}px`;
+  if (!sheet) { keepOffItsShape(node); return; }
   const sheetTop = sheet.getBoundingClientRect().top;
   const h = node.getBoundingClientRect().height;
   node.style.top = `${Math.max(8, Math.round(sheetTop - h - 8))}px`;
+}
+/**
+ * A notice about a shape (a building asked about its size, a plant placed too close) never covers it (Jason, Nov 2,
+ * from the UI review): at the top of the plan it would, it goes to the foot of the plan instead, above what's there.
+ */
+function keepOffItsShape(node: HTMLElement) {
+  const id = node.dataset.about;
+  const drawn = id && /^[\w-]+$/.test(id) ? document.querySelectorAll(`#canvas-svg [data-shape-id="${id}"]`) : [];
+  if (!drawn.length) return;
+  const n = node.getBoundingClientRect();
+  const covers = [...drawn].some((e) => { const r = e.getBoundingClientRect(); return r.left < n.right && n.left < r.right && r.top < n.bottom && n.top < r.bottom; });
+  if (!covers) return;
+  let foot = document.getElementById('canvas-wrap')?.getBoundingClientRect().bottom ?? window.innerHeight;
+  for (const e of document.querySelectorAll('#canvas-wrap .sel-pill, #canvas-wrap .multi-bar, #canvas-wrap .trace-card, .intro-card')) {
+    const r = e.getBoundingClientRect();
+    if (r.height) foot = Math.min(foot, r.top);
+  }
+  node.style.top = `${Math.max(8, Math.round(foot - n.height - 8))}px`;
 }
 /** How far a notice is swiped before it goes on its own (px), or how fast (px a millisecond). */
 const SWIPE_AWAY = 80, SWIPE_FLICK = 0.5;
@@ -223,3 +348,12 @@ function swipeAway(node: HTMLElement) {
 }
 /** Close a notice with buttons, if one is up (the next drawing starts, say). */
 export function dismissToastAction() { document.getElementById('toast-action')?.remove(); }
+/**
+ * Another plan opened, or a new one made: the last plan's notices put away (the general bug hunt, Nov 1: a backup's
+ * notice stayed up over the new, empty plan; an Undo left up would undo in the plan opened). A plain notice raised as
+ * it opened stays (the import that opened it says what came in).
+ */
+export function planChanged() {
+  hideOldToast();
+  dismissToastAction();
+}
