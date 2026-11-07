@@ -82,6 +82,10 @@ test('Clear all keeps what it took: the empty plan offers it back, after a reloa
   await page.locator('.menu-item', { hasText: 'Clear all shapes in project' }).click();
   await page.locator('.modal').getByRole('button', { name: 'Clear all' }).click();
   await expect.poll(() => shapeCount(page)).toBe(0);
+  // (Saved first, as a person would see it: a reload in the very moment after, before the browser had written what
+  // Clear all took, lost it now and then on CI, before Nov 6's changes as after. The plan's journal keeps the clearing
+  // itself across such a reload; the offer is a convenience.)
+  await expect(page.locator('.project-btn')).not.toContainText('Saving');
   await page.reload();
   await expect(page.getByTestId('bring-back')).toHaveText('Bring back what Clear all took (2 shapes)');
   await page.getByTestId('bring-back').click();
